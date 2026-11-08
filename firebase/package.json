@@ -8,7 +8,7 @@
     "test:rules": "firebase emulators:exec --config firebase.test.json --project demo-app --only firestore \"vitest run\"",
     "typecheck": "tsc -p tsconfig.json",
     "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
-    "deploy:hosting": "npm -w web run build && firebase deploy --only hosting"
+    "deploy:hosting": "npm --prefix ../web run build && firebase deploy --only hosting"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^6.0.0",

@@ -21,3 +21,4 @@ playwright-report/
 *-service-account*.json
 serviceAccount*.json
 .DS_Store
+!web/.env.emulator

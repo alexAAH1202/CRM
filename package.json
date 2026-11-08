@@ -21,7 +21,10 @@
     "format:check": "prettier --check .",
     "test": "npm run test --workspaces --if-present",
     "test:rules": "npm -w firebase run test:rules",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:rules && npm run build"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:rules && npm -w web run build:emulator && npm -w apps-script run build",
+    "deploy:rules": "npm -w firebase run deploy:rules",
+    "deploy:hosting": "npm -w firebase run deploy:hosting",
+    "firebase": "npm -w firebase exec -- firebase"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

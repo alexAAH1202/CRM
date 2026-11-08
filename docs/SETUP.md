@@ -99,57 +99,128 @@ Reply "done" with the values I ask for after each one.
       `alexwinch@gmail.com` and `aevans.osteo@gmail.com` (lowercase).
    4. Save.
 
-### B3b. Register the web app and give me the config
+### B3b. Register the web app and get its config
 
-1. Go to **Project settings** (gear icon) → **General** → **Your apps** →
-   the **Web** icon (`</>`).
-2. Use nickname `web`. Tick **"Also set up Firebase Hosting"**, then
-   **Register app**.
-3. The console shows a `firebaseConfig` object. Create `web/.env.local` (never
-   committed) containing:
+1. In the Firebase console, open the project. Click the **gear icon** next to
+   "Project Overview" (top-left), then **Project settings**.
+2. Stay on the **General** tab and scroll to **Your apps** ("There are no apps
+   in your project").
+3. Click the **`</>`** (Web) icon.
+4. **App nickname:** `web`. **Tick "Also set up Firebase Hosting for this
+   app"**. A site dropdown appears; keep the default (your project ID).
+   Click **Register app**.
+5. **Add Firebase SDK:** the console shows `npm install firebase` and a code
+   block containing `const firebaseConfig = { apiKey: "...", authDomain: "...",
+projectId: "...", storageBucket: "...", messagingSenderId: "...", appId: "...",
+measurementId?: "..." }`. **Copy the values of `apiKey`, `authDomain`,
+   `projectId` and `appId`.** We don't use the others. Click **Next**.
+6. **Install Firebase CLI / Deploy to Firebase Hosting:** click **Next**, then
+   **Continue to console**. **Don't run `firebase init`.** The repo already has
+   `firebase/firebase.json`, and init would overwrite it.
+7. You can find the config again any time under Project settings → General →
+   Your apps → `web` → **SDK setup and configuration → Config**.
 
+Create `web/.env.local` in your local copy of the repo. It's gitignored. Copy
+`web/.env.example` and fill it in:
+
+```
+VITE_FIREBASE_API_KEY=AIza...
+VITE_FIREBASE_AUTH_DOMAIN=<project-id>.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=<project-id>
+VITE_FIREBASE_APP_ID=1:123456789:web:abc123
+```
+
+- Use no quotes and no spaces around `=`.
+- This config is public by design: it identifies the project, and the security
+  rules protect the data. Pasting it in chat is fine.
+- `npm run build` refuses to run if these values are missing.
+- `npm run dev` ignores them and keeps using the emulators.
+
+### B3c. Log in with the Firebase CLI and deploy
+
+This needs a local copy of the repo on your computer, because `firebase login`
+opens a browser.
+
+**One-time machine setup:**
+
+1. Install **Node 22 LTS** from https://nodejs.org. Check with `node -v`.
+2. Install **Git** from https://git-scm.com. Check with `git --version`.
+3. Clone the repo and install:
+
+   ```bash
+   git clone https://github.com/alexaah1202/crm.git
    ```
-   VITE_FIREBASE_API_KEY=...
-   VITE_FIREBASE_AUTH_DOMAIN=<project-id>.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=<project-id>
-   VITE_FIREBASE_APP_ID=...
+
+   ```bash
+   cd crm
    ```
 
-   This config is public by design (it identifies the project; the security
-   rules protect the data). It's fine to paste it to me in chat.
+   ```bash
+   git checkout claude/new-session-myi9sm
+   ```
 
-### B3c. Install the Firebase CLI and deploy
+   Use `main` here once the branch is merged.
 
-The CLI is already a dev dependency, so `npx firebase` works.
+   ```bash
+   npm install
+   ```
+
+4. Create `web/.env.local` as in B3b.
+
+**Link the CLI to your project** (once per machine). Run these from the repo
+root:
 
 ```bash
-cd firebase
+npm run firebase -- login
 ```
+
+- A browser opens. Choose the Google account that owns the Firebase project and
+  click **Allow**.
+- The terminal prints "Success! Logged in as ...".
+- If it asks about Gemini or usage collection, either answer is fine.
 
 ```bash
-npx firebase login
+npm run firebase -- use --add
 ```
 
-```bash
-npx firebase use --add
-```
+- Use the arrow keys to pick your project ID and press Enter.
+- At "What alias do you want to use for this project?" type `default` and press
+  Enter.
+- This creates `firebase/.firebaserc`. It contains only the project ID and is
+  safe to commit.
 
-When prompted, pick your project and give it the alias `default`. This writes
-`firebase/.firebaserc`, which is safe to commit.
-
-Deploy the rules and indexes:
+**Deploy the security rules and indexes:**
 
 ```bash
 npm run deploy:rules
 ```
 
-Build and deploy Hosting:
+You should see `✔ cloud.firestore: rules file firestore.rules compiled
+successfully` and `✔ Deploy complete!`. Check in the console under Firestore →
+**Rules**: the published rules now match `firebase/firestore.rules`.
+
+**Build and deploy the website:**
 
 ```bash
 npm run deploy:hosting
 ```
 
-The app is then live at `https://<project-id>.web.app`.
+This builds `web/dist` and uploads it. The output ends with `Hosting URL:
+https://<project-id>.web.app`. Open that URL; you should see the sign-in page,
+with no "Emulators" badge.
+
+**Redeploying later:** run `git pull`, then `npm run deploy:rules` and/or
+`npm run deploy:hosting` again. Each Hosting deploy is kept as a release you can
+roll back to (Hosting → release history → ⋮ → **Rollback**).
+
+**Troubleshooting**
+
+| Problem                                                | Fix                                                                                            |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `Missing VITE_FIREBASE_...`                            | `web/.env.local` is missing or misspelled. It must be inside `web/`, not the repo root.        |
+| `No currently active project`                          | Run `npm run firebase -- use --add` again.                                                     |
+| `HTTP Error: 403, The caller does not have permission` | You're logged into a different Google account. Run `npm run firebase -- logout`, then `login`. |
+| Sign-in popup says `auth/unauthorized-domain`          | Add the domain under Authentication → Settings → Authorized domains.                           |
 
 ### B4. Apps Script helper (Phase 7, detailed instructions then)
 
