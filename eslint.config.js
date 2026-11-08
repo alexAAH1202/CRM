@@ -22,6 +22,7 @@ export default tseslint.config(
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      'firebase/public/**',
       '**/coverage/**',
       'firebase/emulator-data/**',
       'apps-script/scripts/**',

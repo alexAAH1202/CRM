@@ -20,6 +20,9 @@ export default defineConfig(({ command, mode }) => {
     plugins: [react(), tailwindcss()],
     server: { port: 5173, strictPort: true },
     build: {
+      // Firebase Hosting only deploys folders inside firebase/, so build straight there.
+      outDir: '../firebase/public',
+      emptyOutDir: true,
       target: 'es2022',
       sourcemap: false,
       // The Firestore SDK (with persistent cache) is ~600 kB raw / ~185 kB gzip on its own,

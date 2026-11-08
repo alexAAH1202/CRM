@@ -38,13 +38,13 @@ npm run dev
 
 Other scripts:
 
-| Command              | What it does                                                                      |
-| -------------------- | --------------------------------------------------------------------------------- |
-| `npm run check`      | Everything CI runs: format check, lint, typecheck, unit tests, rules tests, build |
-| `npm test`           | Unit tests (Vitest)                                                               |
-| `npm run test:rules` | Starts a throwaway Firestore emulator and runs the security-rules tests           |
-| `npm run build`      | Production build into `web/dist`, plus Apps Script into `apps-script/dist`        |
-| `npm run format`     | Prettier write                                                                    |
+| Command              | What it does                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------- |
+| `npm run check`      | Everything CI runs: format check, lint, typecheck, unit tests, rules tests, build                       |
+| `npm test`           | Unit tests (Vitest)                                                                                     |
+| `npm run test:rules` | Starts a throwaway Firestore emulator and runs the security-rules tests                                 |
+| `npm run build`      | Production build into `firebase/public` (what Hosting serves), plus Apps Script into `apps-script/dist` |
+| `npm run format`     | Prettier write                                                                                          |
 
 Dev usage meter: set `VITE_USAGE_METER=true` in `web/.env.local`, or run
 `localStorage.setItem('usageMeter','1')` in the browser console and reload. A
