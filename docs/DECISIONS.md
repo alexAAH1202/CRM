@@ -149,3 +149,28 @@ Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
 - **Reason:** these are local CLIs that never ship to the browser, and
   `npm audit fix --force` would downgrade them to old major versions.
   Re-check in Phase 9.
+
+### D20. Deploy from GitHub Actions with a narrowly-scoped service account
+
+- **Decided by:** the product owner (2026-11-08), who has no local copy of the
+  repo.
+- **Alternatives:**
+  - Deploy from a laptop with `firebase login`.
+  - Run `firebase login --no-localhost` inside the Claude cloud session. That
+    would leave a Google login token in the container and need a re-login
+    every session.
+- **How it works:** pushes to `main` (or a manual run) run `npm run check` and
+  then `firebase deploy`. The service-account key lives only in the GitHub
+  secret `FIREBASE_SERVICE_ACCOUNT`.
+- **Roles (least privilege):**
+  - Hosting Admin
+  - Rules Admin
+  - Datastore Index Admin
+  - API Keys Viewer
+  - Service Usage Consumer
+
+  No Cloud Functions, Auth or data access roles.
+
+- **Firebase web config:** stored as plain env values in the deploy workflow.
+  It's public by design, and this avoids four extra repository variables. This
+  is a small deviation from "keep it in env files".

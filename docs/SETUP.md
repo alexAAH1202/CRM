@@ -136,86 +136,79 @@ VITE_FIREBASE_APP_ID=1:123456789:web:abc123
 - `npm run build` refuses to run if these values are missing.
 - `npm run dev` ignores them and keeps using the emulators.
 
-### B3c. Log in with the Firebase CLI and deploy
+### B3c. Automatic deploys from GitHub (no local computer needed)
 
-This needs a local copy of the repo on your computer, because `firebase login`
-opens a browser.
+Deploys run in GitHub Actions (`.github/workflows/deploy.yml`):
 
-**One-time machine setup:**
+- **Automatically** on every push to `main`. Merging a phase's pull request
+  deploys it.
+- **Manually** from GitHub → **Actions** → **Deploy** → **Run workflow**.
 
-1. Install **Node 22 LTS** from https://nodejs.org. Check with `node -v`.
-2. Install **Git** from https://git-scm.com. Check with `git --version`.
-3. Clone the repo and install:
+Each run first runs the full `npm run check` (lint, types, unit tests and
+security-rules tests). Only if that passes does it deploy the Firestore rules,
+indexes and website.
 
-   ```bash
-   git clone https://github.com/alexaah1202/crm.git
-   ```
+For this, GitHub needs a Google Cloud **service account**: a robot account
+limited to deploying. You set it up once, in a browser.
 
-   ```bash
-   cd crm
-   ```
+#### 1. Create the deploy account (Google Cloud console)
 
-   ```bash
-   git checkout claude/new-session-myi9sm
-   ```
+1. Open
+   https://console.cloud.google.com/iam-admin/serviceaccounts?project=life-management-de315
+   and sign in with the account that owns the Firebase project. Check that the
+   project picker in the top bar shows **life-management-de315**.
+2. Click **+ Create service account**.
+   - **Service account name:** `github-deployer`. The ID fills itself in.
+   - Click **Create and continue**.
+3. **Permissions:** click **Select a role**, type each name below into the
+   filter, and pick it. Click **+ Add another role** between them.
+   - **Firebase Hosting Admin**
+   - **Firebase Rules Admin**
+   - **Cloud Datastore Index Admin**
+   - **API Keys Viewer**
+   - **Service Usage Consumer**
 
-   Use `main` here once the branch is merged.
+   Click **Continue**, then **Done**. Skip the "principals with access" step.
 
-   ```bash
-   npm install
-   ```
+4. In the list, click the new **github-deployer@life-management-de315.iam.gserviceaccount.com**.
+5. Open the **Keys** tab and choose **Add key → Create new key → JSON → Create**.
+   A `.json` file downloads.
 
-4. Create `web/.env.local` as in B3b.
+⚠️ That file is a password for deploying your project. **Don't paste it into
+chat, email it, or commit it.** It only goes into GitHub's encrypted secrets
+(next step). If it ever leaks, delete the key on the same Keys tab and create a
+new one.
 
-**Link the CLI to your project** (once per machine). Run these from the repo
-root:
+#### 2. Store it as a GitHub secret
 
-```bash
-npm run firebase -- login
-```
+1. Open https://github.com/alexAAH1202/CRM/settings/secrets/actions. You can
+   also get there from the repo's **Settings → Secrets and variables → Actions**.
+2. Click **New repository secret**.
+   - **Name:** `FIREBASE_SERVICE_ACCOUNT` (exactly this).
+   - **Secret:** open the downloaded `.json` file in a text editor (Notepad,
+     TextEdit), select all, copy, and paste it here. It starts with `{` and
+     ends with `}`.
+   - Click **Add secret**.
+3. Delete the downloaded `.json` file from your computer, and empty the trash.
 
-- A browser opens. Choose the Google account that owns the Firebase project and
-  click **Allow**.
-- The terminal prints "Success! Logged in as ...".
-- If it asks about Gemini or usage collection, either answer is fine.
+#### 3. Run the first deploy
 
-The repo is already linked to the project **`life-management-de315`** through
-the committed `firebase/.firebaserc`, so you don't need `firebase use --add`.
-To check, run `npm run firebase -- use`; it should print
-`life-management-de315`.
+Open https://github.com/alexAAH1202/CRM/actions/workflows/deploy.yml, click
+**Run workflow** (keep the branch shown), then **Run workflow** again.
 
-**Deploy the security rules and indexes:**
+- The run takes about 3–4 minutes. A green tick means it worked.
+- The site is at https://life-management-de315.web.app.
+- If it fails, tell me. I can read the logs and fix it.
 
-```bash
-npm run deploy:rules
-```
+#### Alternative: deploy from your own computer
 
-You should see `✔ cloud.firestore: rules file firestore.rules compiled
-successfully` and `✔ Deploy complete!`. Check in the console under Firestore →
-**Rules**: the published rules now match `firebase/firestore.rules`.
+If you ever want a local copy:
 
-**Build and deploy the website:**
-
-```bash
-npm run deploy:hosting
-```
-
-This builds `web/dist` and uploads it. The output ends with `Hosting URL:
-https://<project-id>.web.app`. Open that URL; you should see the sign-in page,
-with no "Emulators" badge.
-
-**Redeploying later:** run `git pull`, then `npm run deploy:rules` and/or
-`npm run deploy:hosting` again. Each Hosting deploy is kept as a release you can
-roll back to (Hosting → release history → ⋮ → **Rollback**).
-
-**Troubleshooting**
-
-| Problem                                                | Fix                                                                                            |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `Missing VITE_FIREBASE_...`                            | `web/.env.local` is missing or misspelled. It must be inside `web/`, not the repo root.        |
-| `No currently active project`                          | Run `npm run firebase -- use --add` again.                                                     |
-| `HTTP Error: 403, The caller does not have permission` | You're logged into a different Google account. Run `npm run firebase -- logout`, then `login`. |
-| Sign-in popup says `auth/unauthorized-domain`          | Add the domain under Authentication → Settings → Authorized domains.                           |
+1. Install Node 22 and Git.
+2. Run `git clone https://github.com/alexAAH1202/CRM.git`, then `npm install`.
+3. Create `web/.env.local` (values in `.github/workflows/deploy.yml`).
+4. Run `npm run firebase -- login`.
+5. Deploy with `npm run deploy:rules` and `npm run deploy:hosting`.
 
 ### B4. Apps Script helper (Phase 7, detailed instructions then)
 
