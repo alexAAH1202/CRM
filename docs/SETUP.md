@@ -179,15 +179,10 @@ npm run firebase -- login
 - The terminal prints "Success! Logged in as ...".
 - If it asks about Gemini or usage collection, either answer is fine.
 
-```bash
-npm run firebase -- use --add
-```
-
-- Use the arrow keys to pick your project ID and press Enter.
-- At "What alias do you want to use for this project?" type `default` and press
-  Enter.
-- This creates `firebase/.firebaserc`. It contains only the project ID and is
-  safe to commit.
+The repo is already linked to the project **`life-management-de315`** through
+the committed `firebase/.firebaserc`, so you don't need `firebase use --add`.
+To check, run `npm run firebase -- use`; it should print
+`life-management-de315`.
 
 **Deploy the security rules and indexes:**
 
