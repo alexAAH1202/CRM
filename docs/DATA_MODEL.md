@@ -1,0 +1,273 @@
+# Data model (Firestore)
+
+> **Status: draft for review (Phase 0).** Changes from the starting proposal in
+> `PROJECT_SPEC.md` §5 are marked **[changed]** and explained in `DECISIONS.md`.
+
+All application data lives under `workspaces/{wid}` (multi-workspace ready). Two
+small top-level collections exist outside it: `users` and `appConfig`.
+
+Conventions:
+
+- IDs are Firestore auto-IDs unless stated otherwise.
+- `*At` fields are **server timestamps** (`serverTimestamp()`); rules check
+  `== request.time` where trust matters.
+- String length caps and array caps are enforced in rules; the numbers live in
+  `shared/src/constants.ts` and are mirrored in `firestore.rules`.
+- Ordering uses **fractional index strings** (`order`), so a drag-reorder writes
+  exactly one document.
+
+---
+
+## Top level
+
+### `appConfig/workspaceCreators` **[new]**
+
+```ts
+{ emails: string[] }   // lowercased Google emails allowed to create workspaces
+```
+
+Written only from the Firebase console (no client write rule). A signed-in user
+may `get` it only if their verified email is in the list. This keeps the
+allowlist out of git and editable without a rules deploy.
+
+### `users/{uid}`
+
+```ts
+{ displayName, email, photoURL, lastWorkspaceId: string | null,
+  settings: { theme?: 'light'|'dark'|'system', notify?: {...} } }
+```
+
+Owner read/write only. Holds per-user preferences only. **It is never used for
+authorization.**
+
+---
+
+## Workspace
+
+### `workspaces/{wid}`
+
+```ts
+{ name, createdBy, createdAt,
+  adminUids: string[],                       // [new] mirror of admin members
+  driveFolderId: string | null,              // set by Apps Script (Phase 7)
+  settings: { capacityHoursPerWeek, weekStart: 0|1, timezone } }
+```
+
+- `adminUids` must always equal the set of members whose role is `admin`, and
+  must never be empty. Rules enforce this with `getAfter()`. Any batch that
+  changes an admin's role or removes an admin also updates `adminUids`. This is
+  how "at least one Admin remains" is enforced **in rules**, not just the UI.
+
+### `workspaces/{wid}/members/{uid}`
+
+```ts
+{ uid, role: 'admin'|'member'|'viewer', email, displayName, photoURL, joinedAt }
+```
+
+- `uid` is duplicated in a field **[changed]** so the app can find "my
+  workspaces" with one collection-group query (`members` where `uid == me`). The
+  rules allow that query only when the filter is the caller's own uid.
+- This is the single document every rule `get()`s to check membership and role.
+
+### `workspaces/{wid}/invites/{emailLower}`
+
+```ts
+{
+  (email /* == doc id */, role, workspaceName, invitedBy, createdAt);
+}
+```
+
+- `email` and `workspaceName` are stored **[changed]**. The invitee isn't a
+  member yet and can't read the workspace, so the app finds their invites with a
+  collection-group query (`invites` where `email == token.email`) and needs the
+  name to display.
+- Accepting an invite is one batch: create `members/{uid}` with the invite's
+  role, then delete the invite. Rules require `email_verified`, an email that
+  matches the invite ID, the same role, and that the invite exists.
+
+### `workspaces/{wid}/folders/{fid}`
+
+```ts
+{
+  (name, order, createdBy, createdAt);
+}
+```
+
+---
+
+## Boards
+
+### `workspaces/{wid}/boards/{bid}`
+
+```ts
+{ name, description, folderId: string | null, order,
+  visibility: 'main'|'private',
+  memberIds: string[],                       // private boards only (cap 50)
+  columns: Column[],                         // [{ id, type, title, settings, defaultValue? }]
+  groups: Group[],                           // [{ id, name, color, order, collapsed }]
+  schemaVersion: number,
+  archived: boolean, createdBy, createdAt, updatedAt }
+```
+
+- **Access:** Admins see every board, including private ones (decision D2).
+  Members and Viewers see `main` boards plus private boards where they are in
+  `memberIds`. The sidebar uses two listeners (`visibility == 'main'` and
+  `memberIds array-contains me`). Admins use one listener over all boards.
+- **[changed] Views and the item counter are not on the board doc.** Every user
+  has a sidebar listener on the boards collection, so each write to a board doc
+  is re-billed to every connected user. Things that change often (view filters,
+  column widths, the autonumber) live in separate docs (below).
+- Column `width` moved into the view config, since widths are per view.
+
+### `boards/{bid}/views/{vid}` **[changed: was embedded]**
+
+```ts
+{ type: 'table'|'kanban'|'calendar'|'gantt'|'workload'|'chart'|'form',
+  name, order, config: { filters, sort, groupBy, hiddenCols, colWidths, ... },
+  createdBy, updatedAt }
+```
+
+### `boards/{bid}/meta/counter` **[new]**
+
+```ts
+{
+  next: number;
+}
+```
+
+The item autonumber is assigned in a transaction against this doc, which no one
+listens to, so creating an item doesn't fan out a board-doc update.
+
+### `boards/{bid}/items/{iid}`
+
+```ts
+{ name, groupId, order, parentId: string | null,   // subitems point at their parent
+  itemNumber: number,
+  values: { [columnId]: TypedValue },
+  assigneeUids: string[],        // [new] union of all People columns; enables "My Work"
+  reminderKeys: string[],        // denormalized for scheduling (Phase 7)
+  archived: boolean,
+  deletedAt: Timestamp | null,   // [new] soft delete (tombstone) for delta sync
+  createdBy, createdAt, updatedBy, updatedAt }
+```
+
+- **Every write must set `updatedAt = request.time`** (enforced in rules). This
+  makes **delta sync** possible: opening a board reads items from the local
+  cache, then listens only to `updatedAt > lastSyncedAt`. See
+  `ARCHITECTURE.md § Read path`.
+- Deleting from the UI sets `deletedAt` (a tombstone) so other clients' caches
+  learn about it. Apps Script hard-deletes tombstones older than 30 days. A
+  client whose last sync is older than that does a full resync.
+- Lean doc: updates, activity, files beyond metadata, and time sessions over the
+  inline cap are kept elsewhere.
+- `TypedValue` shapes per column type are defined in
+  `shared/src/columns.ts` (Phase 2) and versioned by `board.schemaVersion`.
+
+### `items/{iid}/updates/{updId}` (comments)
+
+```ts
+{ author, body /* sanitized rich text */, mentions: string[], parentId: string | null,
+  reactions?: { [emoji]: string[] }, createdAt, editedAt: Timestamp | null }
+```
+
+### `boards/{bid}/automations/{aid}`
+
+```ts
+{ enabled, name, trigger: {...}, conditions: [...], actions: [...],
+  ownerUid, createdAt, updatedAt }
+```
+
+### `boards/{bid}/automationRuns/{rid}` (capped at 50/board, pruned)
+
+```ts
+{ automationId, status: 'ok'|'failed'|'skipped', error?, itemId?, depth, at }
+```
+
+### `boards/{bid}/activity/{id}` (capped, pruned)
+
+```ts
+{ type, itemId, actor, data: {...}, at }
+```
+
+---
+
+## Workspace-level collections
+
+### `workspaces/{wid}/scheduledEvents/{eid}`
+
+```ts
+{ fireAt, boardId, itemId: string | null, automationId, kind,
+  status: 'pending'|'done'|'failed', attempts, lastError?, idempotencyKey }
+```
+
+Written by the browser in the same batch as the item or automation change that
+implies it. Read and updated by Apps Script through REST, which uses IAM and
+bypasses rules.
+
+### `workspaces/{wid}/dashboards/{did}`
+
+```ts
+{ name, boardIds: string[] /* <= 5 */, widgets: [{ id, type, config, layout }],
+  visibility: 'main'|'private', memberIds: string[], createdBy, updatedAt }
+```
+
+### `workspaces/{wid}/notifications/{uid}/items/{nid}`
+
+```ts
+{ type, title, body, link, actor, read: boolean, createdAt }
+```
+
+Any member may **create** a notification for another member: `actor` must be
+the caller and the type comes from an allowlist. Only the recipient may read it,
+mark it read, or delete it.
+
+### `workspaces/{wid}/timers/{uid}` **[new]**
+
+```ts
+{
+  (boardId, itemId, columnId, startedAt);
+}
+```
+
+Holds one running timer per user per workspace. The doc ID is the uid, so a
+second timer is impossible. Only the owner may write it.
+
+### `workspaces/{wid}/timeEntries/{eid}`
+
+Archive target for time sessions once an item's inline array passes 200.
+
+---
+
+## Query patterns and indexes
+
+| Query                                                                           | Index                                           |
+| ------------------------------------------------------------------------------- | ----------------------------------------------- |
+| collection group `members` where `uid == me`                                    | single-field, collection-group scope (override) |
+| collection group `invites` where `email == myEmail`                             | single-field, collection-group scope (override) |
+| `boards` where `visibility == 'main'` / `memberIds array-contains`              | automatic                                       |
+| `items` where `updatedAt > t` (delta sync)                                      | automatic                                       |
+| `items` where `assigneeUids array-contains me` (My Work, per board)             | automatic                                       |
+| collection group `scheduledEvents` where `status == 'pending' && fireAt <= now` | composite (Apps Script, IAM)                    |
+| `notifications/{me}/items` order by `createdAt desc` limit 30                   | automatic                                       |
+
+**There are no collection-group queries over `items`.** A rule for a private
+board needs that board's doc, and a collection-group query can't supply it, so
+"My Work" and search run one small query per board the user can access. With
+about 10 boards this costs about 10 + matches reads.
+
+The Spark plan allows **200 composite indexes** and **200 single-field
+configurations** without billing. We expect fewer than 20.
+
+## Security model summary (detailed in Phase 1)
+
+| Role       | Workspace settings | Members/invites | Boards (main) | Private boards         | Items      |
+| ---------- | ------------------ | --------------- | ------------- | ---------------------- | ---------- |
+| Admin      | read/write         | manage          | read/write    | read/write (all)       | read/write |
+| Member     | read               | read            | read/write    | if in `memberIds`      | read/write |
+| Viewer     | read               | read            | read          | read if in `memberIds` | read       |
+| Non-member | —                  | own invite only | —             | —                      | —          |
+
+**Rule cost per request:** one `get()` of `members/{uid}`. Item, view, comment
+and automation reads and writes also `get()` the board doc to check visibility.
+That's **+1–2 billed reads per request or listener update**, not per document.
+Phase 1 measures this and records it in `QUOTA_BUDGET.md`.

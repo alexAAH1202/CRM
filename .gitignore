@@ -1,0 +1,23 @@
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+# Firebase
+.firebase/
+firebase/emulator-data/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+# Apps Script (clasp project ids are per-developer)
+apps-script/.clasp.json
+.clasprc.json
+# Playwright
+test-results/
+playwright-report/
+# Service-account keys must never be committed
+*-service-account*.json
+serviceAccount*.json
+.DS_Store

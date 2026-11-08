@@ -1,0 +1,170 @@
+# Free-tier quota budget
+
+> Limits were checked against the official pages on **2026-11-08** (each page
+> showed "Last updated 2026-11-05", except Apps Script: "2026-09-03"). Check
+> them again before each phase that adds a new kind of usage. Quotas change
+> without notice.
+
+## 1. Current limits
+
+### Firebase Spark (no billing account)
+
+Sources: firebase.google.com/pricing, /docs/firestore/pricing, /docs/firestore/quotas,
+/docs/hosting/usage-quotas-pricing
+
+| Service                        | Spark limit                                                  | Notes                                                                   |
+| ------------------------------ | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Firestore stored data          | **1 GiB** total                                              | Standard edition                                                        |
+| Firestore document reads       | **50,000 / day**                                             | Includes rule `get()`/`exists()` reads and the 1-read minimum per query |
+| Firestore document writes      | **20,000 / day**                                             |                                                                         |
+| Firestore document deletes     | **20,000 / day**                                             | TTL deletes count here                                                  |
+| Firestore network egress       | **10 GiB / month**                                           |                                                                         |
+| Firestore composite indexes    | 200 (without billing)                                        |                                                                         |
+| Rules `get/exists` per request | 10 (single doc/query), 20 (batch/transaction)                |                                                                         |
+| Auth (Google provider)         | **50,000 MAU**                                               |                                                                         |
+| Hosting storage                | **10 GB**                                                    | Spec assumed 1 GB; it is now 10 GB                                      |
+| Hosting data transfer          | **360 MB / day**                                             | About 10.8 GB/month                                                     |
+| Cloud Functions                | **Not available on Spark**                                   | As the spec assumed                                                     |
+| Cloud Storage                  | **Not available on Spark** (pricing table: "Not applicable") | We use Drive through Apps Script                                        |
+| App Hosting                    | Needs billing                                                | We use classic Firebase **Hosting**                                     |
+
+On Spark, when a quota runs out, that service stops until the daily reset
+(midnight US Pacific). No bill is generated.
+
+### Apps Script (consumer gmail.com account)
+
+Source: developers.google.com/apps-script/guides/services/quotas
+
+| Limit                               | Consumer account            |
+| ----------------------------------- | --------------------------- |
+| Script runtime                      | **6 min / execution**       |
+| Triggers total runtime              | **90 min / day**            |
+| URL Fetch calls                     | **20,000 / day**            |
+| URL Fetch POST size / response size | 50 MB / call each           |
+| Email recipients (MailApp)          | **100 / day** (our cap: 80) |
+| Email recipients per message        | 50                          |
+| Properties read/write               | 50,000 / day                |
+| Properties value size / total       | 9 KB / 500 KB per store     |
+| Triggers                            | **20 / user / script**      |
+| Simultaneous executions             | 30 / user                   |
+
+Apps Script quotas reset 24 h after the first request, not at a fixed time.
+
+## 2. Billing behaviours the design depends on
+
+These come from the Firestore pricing page and drive the design decisions below.
+
+1. **Listener resume:** with offline persistence on, a listener that has been
+   **disconnected for more than 30 minutes is billed as a brand-new query.**
+   Every result document is billed again, even though it's already cached.
+   Reattaching within 30 minutes bills only the changes.
+2. **Each query costs at least 1 read**, even with no results.
+3. **Aggregations** (`count/sum/avg`) cost 1 read per 1,000 index entries, with
+   a minimum of 1.
+4. **Rule lookups are billed.** Each `get()`/`exists()` costs 1 read per
+   request, and repeat lookups of the same doc in one request are cached. For
+   listeners, rules are re-evaluated (and billed) on every result update, on
+   reconnect, after a rules deploy, and whenever a doc the rules depend on
+   changes.
+5. Deleted documents leaving a listener aren't billed. Changed documents leaving
+   one are.
+6. REST calls from Apps Script authenticate with IAM (OAuth token), so **rules
+   aren't evaluated and add no rule reads.**
+
+## 3. Design responses
+
+| Risk                                                                       | Response                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reopening a board after more than 30 min re-bills every item (behaviour 1) | **Delta sync.** Render from the IndexedDB cache, then listen only to `items where updatedAt > lastSyncedAt`. Deletes are soft tombstones. A full resync happens only on first visit, after cache eviction, or after 30 days. |
+| Board-doc writes fan out to every user's sidebar listener                  | Views, column widths and the item counter live in separate docs (see DATA_MODEL)                                                                                                                                             |
+| Rule `get()` costs                                                         | Exactly 1 membership `get` per request, plus 1 board `get` for board content. Never per document.                                                                                                                            |
+| Dashboards                                                                 | Aggregation queries where possible; one-shot cached reads otherwise; never live listeners; maximum 5 boards                                                                                                                  |
+| Writes                                                                     | Save text on blur or Enter; save drags on drop; bulk actions in one `writeBatch`; automations join the same batch                                                                                                            |
+| Unbounded growth                                                           | Activity and automation runs are capped and pruned daily; read notifications are pruned after 30 days; tombstones are purged after 30 days                                                                                   |
+| Hosting transfer                                                           | Hashed assets with `immutable` caching; `index.html` is `no-cache` (~1 KB); route-level code splitting; system fonts (0 bytes)                                                                                               |
+
+## 4. Estimate: 15 active users, busy workday
+
+### Assumptions
+
+- 1 workspace, 10 active boards × **150 items each** (including subitems) = 1,500 items
+- Per user per day: 4 cold app sessions, **10 board opens** (about 4 distinct
+  boards), 40 item edits, 10 comments, 20 item-panel opens, 3 dashboard views,
+  3 My Work views
+- On average, 2 other people have the same board open when an edit happens
+- Rule overhead: +1 read per item listener update; about +10% on one-shot reads
+
+### Reads per day
+
+| Source                                                        | Formula                                                                                                       |    With delta sync | Naive listeners (no delta) |    No cache at all |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -----------------: | -------------------------: | -----------------: |
+| Session start (user, member, workspace, sidebar of 10 boards) | 15 users × 4 × ~18                                                                                            |              1,080 |                      1,080 |              1,080 |
+| Board opens                                                   | delta: 15 × 10 × ~15 changed; naive: 6 of 10 opens are after 30 min × 150 items + 4 × 15; none: 15 × 10 × 150 |              2,250 |                     14,400 |             22,500 |
+| Live updates to other open listeners (+ rule read)            | 600 edits × 2 listeners × 2                                                                                   |              2,400 |                      2,400 |              2,400 |
+| Item panel: comments (about 5 per item + query minimum)       | 15 × 20 × 6                                                                                                   |              1,800 |                      1,800 |              1,800 |
+| Item panel: activity tab (limit 20)                           | 15 × 5 × 21                                                                                                   |              1,575 |                      1,575 |              1,575 |
+| Notifications inbox (limit 20 per cold start + new ones)      | 15 × 4 × 20 + 300                                                                                             |              1,500 |                      1,500 |              1,500 |
+| Dashboards (aggregations + table widgets)                     | 15 × 3 × (8 + 40)                                                                                             |              2,160 |                      2,160 |              2,160 |
+| My Work (1 query per board)                                   | 15 × 3 × 10 × 2                                                                                               |                900 |                        900 |                900 |
+| Search                                                        | estimate                                                                                                      |                500 |                        500 |                500 |
+| Rule overhead on one-shot reads                               | about 10%                                                                                                     |              1,000 |                      1,000 |              1,000 |
+| Apps Script scheduler (144 runs × 1 minimum + events)         | 144 + ~150                                                                                                    |                300 |                        300 |                300 |
+| **Total**                                                     |                                                                                                               | **≈ 15,500 (31%)** |         **≈ 27,600 (55%)** | **≈ 35,700 (71%)** |
+
+**Conclusion:** without delta sync, a normal day lands at 55%. Any busy day
+would go over the 60% target, and an uncached client would exceed it outright.
+**With delta sync, we expect ~31% on a normal day and ~46% on a 1.5× peak
+day, inside the 60% target.** Delta sync is therefore a core Phase 2 feature,
+not an optimisation for later (see DECISIONS D5).
+
+### Writes and deletes per day
+
+| Source                                            |                  Writes |
+| ------------------------------------------------- | ----------------------: |
+| Item edits and creates                            |                     600 |
+| Comments                                          |                     150 |
+| Notifications (about 2 per comment or assignment) |                     300 |
+| Activity log (meaningful events only)             |                     300 |
+| Automation side effects and run history           |                     200 |
+| Timers and time sessions                          |                     100 |
+| Board, view and member changes                    |                      50 |
+| Scheduled events (create + mark done)             |                     150 |
+| **Total**                                         | **≈ 1,850 (9% of 20K)** |
+
+Deletes: daily pruning of activity, runs, old notifications and tombstones runs
+to about 1,000 or less (5% of 20K).
+
+### Storage, egress, hosting, auth
+
+- **Firestore storage:** 1,500 items × ~2 KB, plus comments, activity and
+  indexes, comes to roughly 20 MB in year one. That's under 2% of 1 GiB.
+- **Firestore egress:** about 15K reads × ~2 KB ≈ 30 MB/day ≈ 0.9 GB/month,
+  9% of 10 GiB.
+- **Hosting transfer:** a cold first load is ~270 KB gzip (measured in Phase 0:
+  firebase 183 KB, react 59 KB, app 15 KB, CSS 5 KB). Normal days are ~1 KB HTML
+  per session, plus lazy route chunks the first time. Deploy day (everyone
+  re-downloads): 15 users × 2 devices × 300 KB ≈ 9 MB, 2.5% of 360 MB/day.
+- **Auth:** 15 MAU out of 50,000.
+
+### Apps Script
+
+| Item                                                                    | Estimate    | Limit        |   % |
+| ----------------------------------------------------------------------- | ----------- | ------------ | --: |
+| Scheduler runtime: 144 runs × ~3 s, plus housekeeping and digest ~3 min | ~10 min/day | 90 min       | 11% |
+| URL Fetch: scheduler ~2/run, plus uploads, ID-token checks, digests     | ~1,000/day  | 20,000       |  5% |
+| Emails: 1 digest per user + optional morning digest                     | ≤ 30/day    | 100 (cap 80) | 30% |
+| Triggers: scheduler, housekeeping, digest                               | 3           | 20           | 15% |
+
+## 5. Measured costs
+
+These are filled in as phases land. The dev usage meter (`VITE_USAGE_METER=true`
+or `localStorage.usageMeter = '1'`) shows per-session estimates by label. It
+can't see rule reads or the over-30-minute re-billing, so Phase 9 compares it
+against the Firebase console's usage tab.
+
+| Measurement                                           | Phase | Result       |
+| ----------------------------------------------------- | ----- | ------------ |
+| Rule `get()` cost per membership-gated request        | 1     | _to measure_ |
+| Board open: cold / warm (<30 min) / delta after a day | 2     | _to measure_ |
+| Dashboard load (5 boards, 8 widgets)                  | 8     | _to measure_ |
+| Full 15-user scenario vs this budget                  | 9     | _to measure_ |
