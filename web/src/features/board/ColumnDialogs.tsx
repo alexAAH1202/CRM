@@ -147,6 +147,7 @@ export function DefaultValueDialog({
     archived: false,
     deleted: false,
     createdBy: '',
+    createdAtMs: null,
     updatedAtMs: null,
   };
   return (

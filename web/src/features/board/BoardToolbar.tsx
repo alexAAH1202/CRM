@@ -133,9 +133,9 @@ function FilterValue({
 
   if (type === 'status')
     return <LabelChips labels={column?.settings.labels ?? []} selected={list} onToggle={toggle} />;
-  if (type === 'dropdown')
+  if (type === 'dropdown' || type === 'tags')
     return <LabelChips labels={column?.settings.options ?? []} selected={list} onToggle={toggle} />;
-  if (type === 'people') {
+  if (type === 'people' || type === 'createdBy') {
     const options = [
       { uid: ME, name: 'Me' },
       ...members.map((m) => ({ uid: m.uid, name: m.name })),
@@ -161,7 +161,7 @@ function FilterValue({
       </div>
     );
   }
-  if (type === 'date' || type === 'timeline') {
+  if (type === 'date' || type === 'timeline' || type === 'createdAt' || type === 'updatedAt') {
     return (
       <input
         type="date"
@@ -172,7 +172,13 @@ function FilterValue({
       />
     );
   }
-  if (type === 'numbers') {
+  const numeric =
+    type === 'numbers' ||
+    type === 'rating' ||
+    type === 'progress' ||
+    type === 'itemId' ||
+    (type === 'formula' && ['eq', 'gt', 'lt'].includes(filter.op));
+  if (numeric) {
     return (
       <input
         type="number"

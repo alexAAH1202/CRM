@@ -1,5 +1,11 @@
 import { BOARD_SCHEMA_VERSION, type BoardDoc, type BoardVisibility, type Group } from './board';
-import { computeAssignees, normalizeValue, type Column } from './columns';
+import {
+  computeAssignees,
+  isComputedType,
+  normalizeValue,
+  type Column,
+  type DependencyValue,
+} from './columns';
 import { keysBetween } from './ordering';
 import { DELETE_FIELD, SERVER_TIME, type DocData, type WriteOp } from './ops';
 import { paths } from './paths';
@@ -48,6 +54,7 @@ export function cleanValues(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const col of columns) {
+    if (isComputedType(col.type)) continue; // computed columns are never stored
     const v = normalizeValue(col, values[col.id]);
     if (v !== null) out[col.id] = v;
   }
@@ -197,6 +204,7 @@ export function planSetCell(input: {
   currentValues: Record<string, unknown>;
   value: unknown;
 }): WriteOp[] {
+  if (isComputedType(input.column.type)) return []; // nothing to store for a computed column
   const v = normalizeValue(input.column, input.value);
   const data: DocData = {
     [`values.${input.column.id}`]: v === null ? DELETE_FIELD : v,
@@ -384,6 +392,26 @@ export interface BoardCopySource {
   counterNext: number;
 }
 
+/** Dependencies point at item ids, so a copied board's must point at the copied items. */
+export function remapDependencies(
+  columns: readonly Column[],
+  values: Record<string, unknown>,
+  idMap: ReadonlyMap<string, string>,
+): Record<string, unknown> {
+  const out = { ...values };
+  for (const col of columns) {
+    if (col.type !== 'dependency') continue;
+    const deps = normalizeValue(col, values[col.id]);
+    if (!Array.isArray(deps)) continue;
+    const mapped = (deps as DependencyValue[])
+      .filter((d) => idMap.has(d.id))
+      .map((d) => ({ id: idMap.get(d.id) as string, lag: d.lag }));
+    if (mapped.length) out[col.id] = mapped;
+    else delete out[col.id];
+  }
+  return out;
+}
+
 /** Board + views + counter first, then items — chunk the result in order. */
 export function planDuplicateBoard(input: {
   wid: string;
@@ -448,7 +476,7 @@ export function planDuplicateBoard(input: {
       order: it.order,
       itemNumber: it.itemNumber,
       parentId: it.parentId ? (idMap.get(it.parentId) as string) : null,
-      values: it.values,
+      values: remapDependencies(source.board.columns, it.values, idMap),
     });
     data['archived'] = it.archived;
     ops.push({ kind: 'set', path: boardPaths.item(wid, newBid, idMap.get(it.id) as string), data });

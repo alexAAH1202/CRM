@@ -1,4 +1,11 @@
-import { COLUMN_META, LABEL_COLORS, type Column, type Group } from '@app/shared';
+import {
+  COLUMN_META,
+  isComputedType,
+  LABEL_COLORS,
+  type Column,
+  type ColumnType,
+  type Group,
+} from '@app/shared';
 import { Archive, ArchiveRestore, Copy, FolderInput, Pencil, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button, Modal, Popover, SelectField } from '../../components/ui';
@@ -49,6 +56,7 @@ function SetValueDialog({
     archived: false,
     deleted: false,
     createdBy: '',
+    createdAtMs: null,
     updatedAtMs: null,
   };
   return (
@@ -110,6 +118,9 @@ function SetValueDialog({
     </Modal>
   );
 }
+
+/** Columns that can't be set the same way for many items at once. */
+const NOT_BULK_SETTABLE: readonly ColumnType[] = ['dependency', 'files', 'tags'];
 
 export function BulkBar(p: BulkBarProps) {
   const [setting, setSetting] = useState(false);
@@ -184,7 +195,9 @@ export function BulkBar(p: BulkBarProps) {
       </button>
       {setting && (
         <SetValueDialog
-          columns={p.columns}
+          columns={p.columns.filter(
+            (c) => !isComputedType(c.type) && !NOT_BULK_SETTABLE.includes(c.type),
+          )}
           members={p.members}
           onApply={p.onSetValue}
           onClose={() => setSetting(false)}

@@ -32,6 +32,7 @@ export interface BoardItem {
   archived: boolean;
   deleted: boolean;
   createdBy: string;
+  createdAtMs: number | null;
   updatedAtMs: number | null;
 }
 

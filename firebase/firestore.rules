@@ -431,10 +431,16 @@ service cloud.firestore {
             && request.resource.data.next is int
             && request.resource.data.next >= 1
             && request.resource.data.next <= 100001;
+          // The counter hands out item numbers inside transactions. Rules run BEFORE Firestore
+          // checks that a transaction's reads are still current, so when two people add an item
+          // at the same moment the slower commit arrives with a number that is no longer
+          // "greater than the stored one". Rejecting it here (as 'permission denied') stops
+          // Firestore from doing its normal conflict-detect-and-retry. So the value only has to
+          // be sane (1 or more, no big jumps): item numbers are labels, not security.
           allow update: if canEditBoard(wid, bid)
             && request.resource.data.keys().hasOnly(['next'])
             && request.resource.data.next is int
-            && request.resource.data.next > resource.data.next
+            && request.resource.data.next >= 1
             && request.resource.data.next <= resource.data.next + 500;
           // Only when an admin deletes the whole board.
           allow delete: if isAdmin(wid);

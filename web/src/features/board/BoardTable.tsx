@@ -1,5 +1,9 @@
 import {
+  applyComputed,
   buildLayout,
+  cleanColumnTitle,
+  renameFormulaRefs,
+  type ComputedEnv,
   clampWidth,
   COLUMN_META,
   GROUP_COLORS,
@@ -54,7 +58,9 @@ import {
 } from '../boards/api';
 import type { Board, BoardItem, WorkspaceMember } from '../boards/types';
 import { BulkBar } from './BulkBar';
+import { CellEnvProvider } from './cellEnv';
 import { ChangeTypeDialog, DefaultValueDialog } from './ColumnDialogs';
+import { FormulaDialog, ProgressDialog } from './ComputedDialogs';
 import {
   AddItemRow,
   AddSubitemRow,
@@ -133,7 +139,12 @@ export interface BoardTableProps {
 }
 
 type Confirm = { kind: 'group'; groupId: string } | null;
-type Dialog = { kind: 'type'; column: Column } | { kind: 'default'; column: Column } | null;
+type Dialog =
+  | { kind: 'type'; column: Column }
+  | { kind: 'default'; column: Column }
+  | { kind: 'formula'; column: Column }
+  | { kind: 'progress'; column: Column }
+  | null;
 
 export function BoardTable({
   wid,
@@ -166,17 +177,27 @@ export function BoardTable({
     () => ({ today, me: user.uid, memberName }),
     [today, user.uid, memberName],
   );
+  // Formula, progress, item ID and created/updated columns are worked out here, on every
+  // render of the data — never stored (spec: "compute on render, cache nothing").
+  const computedEnv = useMemo<ComputedEnv>(
+    () => ({ today, memberName, itemName: (id) => items.get(id)?.name }),
+    [today, memberName, items],
+  );
+  const shownItems = useMemo(
+    () => applyComputed([...items.values()], board.columns, computedEnv),
+    [items, board.columns, computedEnv],
+  );
   const layout = useMemo(
     () =>
       buildLayout<BoardItem>({
-        items: items.values(),
+        items: shownItems,
         columns: board.columns,
         groups: board.groups,
         config,
         search,
         ctx: viewCtx,
       }),
-    [items, board.columns, board.groups, config, search, viewCtx],
+    [shownItems, board.columns, board.groups, config, search, viewCtx],
   );
   const columns = useMemo(
     () => board.columns.filter((c) => !config.hiddenCols.includes(c.id)),
@@ -430,6 +451,35 @@ export function BoardTable({
       return n;
     });
 
+  const cellEnv = useMemo(
+    () => ({
+      items,
+      // A new tag must exist on the column before an item can refer to it.
+      saveColumnAndSet: (column: Column, item: BoardItem, value: unknown) => {
+        saveColumns(
+          wid,
+          board.id,
+          board.columns.map((x) => (x.id === column.id ? column : x)),
+        )
+          .then(() =>
+            setCell({
+              wid,
+              board: {
+                ...board,
+                columns: board.columns.map((x) => (x.id === column.id ? column : x)),
+              },
+              item,
+              uid,
+              column,
+              value,
+            }),
+          )
+          .catch(fail);
+      },
+    }),
+    [items, wid, board, uid, fail],
+  );
+
   const ctxValue: TableContextValue = {
     wid,
     board,
@@ -514,12 +564,13 @@ export function BoardTable({
         board.groups.map((g) => (g.id === gid ? { ...g, color } : g)),
       ).catch(fail),
     onGroupDelete: (gid) => setConfirm({ kind: 'group', groupId: gid }),
-    onColumnSave: (c) =>
-      saveColumns(
-        wid,
-        board.id,
-        board.columns.map((x) => (x.id === c.id ? c : x)),
-      ).catch(fail),
+    onColumnSave: (c) => {
+      const old = board.columns.find((x) => x.id === c.id);
+      let next = board.columns.map((x) => (x.id === c.id ? c : x));
+      // Renaming a column also updates formulas that refer to it by name.
+      if (old && old.title !== c.title) next = renameFormulaRefs(next, old.title, c.title);
+      saveColumns(wid, board.id, next).catch(fail);
+    },
     onColumnDelete: (c) =>
       saveColumns(
         wid,
@@ -537,7 +588,16 @@ export function BoardTable({
     },
     onColumnChangeType: (c) => setDialog({ kind: 'type', column: c }),
     onColumnDefault: (c) => setDialog({ kind: 'default', column: c }),
-    onAddColumn: (c) => saveColumns(wid, board.id, [...board.columns, c]).catch(fail),
+    onColumnConfigure: (c) =>
+      setDialog({ kind: c.type === 'formula' ? 'formula' : 'progress', column: c }),
+    onAddColumn: (c) => {
+      saveColumns(wid, board.id, [
+        ...board.columns,
+        { ...c, title: cleanColumnTitle(c.title) },
+      ]).catch(fail);
+      // A new formula or progress column is useless until configured: open its dialog straight away.
+      if (c.type === 'formula' || c.type === 'progress') setDialog({ kind: c.type, column: c });
+    },
     onResize: (columnId, width) =>
       onConfig({ colWidths: { ...config.colWidths, [columnId]: clampWidth(width) } }),
     setLiveWidth: (columnId, width) =>
@@ -754,196 +814,222 @@ export function BoardTable({
 
   return (
     <TableProvider value={ctxValue}>
-      <DndContext
-        sensors={sensors}
-        collisionDetection={collision}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragEnd={onDragEnd}
-        onDragCancel={() => {
-          setActive(null);
-          setDropTarget(null);
-        }}
-      >
-        <div
-          ref={scrollRef}
-          onKeyDown={onGridKeyDown}
-          className="relative min-h-0 flex-1 overflow-auto"
-          role="grid"
-          aria-label={`${board.name} table`}
-          aria-rowcount={rows.length}
+      <CellEnvProvider value={cellEnv}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={collision}
+          onDragStart={onDragStart}
+          onDragOver={onDragOver}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => {
+            setActive(null);
+            setDropTarget(null);
+          }}
         >
           <div
-            style={{ height: virtualizer.getTotalSize(), width: totalWidth + 32 }}
-            className="relative pr-8"
+            ref={scrollRef}
+            onKeyDown={onGridKeyDown}
+            className="relative min-h-0 flex-1 overflow-auto"
+            role="grid"
+            aria-label={`${board.name} table`}
+            aria-rowcount={rows.length}
           >
-            {virtualizer.getVirtualItems().map((v) => {
-              const row = rows[v.index]!;
-              const pos = { start: v.start, size: v.size };
-              switch (row.kind) {
-                case 'gap':
-                  return <GapRow key={row.key} pos={pos} />;
-                case 'group':
-                  return (
-                    <GroupHeaderRow key={row.key} group={row.group} count={row.count} pos={pos} />
-                  );
-                case 'columns':
-                  return (
-                    <ColumnsRow
-                      key={row.key}
-                      group={row.group}
-                      itemIds={row.itemIds}
-                      pos={pos}
-                      navRow={v.index}
-                    />
-                  );
-                case 'item':
-                  return (
-                    <ItemRow
-                      key={row.key}
-                      item={row.item}
-                      group={row.group}
-                      subCount={row.subCount}
-                      pos={pos}
-                      navRow={v.index}
-                    />
-                  );
-                case 'sub':
-                  return (
-                    <SubRow
-                      key={row.key}
-                      item={row.item}
-                      group={row.group}
-                      pos={pos}
-                      navRow={v.index}
-                    />
-                  );
-                case 'addSub':
-                  return (
-                    <AddSubitemRow
-                      key={row.key}
-                      parent={row.parent}
-                      group={row.group}
-                      lastOrder={row.lastOrder}
-                      pos={pos}
-                      navRow={v.index}
-                    />
-                  );
-                case 'add':
-                  return <AddItemRow key={row.key} group={row.group} pos={pos} navRow={v.index} />;
-                case 'summary':
-                  return <SummaryRow key={row.key} group={row.group} pos={pos} />;
-              }
-            })}
-          </div>
-
-          {canEdit && !config.groupBy && (
-            <div className="sticky left-0 px-2 pb-8">
-              <button
-                type="button"
-                onClick={() =>
-                  saveGroups(wid, board.id, [
-                    ...board.groups,
-                    {
-                      id: shortId(),
-                      name: 'New group',
-                      color: GROUP_COLORS[board.groups.length % GROUP_COLORS.length] ?? 'blue',
-                    },
-                  ]).catch(fail)
+            <div
+              style={{ height: virtualizer.getTotalSize(), width: totalWidth + 32 }}
+              className="relative pr-8"
+            >
+              {virtualizer.getVirtualItems().map((v) => {
+                const row = rows[v.index]!;
+                const pos = { start: v.start, size: v.size };
+                switch (row.kind) {
+                  case 'gap':
+                    return <GapRow key={row.key} pos={pos} />;
+                  case 'group':
+                    return (
+                      <GroupHeaderRow key={row.key} group={row.group} count={row.count} pos={pos} />
+                    );
+                  case 'columns':
+                    return (
+                      <ColumnsRow
+                        key={row.key}
+                        group={row.group}
+                        itemIds={row.itemIds}
+                        pos={pos}
+                        navRow={v.index}
+                      />
+                    );
+                  case 'item':
+                    return (
+                      <ItemRow
+                        key={row.key}
+                        item={row.item}
+                        group={row.group}
+                        subCount={row.subCount}
+                        pos={pos}
+                        navRow={v.index}
+                      />
+                    );
+                  case 'sub':
+                    return (
+                      <SubRow
+                        key={row.key}
+                        item={row.item}
+                        group={row.group}
+                        pos={pos}
+                        navRow={v.index}
+                      />
+                    );
+                  case 'addSub':
+                    return (
+                      <AddSubitemRow
+                        key={row.key}
+                        parent={row.parent}
+                        group={row.group}
+                        lastOrder={row.lastOrder}
+                        pos={pos}
+                        navRow={v.index}
+                      />
+                    );
+                  case 'add':
+                    return (
+                      <AddItemRow key={row.key} group={row.group} pos={pos} navRow={v.index} />
+                    );
+                  case 'summary':
+                    return <SummaryRow key={row.key} group={row.group} pos={pos} />;
                 }
-                className="inline-flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-fg"
-              >
-                <Plus size={16} aria-hidden /> Add group
-              </button>
+              })}
             </div>
-          )}
 
-          {canEdit && selectedIds.length > 0 && (
-            <BulkBar
-              count={selectedIds.length}
-              columns={board.columns}
-              groups={board.groups}
-              members={members}
-              allArchived={selectedItems.every((i) => i.archived)}
-              canMove={!config.groupBy}
-              onSetValue={(column, value) =>
-                bulkSetCell({ wid, board, uid, column, items: selectedItems, value })
-                  .then(() =>
-                    toast.success(
-                      `Updated ${selectedItems.length} item${selectedItems.length === 1 ? '' : 's'}`,
-                    ),
-                  )
-                  .catch(fail)
-              }
-              onMove={(gid) => {
-                doMove(selectedIds, gid);
-                setSelected(new Set());
-              }}
-              onDuplicate={() => {
-                doDuplicate(selectedIds);
-                setSelected(new Set());
-              }}
-              onArchive={(archived) => {
-                doArchive(selectedIds, archived);
-                setSelected(new Set());
-              }}
-              onDelete={() => doDelete(selectedIds)}
-              onClear={() => setSelected(new Set())}
-            />
-          )}
-        </div>
-        <DragOverlay dropAnimation={null}>
-          {active && (
-            <div className="flex items-center gap-2 rounded-xl border border-primary bg-surface px-3 py-2 text-sm font-semibold shadow-pop">
-              <GripVertical size={14} aria-hidden /> {active.label}
-            </div>
-          )}
-        </DragOverlay>
-      </DndContext>
+            {canEdit && !config.groupBy && (
+              <div className="sticky left-0 px-2 pb-8">
+                <button
+                  type="button"
+                  onClick={() =>
+                    saveGroups(wid, board.id, [
+                      ...board.groups,
+                      {
+                        id: shortId(),
+                        name: 'New group',
+                        color: GROUP_COLORS[board.groups.length % GROUP_COLORS.length] ?? 'blue',
+                      },
+                    ]).catch(fail)
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl border border-dashed border-border px-3 py-2 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-fg"
+                >
+                  <Plus size={16} aria-hidden /> Add group
+                </button>
+              </div>
+            )}
 
-      <ConfirmDialog
-        open={confirmGroup !== undefined}
-        danger
-        title={`Delete group “${confirmGroup?.name}”?`}
-        body={`This also deletes its ${groupItemCount} item(s).`}
-        confirmLabel="Delete group"
-        onClose={() => setConfirm(null)}
-        onConfirm={async () => {
-          if (!confirmGroup) return;
-          const ids = [...items.values()]
-            .filter((i) => i.groupId === confirmGroup.id && !i.deleted)
-            .map((i) => i.id);
-          await deleteGroup({ wid, board, uid, groupId: confirmGroup.id, itemIds: ids }).catch(
-            fail,
-          );
-        }}
-      />
-      {dialog?.kind === 'type' && (
-        <ChangeTypeDialog
-          wid={wid}
-          uid={uid}
-          board={board}
-          column={dialog.column}
-          items={[...items.values()]}
-          members={members}
-          onClose={() => setDialog(null)}
-        />
-      )}
-      {dialog?.kind === 'default' && (
-        <DefaultValueDialog
-          column={dialog.column}
-          onClose={() => setDialog(null)}
-          onSave={(value) => {
-            const rest = { ...dialog.column.settings };
-            delete rest.defaultValue;
-            ctxValue.onColumnSave({
-              ...dialog.column,
-              settings:
-                value === null || value === undefined ? rest : { ...rest, defaultValue: value },
-            });
+            {canEdit && selectedIds.length > 0 && (
+              <BulkBar
+                count={selectedIds.length}
+                columns={board.columns}
+                groups={board.groups}
+                members={members}
+                allArchived={selectedItems.every((i) => i.archived)}
+                canMove={!config.groupBy}
+                onSetValue={(column, value) =>
+                  bulkSetCell({ wid, board, uid, column, items: selectedItems, value })
+                    .then(() =>
+                      toast.success(
+                        `Updated ${selectedItems.length} item${selectedItems.length === 1 ? '' : 's'}`,
+                      ),
+                    )
+                    .catch(fail)
+                }
+                onMove={(gid) => {
+                  doMove(selectedIds, gid);
+                  setSelected(new Set());
+                }}
+                onDuplicate={() => {
+                  doDuplicate(selectedIds);
+                  setSelected(new Set());
+                }}
+                onArchive={(archived) => {
+                  doArchive(selectedIds, archived);
+                  setSelected(new Set());
+                }}
+                onDelete={() => doDelete(selectedIds)}
+                onClear={() => setSelected(new Set())}
+              />
+            )}
+          </div>
+          <DragOverlay dropAnimation={null}>
+            {active && (
+              <div className="flex items-center gap-2 rounded-xl border border-primary bg-surface px-3 py-2 text-sm font-semibold shadow-pop">
+                <GripVertical size={14} aria-hidden /> {active.label}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
+
+        <ConfirmDialog
+          open={confirmGroup !== undefined}
+          danger
+          title={`Delete group “${confirmGroup?.name}”?`}
+          body={`This also deletes its ${groupItemCount} item(s).`}
+          confirmLabel="Delete group"
+          onClose={() => setConfirm(null)}
+          onConfirm={async () => {
+            if (!confirmGroup) return;
+            const ids = [...items.values()]
+              .filter((i) => i.groupId === confirmGroup.id && !i.deleted)
+              .map((i) => i.id);
+            await deleteGroup({ wid, board, uid, groupId: confirmGroup.id, itemIds: ids }).catch(
+              fail,
+            );
           }}
         />
-      )}
+        {dialog?.kind === 'type' && (
+          <ChangeTypeDialog
+            wid={wid}
+            uid={uid}
+            board={board}
+            column={dialog.column}
+            items={[...items.values()]}
+            members={members}
+            onClose={() => setDialog(null)}
+          />
+        )}
+        {dialog?.kind === 'default' && (
+          <DefaultValueDialog
+            column={dialog.column}
+            onClose={() => setDialog(null)}
+            onSave={(value) => {
+              const rest = { ...dialog.column.settings };
+              delete rest.defaultValue;
+              ctxValue.onColumnSave({
+                ...dialog.column,
+                settings:
+                  value === null || value === undefined ? rest : { ...rest, defaultValue: value },
+              });
+            }}
+          />
+        )}
+        {dialog?.kind === 'formula' && (
+          <FormulaDialog
+            column={dialog.column}
+            columns={
+              board.columns.some((c) => c.id === dialog.column.id)
+                ? board.columns
+                : [...board.columns, dialog.column]
+            }
+            items={[...items.values()]}
+            env={computedEnv}
+            onClose={() => setDialog(null)}
+            onSave={(c) => ctxValue.onColumnSave(c)}
+          />
+        )}
+        {dialog?.kind === 'progress' && (
+          <ProgressDialog
+            column={dialog.column}
+            columns={board.columns}
+            onClose={() => setDialog(null)}
+            onSave={(c) => ctxValue.onColumnSave(c)}
+          />
+        )}
+      </CellEnvProvider>
     </TableProvider>
   );
 }
