@@ -51,6 +51,12 @@ export function useViewConfig(
     );
   }, [wid, bid, user.uid]);
 
+  // Closing or reloading the page shouldn't lose a change made in the last moment.
+  useEffect(() => {
+    window.addEventListener('pagehide', flush);
+    return () => window.removeEventListener('pagehide', flush);
+  }, [flush]);
+
   // Switching views saves the old one's pending change first.
   useEffect(() => () => flush(), [view.id, flush]);
 

@@ -4,6 +4,8 @@ import {
   Archive,
   Download,
   FileUp,
+  Redo2,
+  Undo2,
   Lock,
   Settings,
   ShieldAlert,
@@ -34,6 +36,7 @@ import { GanttView } from './GanttView';
 import { WorkloadView } from './WorkloadView';
 import { KanbanView } from './KanbanView';
 import { downloadBoardCsv } from './exportCsv';
+import { redoLast, undoLast, useUndoState } from '../boards/undoStack';
 import { ImportDialog } from './ImportDialog';
 import { ItemPanel } from './ItemPanel';
 import { TrashPanel } from './TrashPanel';
@@ -49,6 +52,31 @@ function BoardView({ board: b }: { board: Board }) {
   const [autoOpen, setAutoOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const history = useUndoState(b.id);
+
+  // Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z or Ctrl+Y redoes: but never while typing (the field has
+  // its own undo) and never with a dialog open.
+  useEffect(() => {
+    if (role === 'viewer' || b.archived) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      const redo = (k === 'z' && e.shiftKey) || (k === 'y' && !e.shiftKey);
+      const undo = k === 'z' && !e.shiftKey;
+      if (!redo && !undo) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.closest('input, textarea, select, [contenteditable="true"]') ||
+          t.closest('dialog[open]'))
+      )
+        return;
+      e.preventDefault();
+      void (redo ? redoLast(b.id) : undoLast(b.id));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [b.id, b.archived, role]);
   const user = useCurrentUser();
   const automations = useAutomations(workspace.id, b.id);
   useBoardAutomationsRegistration({
@@ -134,6 +162,36 @@ function BoardView({ board: b }: { board: Board }) {
               <p className="mt-1 line-clamp-2 text-sm text-muted">{b.description}</p>
             )}
           </div>
+          {role !== 'viewer' && !b.archived && (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!history.undoLabel || history.busy}
+                onClick={() => void undoLast(b.id)}
+                aria-label="Undo"
+                title={
+                  history.undoLabel ? `Undo: ${history.undoLabel} (Ctrl+Z)` : 'Nothing to undo'
+                }
+              >
+                <Undo2 size={14} aria-hidden />
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!history.redoLabel || history.busy}
+                onClick={() => void redoLast(b.id)}
+                aria-label="Redo"
+                title={
+                  history.redoLabel
+                    ? `Redo: ${history.redoLabel} (Ctrl+Shift+Z)`
+                    : 'Nothing to redo'
+                }
+              >
+                <Redo2 size={14} aria-hidden />
+              </Button>
+            </>
+          )}
           {role !== 'viewer' && (
             <Button
               variant="secondary"

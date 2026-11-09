@@ -68,6 +68,8 @@ export const MAX_CAPACITY_HOURS = 168;
 export interface ViewOptions {
   /** Kanban: a status / dropdown / people column id. */
   laneColumnId: string | null;
+  /** Kanban: cards put in a hand-picked order, per lane (lane key → item ids, first = top). */
+  cardOrder: Record<string, string[]>;
   /** Calendar and Workload: a date or timeline column id. */
   dateColumnId: string | null;
   calendarMode: CalendarMode;
@@ -90,6 +92,7 @@ export interface ViewOptions {
 
 export const EMPTY_VIEW_OPTIONS: ViewOptions = {
   laneColumnId: null,
+  cardOrder: {},
   dateColumnId: null,
   calendarMode: 'month',
   ganttColumnId: null,
@@ -237,6 +240,26 @@ export function parseViewConfig(raw: unknown): ViewConfig {
   };
 }
 
+export const MAX_ORDERED_LANES = 40;
+export const MAX_ORDERED_CARDS = 300;
+
+/** Lane key → item ids. Anything malformed or over the caps is dropped, never thrown on. */
+export function parseCardOrder(raw: unknown): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [lane, ids] of Object.entries(raw as Record<string, unknown>)) {
+    if (Object.keys(out).length >= MAX_ORDERED_LANES) break;
+    if (lane.length === 0 || lane.length > 64 || !Array.isArray(ids)) continue;
+    const seen = new Set<string>();
+    for (const id of ids) {
+      if (typeof id === 'string' && id.length > 0 && id.length <= 64 && !seen.has(id)) seen.add(id);
+      if (seen.size >= MAX_ORDERED_CARDS) break;
+    }
+    if (seen.size > 0) out[lane] = [...seen];
+  }
+  return out;
+}
+
 export function parseViewOptions(raw: unknown): ViewOptions {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const str = (v: unknown) => (typeof v === 'string' && v.length > 0 && v.length <= 64 ? v : null);
@@ -253,6 +276,7 @@ export function parseViewOptions(raw: unknown): ViewOptions {
     all.includes(v as T) ? (v as T) : d;
   return {
     laneColumnId: str(r['laneColumnId']),
+    cardOrder: parseCardOrder(r['cardOrder']),
     dateColumnId: str(r['dateColumnId']),
     calendarMode: r['calendarMode'] === 'week' ? 'week' : 'month',
     ganttColumnId: str(r['ganttColumnId']),

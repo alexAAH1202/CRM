@@ -46,6 +46,5 @@ scheduled automations, Drive uploads and email digests:
    the size of stored `conditions`/`actions`, and check that mentioned uids are members.
 6. **Reminders** (see above) and the **template ideas** (re-offer these when Phase 7 starts).
 
-Still open from the review, for later phases: general undo/redo; Kanban reordering within a
-lane; running automations for bulk edits; the app name (currently the placeholder
-`Sorted`).
+Done after Phase 7 (D85–D87): bulk edits run automations (up to 25 items), Kanban cards can be
+reordered within a lane, and there is general undo/redo.

@@ -649,6 +649,23 @@ var Sorted = (() => {
       options: parseViewOptions(r["options"])
     };
   }
+  var MAX_ORDERED_LANES = 40;
+  var MAX_ORDERED_CARDS = 300;
+  function parseCardOrder(raw) {
+    const out = {};
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+    for (const [lane, ids] of Object.entries(raw)) {
+      if (Object.keys(out).length >= MAX_ORDERED_LANES) break;
+      if (lane.length === 0 || lane.length > 64 || !Array.isArray(ids)) continue;
+      const seen = /* @__PURE__ */ new Set();
+      for (const id of ids) {
+        if (typeof id === "string" && id.length > 0 && id.length <= 64 && !seen.has(id)) seen.add(id);
+        if (seen.size >= MAX_ORDERED_CARDS) break;
+      }
+      if (seen.size > 0) out[lane] = [...seen];
+    }
+    return out;
+  }
   function parseViewOptions(raw) {
     const r = raw && typeof raw === "object" ? raw : {};
     const str2 = (v) => typeof v === "string" && v.length > 0 && v.length <= 64 ? v : null;
@@ -663,6 +680,7 @@ var Sorted = (() => {
     const oneOf = (v, all, d) => all.includes(v) ? v : d;
     return {
       laneColumnId: str2(r["laneColumnId"]),
+      cardOrder: parseCardOrder(r["cardOrder"]),
       dateColumnId: str2(r["dateColumnId"]),
       calendarMode: r["calendarMode"] === "week" ? "week" : "month",
       ganttColumnId: str2(r["ganttColumnId"]),

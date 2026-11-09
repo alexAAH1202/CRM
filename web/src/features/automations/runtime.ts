@@ -103,6 +103,78 @@ export function addAutomationOps(input: {
     : ops;
 }
 
+/** Bulk edits fire automations only up to this many items (more would mean a flood of changes). */
+export const MAX_BULK_AUTOMATION_ITEMS = 25;
+
+/**
+ * Like addAutomationOps, for several events caused by one bulk edit: each event sees the board as
+ * the earlier events and their automations left it, items created along the way are numbered in
+ * order, and the counter is written once.
+ */
+export function addAutomationOpsMany(input: {
+  bid: string;
+  actor: string;
+  baseOps: WriteOp[];
+  events: AutoEvent[];
+  itemsAfter: ReadonlyMap<string, EngineItem>;
+  startNumber: number | null;
+  counterExists: boolean;
+}): WriteOp[] {
+  const rt = runtimeFor(input.bid);
+  const automations = enabledAutomations(input.bid);
+  if (!rt || automations.length === 0 || input.events.length === 0) return input.baseOps;
+  const newId = (kind: string) =>
+    `${kind}${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`;
+  let items = input.itemsAfter;
+  let next = input.startNumber;
+  let counterTouched = false;
+  const ops = [...input.baseOps];
+  let failed = 0;
+  let skipped = 0;
+  let firstProblem = '';
+  for (const event of input.events) {
+    const result = runAutomations({
+      wid: rt.wid,
+      bid: input.bid,
+      boardName: rt.board.name,
+      event,
+      items,
+      columns: rt.board.columns,
+      groups: rt.board.groups,
+      automations,
+      actor: input.actor,
+      memberUids: rt.memberUids,
+      memberName: rt.memberName,
+      today: todayIso(),
+      startNumber: next,
+      newId: (kind) => newId(kind),
+    });
+    for (const r of result.runs) {
+      if (r.status === 'failed') failed++;
+      else if (r.status === 'skipped') skipped++;
+      else continue;
+      if (!firstProblem) firstProblem = `“${r.name}”: ${r.error ?? 'unknown problem'}`;
+    }
+    ops.push(...result.ops);
+    items = result.items;
+    if (result.counterNext !== null) {
+      next = result.counterNext;
+      counterTouched = true;
+    }
+  }
+  if (failed > 0)
+    toast.error(
+      `${failed} automation run${failed === 1 ? '' : 's'} couldn’t happen. First: ${firstProblem}`,
+    );
+  else if (skipped > 0)
+    toast.info(
+      `${skipped} automation run${skipped === 1 ? ' was' : 's were'} skipped. ${firstProblem}`,
+    );
+  return counterTouched && next !== null
+    ? withFinalCounter(ops, rt.wid, input.bid, input.counterExists, next)
+    : ops;
+}
+
 export { useBoardAutomationsRegistration } from './useAutomations';
 
 // ------------------------------------------------------------------ scheduled automations
