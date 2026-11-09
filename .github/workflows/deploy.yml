@@ -28,7 +28,7 @@ jobs:
       VITE_FIREBASE_APP_ID: 1:290995869060:web:a8f40b73d254ebda2839d1
       # The Apps Script helper's web app URL (not a secret): set as a repository *variable*
       # named APPS_SCRIPT_URL (SETUP B4.5). Empty until the helper is deployed.
-      VITE_APPS_SCRIPT_URL: ${{ vars.APPS_SCRIPT_URL }}
+      VITE_APPS_SCRIPT_URL: ${{ vars.APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxLf5HMi1DAaGosPaCagnOoP_FUGsNdHfzV8Q6WT8OXttB6XCbQ0uE9QhOMnU7v1wkTpA/exec' }}
     steps:
       - name: Check deploy credentials are configured
         env:
