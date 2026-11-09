@@ -21,7 +21,7 @@ import {
   Trash2,
   PanelRight,
 } from 'lucide-react';
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Popover } from '../../components/ui';
 import { cx } from '../../lib/cx';
 import type { BoardItem } from '../boards/types';
@@ -705,27 +705,50 @@ function AddInput({
   navRow: number;
 }) {
   const [v, setV] = useState('');
+  const cancelled = useRef(false);
+  const commit = () => {
+    const name = v.trim();
+    if (name) {
+      onAdd(name);
+      setV(''); // clear at once so the next item can be typed
+    }
+  };
   return (
-    <input
-      value={v}
-      onChange={(e) => setV(e.target.value)}
-      placeholder={placeholder}
-      aria-label={label}
-      maxLength={500}
-      data-nav-row={navRow}
-      data-nav-col={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' && v.trim()) {
-          onAdd(v.trim());
-          setV(''); // clear at once so the next item can be typed
-        }
-        if (e.key === 'Escape') setV('');
-      }}
-      className={cx(
-        'h-full w-full bg-transparent text-sm placeholder:text-muted focus:bg-surface-2 focus:outline-none',
-        indent ? 'pl-12' : 'px-3',
+    <div className="relative h-full w-full">
+      <input
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        maxLength={500}
+        data-nav-row={navRow}
+        data-nav-col={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') {
+            cancelled.current = true;
+            setV('');
+          }
+        }}
+        // Clicking away saves what you typed, like every other inline editor here.
+        onBlur={() => {
+          if (cancelled.current) cancelled.current = false;
+          else commit();
+        }}
+        className={cx(
+          'h-full w-full bg-transparent text-sm placeholder:text-muted focus:bg-surface-2 focus:outline-none',
+          indent ? 'pl-12' : 'px-3',
+        )}
+      />
+      {v.trim() !== '' && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted"
+        >
+          Enter to add
+        </span>
       )}
-    />
+    </div>
   );
 }
 
