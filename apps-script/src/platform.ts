@@ -28,6 +28,12 @@ export interface Platform {
   cacheGet(key: string): string | null;
   cachePut(key: string, value: string, ttlSeconds: number): void;
   prop(name: string): string | null;
+  /** Saves a Script Property (small bookkeeping: last run times, who got today's digest). */
+  setProp(name: string, value: string): void;
+  /** Sends a plain-text + HTML email as the script owner. */
+  sendMail(mail: { to: string; subject: string; text: string; html: string }): void;
+  /** How many more emails Google will let the script send today. */
+  mailQuota(): number;
   nowMs(): number;
   /** A fresh random id (Apps Script: Utilities.getUuid()). */
   uuid(): string;

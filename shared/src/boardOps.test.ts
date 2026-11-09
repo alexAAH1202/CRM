@@ -19,13 +19,15 @@ describe('templates', () => {
     }
   });
 
-  it('ships the six agreed templates', () => {
+  it('ships the agreed templates', () => {
     expect(TEMPLATES.map((t) => t.id)).toEqual([
       'chores',
       'bills',
       'renewals',
       'maintenance',
       'trip',
+      'purchases',
+      'goals',
       'blank',
     ]);
   });

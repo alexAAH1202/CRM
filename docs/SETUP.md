@@ -333,6 +333,11 @@ deployments → ✏️ (edit) → Version: New version → Deploy**.
 - Code changes take effect only after this step.
 - The Members page card tells you when the deployed helper is older than the
   app expects.
+- Phase 7d needs **no new trigger and no new permission** either: the 3am and 7am triggers that
+  `setup` created now do real work (tidy-up, weekly backup, daily emails). Two things to know:
+  after the site deploys, Firestore builds three new indexes for a few minutes, and the first
+  night's tidy-up may report "requires an index" until they finish (it just retries the next night).
+  The daily email is switched on per person in the app: bell → ⚙ → "Email me a daily summary".
 - Phase 7c needs **no new trigger and no new permission**: the Drive scope was already granted by
   `setup`. After pasting the new code and deploying a new version, upload a small file from a Files
   column to try it. If Drive says it isn't allowed, make sure the **Google Drive API** is enabled

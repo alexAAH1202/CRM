@@ -365,6 +365,15 @@ describe('favourites (users/{uid}.settings.favoriteBoardIds)', () => {
     );
     await assertFails(updateDoc(doc(fs, 'users/bob'), { 'settings.somethingElse': true }));
   });
+  it('the daily-email switch is a plain true/false only its owner can set', async () => {
+    const fs = db(env, 'bob');
+    await assertSucceeds(updateDoc(doc(fs, 'users/bob'), { 'settings.emailDigest': true }));
+    await assertSucceeds(updateDoc(doc(fs, 'users/bob'), { 'settings.emailDigest': false }));
+    await assertFails(updateDoc(doc(fs, 'users/bob'), { 'settings.emailDigest': 'yes' }));
+    await assertFails(
+      updateDoc(doc(db(env, 'alice'), 'users/bob'), { 'settings.emailDigest': true }),
+    );
+  });
 });
 
 describe('folders', () => {

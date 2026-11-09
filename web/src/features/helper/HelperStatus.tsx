@@ -54,6 +54,17 @@ export function HelperStatus() {
       .catch(() => setQueue(null));
   }, [state, outdated, workspace.id]);
 
+  // Nightly tidy-up, weekly backup and daily email: did they run?
+  const [maint, setMaint] = useState<HelperActions['maintenanceStatus']['response'] | null>(null);
+  useEffect(() => {
+    setMaint(null);
+    if (state.kind !== 'ok' || outdated) return;
+    callHelper('maintenanceStatus', { workspaceId: workspace.id }, { retries: 0 })
+      .then(setMaint)
+      .catch(() => setMaint(null));
+  }, [state, outdated, workspace.id]);
+  const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : 'not yet');
+
   const [syncing, setSyncing] = useState(false);
   const syncDrive = () => {
     setSyncing(true);
@@ -174,6 +185,39 @@ export function HelperStatus() {
             access now
           </Button>
         </div>
+      )}
+      {state.kind === 'ok' && !outdated && maint && (
+        <ul className="space-y-1 border-t border-border pt-3 text-sm" aria-label="Maintenance">
+          <li>
+            <span className="font-semibold">Nightly tidy-up:</span>{' '}
+            {maint.nightly
+              ? `ran ${when(maint.nightly.at)}, removed ${maint.nightly.deleted} old record${maint.nightly.deleted === 1 ? '' : 's'}`
+              : 'hasn’t run yet (it runs around 3am)'}
+            {maint.nightly && maint.nightly.problems.length > 0 && (
+              <span className="block text-danger" role="alert">
+                Problems: {maint.nightly.problems.join('; ')}
+              </span>
+            )}
+          </li>
+          <li>
+            <span className="font-semibold">Weekly backup:</span>{' '}
+            {maint.lastBackupAt ? `last saved ${when(maint.lastBackupAt)}` : 'no backup yet'}
+            {maint.nightly && maint.nightly.backups.failed > 0 && (
+              <span className="block text-danger" role="alert">
+                The last backup attempt failed. Check the Drive folder and the helper’s log.
+              </span>
+            )}
+            <span className="block text-xs text-muted">
+              In your workspace’s Drive folder, under “Backups”. The newest 8 are kept.
+            </span>
+          </li>
+          <li>
+            <span className="font-semibold">Daily emails:</span>{' '}
+            {maint.digest
+              ? `last run ${when(maint.digest.at)}, ${maint.digest.sent} sent${maint.digest.failed ? `, ${maint.digest.failed} failed` : ''}`
+              : 'haven’t run yet (around 7am)'}
+          </li>
+        </ul>
       )}
       {state.kind === 'error' && (
         <p role="alert" className="flex items-start gap-2 text-sm text-danger">

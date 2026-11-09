@@ -3,6 +3,7 @@ import {
   Activity,
   Archive,
   Download,
+  FileUp,
   Lock,
   Settings,
   ShieldAlert,
@@ -33,6 +34,7 @@ import { GanttView } from './GanttView';
 import { WorkloadView } from './WorkloadView';
 import { KanbanView } from './KanbanView';
 import { downloadBoardCsv } from './exportCsv';
+import { ImportDialog } from './ImportDialog';
 import { ItemPanel } from './ItemPanel';
 import { TrashPanel } from './TrashPanel';
 import { ViewTabs } from './ViewTabs';
@@ -46,6 +48,7 @@ function BoardView({ board: b }: { board: Board }) {
   const [activity, setActivity] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const user = useCurrentUser();
   const automations = useAutomations(workspace.id, b.id);
   useBoardAutomationsRegistration({
@@ -141,6 +144,18 @@ function BoardView({ board: b }: { board: Board }) {
               title="Recently deleted: restore items you removed"
             >
               <Trash2 size={14} aria-hidden />
+            </Button>
+          )}
+          {canEdit && !b.archived && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={items.status !== 'ready' || !members}
+              onClick={() => setImportOpen(true)}
+              aria-label="Import CSV"
+              title="Add items from a spreadsheet (CSV)"
+            >
+              <FileUp size={14} aria-hidden /> <span className="hidden lg:inline">Import</span>
             </Button>
           )}
           <Button
@@ -264,6 +279,17 @@ function BoardView({ board: b }: { board: Board }) {
       )}
       {itemId && items.status === 'ready' && members && (
         <ItemPanel p={viewProps} itemId={itemId} isAdmin={role === 'admin'} onClose={closeItem} />
+      )}
+      {importOpen && items.status === 'ready' && members && (
+        <ImportDialog
+          wid={workspace.id}
+          uid={user.uid}
+          board={b}
+          items={items.data}
+          members={members}
+          fallbackNumber={Math.max(0, ...[...items.data.values()].map((i) => i.itemNumber)) + 1}
+          onClose={() => setImportOpen(false)}
+        />
       )}
       {trashOpen && items.status === 'ready' && (
         <TrashPanel

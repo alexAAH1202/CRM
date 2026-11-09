@@ -16,3 +16,10 @@ export function saveMuted(uid: string, muted: string[]) {
     { kind: 'update', path: paths.user(uid), data: { 'settings.mutedNotifications': muted } },
   ]);
 }
+
+/** The daily summary email (sent by the helper; off unless you switch it on). */
+export function saveEmailDigest(uid: string, on: boolean) {
+  return commitOps('notification:digest', [
+    { kind: 'update', path: paths.user(uid), data: { 'settings.emailDigest': on } },
+  ]);
+}

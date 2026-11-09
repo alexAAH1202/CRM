@@ -88,6 +88,26 @@ describe('automations', () => {
     await assertFails(setDoc(doc(fs, apath('b7')), { ...ok, enabled: 'yes' }));
     await assertFails(setDoc(doc(fs, apath('b8')), { ...ok, createdAt: new Date(0) }));
   });
+  it('conditions, actions and the trigger stay small maps', async () => {
+    const fs = db(env, 'bob');
+    const ok = stored(draft());
+    const big = Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`k${i}`, i]));
+    await assertSucceeds(
+      setDoc(doc(fs, apath('s0')), {
+        ...ok,
+        actions: Array.from({ length: 5 }, () => ({ type: 'archive' })),
+      }),
+    );
+    await assertFails(setDoc(doc(fs, apath('s1')), { ...ok, actions: [{ type: 'archive' }, big] }));
+    await assertFails(setDoc(doc(fs, apath('s2')), { ...ok, conditions: [big] }));
+    await assertFails(
+      setDoc(doc(fs, apath('s3')), { ...ok, trigger: { ...draft().trigger, ...big } }),
+    );
+    await assertFails(setDoc(doc(fs, apath('s4')), { ...ok, actions: ['archive'] }));
+    await assertFails(
+      setDoc(doc(fs, apath('s5')), { ...ok, actions: [{ type: 'archive' }, {}, {}, {}, 'x'] }),
+    );
+  });
   it('any editor can edit or switch one off; the owner never changes', async () => {
     await setDoc(doc(db(env, 'bob'), apath('a1')), stored(draft()));
     await assertSucceeds(

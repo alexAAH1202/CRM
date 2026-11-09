@@ -12,7 +12,10 @@ export class FakeDrive {
   folders = new Map<string, { name: string; parents: string[]; trashed: boolean }>();
   perms = new Map<string, Perm[]>();
   sessions = new Map<string, { size: number; received: Buffer[]; meta: Record<string, unknown> }>();
-  files = new Map<string, { name: string; mime: string; bytes: Buffer; parents: string[] }>();
+  files = new Map<
+    string,
+    { name: string; mime: string; bytes: Buffer; parents: string[]; trashed?: boolean; seq: number }
+  >();
   failNext: { match: RegExp; status: number } | null = null;
   rejectEmails = new Set<string>();
   private n = 0;
@@ -64,9 +67,24 @@ export class FakeDrive {
         return res(200, { id: list[list.length - 1]!.id });
       }
     }
+    if (/\/drive\/v3\/files\?q=/.test(u) && m === 'GET') {
+      const q = decodeURIComponent(/q=([^&]*)/.exec(u)![1]!);
+      const parent = /'([^']+)' in parents/.exec(q)?.[1];
+      if (q.includes("name='Backups'")) {
+        const hit = [...this.folders].find(
+          ([, f]) => f.name === 'Backups' && f.parents.includes(parent!) && !f.trashed,
+        );
+        return res(200, { files: hit ? [{ id: hit[0] }] : [] });
+      }
+      const files = [...this.files]
+        .filter(([, f]) => f.parents.includes(parent!) && !f.trashed && f.name.includes('backup-'))
+        .sort(([, a], [, b]) => b.seq - a.seq)
+        .map(([id, f]) => ({ id, name: f.name }));
+      return res(200, { files });
+    }
     r = /\/drive\/v3\/files\/([^/?]+)(\?|$)/.exec(u);
     if (r && m === 'PATCH') {
-      const f = this.folders.get(r[1]!);
+      const f = this.folders.get(r[1]!) ?? this.files.get(r[1]!);
       if (!f) return res(404, {});
       Object.assign(f, JSON.parse(req.body ?? '{}'));
       return res(200, {});
@@ -90,7 +108,10 @@ export class FakeDrive {
     const [start, end, total] = [Number(range[1]), Number(range[2]), Number(range[3])];
     const have = s.received.reduce((a, b) => a + b.length, 0);
     if (start !== have || total !== s.size) return res(400, { error: 'bad range' });
-    const bytes = Buffer.from(req.bodyBase64 ?? '', 'base64');
+    const bytes =
+      req.bodyBase64 !== undefined
+        ? Buffer.from(req.bodyBase64, 'base64')
+        : Buffer.from(req.body ?? '', 'utf8');
     if (bytes.length !== end - start + 1) return res(400, { error: 'length mismatch' });
     s.received.push(bytes);
     if (end + 1 < s.size) return { status: 308, body: '', headers: { range: `bytes=0-${end}` } };
@@ -101,6 +122,7 @@ export class FakeDrive {
       mime: String(s.meta['mimeType']),
       bytes: all,
       parents: s.meta['parents'] as string[],
+      seq: this.n,
     });
     return res(200, {
       id: fid,

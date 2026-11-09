@@ -30,6 +30,8 @@ import {
   keyBetween,
   paths,
   planCreateBoard,
+  planImportChunk,
+  type ImportItem,
   planCreateItem,
   planDeleteItem,
   planSetCell,
@@ -835,4 +837,65 @@ export function setFavorite(uid: string, favoriteBoardIds: string[]) {
       data: { 'settings.favoriteBoardIds': favoriteBoardIds },
     },
   ]);
+}
+
+/**
+ * Creates imported items in batches (each one atomic: numbers come from the board counter, so two
+ * people importing or typing at once can't clash). Reminders are registered for imported dates.
+ * Instant automations don't run for imports (a 500-row import shouldn't fire 500 notifications).
+ */
+export async function importItems(input: {
+  wid: string;
+  board: Board;
+  uid: string;
+  items: readonly ImportItem[];
+  lastOrderByGroup: ReadonlyMap<string, string | null>;
+  fallbackNumber: number;
+  onProgress?: (done: number) => void;
+}): Promise<void> {
+  const CHUNK = 100;
+  let last = new Map(input.lastOrderByGroup);
+  for (let i = 0; i < input.items.length; i += CHUNK) {
+    const slice = input.items.slice(i, i + CHUNK).map((it) => ({
+      ...it,
+      values: { ...defaultItemValues(input.board.columns), ...it.values },
+    }));
+    let nextLast = last;
+    await serialized(() =>
+      runOpsTransaction('item:import', async (get) => {
+        const counter = await get(doc(db, boardPaths.counter(input.wid, input.board.id)));
+        const ids: string[] = [];
+        const planned = planImportChunk({
+          wid: input.wid,
+          bid: input.board.id,
+          uid: input.uid,
+          columns: input.board.columns,
+          items: slice,
+          startNumber: (counter.data()?.['next'] as number | undefined) ?? input.fallbackNumber,
+          counterExists: counter.exists(),
+          lastOrderByGroup: last,
+          newItemId: () => {
+            const id = newId(boardPaths.items(input.wid, input.board.id));
+            ids.push(id);
+            return id;
+          },
+        });
+        nextLast = planned.lastOrderByGroup;
+        return [
+          ...planned.ops,
+          ...scheduleOpsFor(
+            input.board.id,
+            ids.map((id, k) => ({
+              id,
+              values: cleanValues(input.board.columns, slice[k]!.values),
+              archived: false,
+              deleted: false,
+            })),
+          ),
+        ];
+      }),
+    );
+    last = nextLast;
+    input.onProgress?.(Math.min(i + CHUNK, input.items.length));
+  }
 }

@@ -30,8 +30,8 @@ var Sorted = (() => {
   __export(Code_exports, {
     doGet: () => doGet,
     doPost: () => doPost,
-    runDigest: () => runDigest,
-    runHousekeeping: () => runHousekeeping,
+    runDigest: () => runDigest2,
+    runHousekeeping: () => runHousekeeping2,
     runScheduler: () => runScheduler,
     setup: () => setup
   });
@@ -849,6 +849,17 @@ var Sorted = (() => {
   }
 
   // ../shared/src/myWork.ts
+  function dueDateOf(columns, values) {
+    const dates = columns.filter((c) => c.type === "date");
+    const col = dates.find((c) => /\bdue\b|deadline/i.test(c.title)) ?? dates[0];
+    if (col) {
+      const s = spanOf(col, values[col.id]);
+      if (s) return s.start;
+    }
+    const tl = columns.find((c) => c.type === "timeline");
+    if (tl) return spanOf(tl, values[tl.id])?.end ?? null;
+    return null;
+  }
   var DONE = /^(done|complete|completed|finished|paid|closed|resolved)$/i;
   function isDone(columns, values) {
     for (const c of columns) {
@@ -858,6 +869,15 @@ var Sorted = (() => {
       if (label && DONE.test(label.name.trim())) return true;
     }
     return false;
+  }
+  function bucketOf(due, today) {
+    if (!due) return "none";
+    const d = toDayNumber(due);
+    const t = toDayNumber(today);
+    if (d === null || t === null) return "none";
+    if (d < t) return "overdue";
+    if (d === t) return "today";
+    return d - t <= 7 ? "week" : "later";
   }
 
   // ../shared/src/scheduling.ts
@@ -1542,7 +1562,7 @@ var Sorted = (() => {
       this.code = code;
     }
   };
-  var HELPER_VERSION = "7c.1";
+  var HELPER_VERSION = "7d.1";
 
   // ../shared/src/scheduleOps.ts
   function eventId(automationId, itemId) {
@@ -1830,8 +1850,8 @@ var Sorted = (() => {
       return { status: res.status, json: json2 };
     }
     fail(status, json2, what) {
-      const msg = json2?.error?.message ?? `HTTP ${status}`;
-      this.p.log(`Firestore ${what} failed: ${status} ${msg}`);
+      const msg2 = json2?.error?.message ?? `HTTP ${status}`;
+      this.p.log(`Firestore ${what} failed: ${status} ${msg2}`);
       if (status === 429 || status === 503)
         throw new HelperError("unavailable", "The database is busy. Try again shortly.");
       if (status === 403 || status === 401)
@@ -2118,6 +2138,523 @@ var Sorted = (() => {
     return n;
   }
 
+  // src/backup.ts
+  var BACKUPS_TO_KEEP = 8;
+  var WEEK_MS = 6.5 * 864e5;
+  var PROP = "BACKUP_LAST";
+  var asRecord = (d) => ({ id: d.id, ...d.data });
+  function collectWorkspace(db, wid, nowIso) {
+    const root = `workspaces/${wid}`;
+    const sub = (parent, collection) => db.query({ parent, collection }).map(asRecord);
+    const ws = db.getDoc(root);
+    const boards = db.query({ parent: root, collection: "boards" }).map((b) => ({
+      ...asRecord(b),
+      views: sub(b.path, "views"),
+      automations: sub(b.path, "automations"),
+      counter: db.getDoc(`${b.path}/meta/counter`)?.data ?? null,
+      items: sub(b.path, "items")
+    }));
+    return {
+      format: "sorted-backup",
+      version: 1,
+      createdAt: nowIso,
+      workspace: ws ? asRecord(ws) : { id: wid },
+      members: sub(root, "members"),
+      invites: sub(root, "invites"),
+      folders: sub(root, "folders"),
+      boards
+    };
+  }
+  function asciiJson(value) {
+    return JSON.stringify(value).replace(
+      /[\u0080-￿]/g,
+      (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`
+    );
+  }
+  function ensureBackupsFolder(p, parent) {
+    const q = `name='Backups' and mimeType='application/vnd.google-apps.folder' and '${parent}' in parents and trashed=false`;
+    const found = driveJson(p, "find backups folder", {
+      url: `${DRIVE}/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`
+    }).files?.[0];
+    if (found) return found.id;
+    return driveJson(p, "create backups folder", {
+      url: `${DRIVE}/files?fields=id`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Backups",
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [parent]
+      })
+    }).id;
+  }
+  function uploadJson(p, folderId, name, body) {
+    const start = p.http({
+      url: `${UPLOAD}?uploadType=resumable&fields=id`,
+      method: "POST",
+      oauth: true,
+      headers: {
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": "application/json",
+        "X-Upload-Content-Length": String(body.length)
+      },
+      body: JSON.stringify({ name, mimeType: "application/json", parents: [folderId] })
+    });
+    const session = start.headers?.["location"];
+    if (start.status !== 200 || !session)
+      throw new HelperError("internal", `Drive refused the backup upload (${start.status}).`);
+    const put2 = p.http({
+      url: session,
+      method: "PUT",
+      oauth: true,
+      headers: { "Content-Range": `bytes 0-${body.length - 1}/${body.length}` },
+      body,
+      followRedirects: false
+    });
+    if (put2.status !== 200 && put2.status !== 201)
+      throw new HelperError("internal", `Drive refused the backup file (${put2.status}).`);
+    return JSON.parse(put2.body).id;
+  }
+  function pruneOld(p, folderId, keep) {
+    const list = driveJson(p, "list backups", {
+      url: `${DRIVE}/files?q=${encodeURIComponent(`'${folderId}' in parents and trashed=false and name contains 'backup-'`)}&orderBy=${encodeURIComponent("createdTime desc")}&fields=files(id,name)&pageSize=100`
+    }).files;
+    const old = (list ?? []).slice(keep);
+    for (const f of old)
+      p.http({
+        url: `${DRIVE}/files/${f.id}`,
+        method: "PATCH",
+        oauth: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trashed: true })
+      });
+    return old.length;
+  }
+  function backupWorkspace(p, cfg, db, wid) {
+    try {
+      const now = new Date(p.nowMs());
+      const data = collectWorkspace(db, wid, now.toISOString());
+      const body = asciiJson(data);
+      const folder = ensureBackupsFolder(p, ensureWorkspaceFolder(p, cfg, db, wid));
+      uploadJson(p, folder, `backup-${now.toISOString().slice(0, 10)}.json`, body);
+      const removed = pruneOld(p, folder, BACKUPS_TO_KEEP);
+      return { workspaceId: wid, ok: true, bytes: body.length, removed };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      p.log(`Backup of ${wid} failed: ${error}`);
+      return { workspaceId: wid, ok: false, error: error.slice(0, 200) };
+    }
+  }
+  function lastTimes(p) {
+    try {
+      return JSON.parse(p.prop(PROP) ?? "{}");
+    } catch {
+      return {};
+    }
+  }
+  function backupDue(p, cfg, db, opts = {}) {
+    const last = lastTimes(p);
+    const results = [];
+    for (const w of db.query({ collection: "workspaces", limit: 100 })) {
+      if (opts.deadline && p.nowMs() >= opts.deadline) break;
+      if (!opts.force && p.nowMs() - (last[w.id] ?? 0) < WEEK_MS) continue;
+      const r = backupWorkspace(p, cfg, db, w.id);
+      results.push(r);
+      if (r.ok) {
+        last[w.id] = p.nowMs();
+        p.setProp(PROP, JSON.stringify(last));
+      }
+    }
+    return results;
+  }
+  function lastBackups(p) {
+    return lastTimes(p);
+  }
+
+  // src/digest.ts
+  var APP_URL = "https://life-management-de315.web.app";
+  var SENT_PROP = "DIGEST_SENT";
+  var COUNT_PROP = "DIGEST_COUNT";
+  var QUOTA_MARGIN = 5;
+  var MAX_ROWS_PER_SECTION = 25;
+  var escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  var SECTIONS = [
+    { key: "overdue", label: "Overdue" },
+    { key: "today", label: "Due today" },
+    { key: "week", label: "Due in the next 7 days" }
+  ];
+  var count = (w) => w.overdue.length + w.today.length + w.week.length;
+  function composeDigest(input) {
+    const total = input.workspaces.reduce((n, w) => n + count(w), 0);
+    if (total === 0 && input.unread === 0) return null;
+    const overdue = input.workspaces.reduce((n, w) => n + w.overdue.length, 0);
+    const today = input.workspaces.reduce((n, w) => n + w.today.length, 0);
+    const bits = [
+      overdue ? `${overdue} overdue` : "",
+      today ? `${today} due today` : "",
+      !overdue && !today && total ? `${total} coming up` : "",
+      input.unread ? `${input.unread} unread` : ""
+    ].filter(Boolean);
+    const subject = `Sorted: ${bits.join(", ")}`;
+    const text = [`Good morning ${input.person},`, ""];
+    const html = [
+      `<div style="font-family:system-ui,Arial,sans-serif;color:#1b1f2a;max-width:560px">`,
+      `<p>Good morning ${escapeHtml(input.person)},</p>`
+    ];
+    for (const w of input.workspaces) {
+      if (count(w) === 0) continue;
+      text.push(w.name.toUpperCase());
+      html.push(`<h2 style="font-size:18px;margin:20px 0 4px">${escapeHtml(w.name)}</h2>`);
+      for (const s of SECTIONS) {
+        const rows = w[s.key];
+        if (rows.length === 0) continue;
+        text.push(`${s.label}:`);
+        html.push(
+          `<h3 style="font-size:14px;margin:12px 0 4px;color:#555">${s.label}</h3><ul style="margin:0;padding-left:20px">`
+        );
+        for (const r of rows.slice(0, MAX_ROWS_PER_SECTION)) {
+          text.push(`  - ${r.name} (${r.board}, ${r.due}) ${r.url}`);
+          html.push(
+            `<li><a href="${escapeHtml(r.url)}" style="color:#4a3fc7">${escapeHtml(r.name)}</a> <span style="color:#666">· ${escapeHtml(r.board)} · ${escapeHtml(r.due)}</span></li>`
+          );
+        }
+        if (rows.length > MAX_ROWS_PER_SECTION) {
+          text.push(`  …and ${rows.length - MAX_ROWS_PER_SECTION} more`);
+          html.push(`<li>…and ${rows.length - MAX_ROWS_PER_SECTION} more</li>`);
+        }
+        html.push("</ul>");
+        text.push("");
+      }
+    }
+    if (input.unread > 0) {
+      const n = `${input.unread} unread notification${input.unread === 1 ? "" : "s"}`;
+      text.push(`You have ${n}: ${APP_URL}`);
+      html.push(`<p>You have <a href="${APP_URL}" style="color:#4a3fc7">${n}</a>.</p>`);
+    }
+    text.push(
+      "",
+      "You get this because you turned on the daily summary in Sorted. Turn it off any time in the notifications menu."
+    );
+    html.push(
+      `<p style="color:#777;font-size:12px;margin-top:24px">You get this because you turned on the daily summary in Sorted. Turn it off any time in the notifications menu.</p></div>`
+    );
+    return { subject, text: text.join("\n"), html: html.join("") };
+  }
+  function readJson(p, name, fallback) {
+    try {
+      return JSON.parse(p.prop(name) ?? "");
+    } catch {
+      return fallback;
+    }
+  }
+  function runDigest(p, db) {
+    const today = localDateIn(p.nowMs(), DEFAULT_TIMEZONE);
+    const sentMap = readJson(p, SENT_PROP, {});
+    const counter = readJson(p, COUNT_PROP, { date: today, n: 0 });
+    if (counter.date !== today) {
+      counter.date = today;
+      counter.n = 0;
+    }
+    const summary = {
+      sent: 0,
+      skipped: { alreadySent: 0, empty: 0, optedOut: 0, capped: 0 },
+      failed: 0
+    };
+    const people = /* @__PURE__ */ new Map();
+    const workspaceNames = /* @__PURE__ */ new Map();
+    for (const w of db.query({ collection: "workspaces", limit: 100 })) {
+      workspaceNames.set(w.id, String(w.data["name"] ?? "Workspace"));
+      for (const m of db.query({ parent: `workspaces/${w.id}`, collection: "members", limit: 200 })) {
+        const email = m.data["email"];
+        if (typeof email !== "string" || !email.includes("@")) continue;
+        const person = people.get(m.id) ?? {
+          uid: m.id,
+          email,
+          name: String(m.data["displayName"] ?? email),
+          workspaces: []
+        };
+        person.workspaces.push({ id: w.id, role: String(m.data["role"] ?? "member") });
+        people.set(m.id, person);
+      }
+    }
+    if (people.size === 0) return summary;
+    const users = new Map(
+      db.batchGet([...people.keys()].map((u) => `users/${u}`)).map((d) => [d.id, d.data])
+    );
+    for (const person of people.values()) {
+      const settings = users.get(person.uid)?.["settings"] ?? {};
+      if (settings.emailDigest !== true) {
+        summary.skipped.optedOut++;
+        continue;
+      }
+      if (sentMap[person.uid] === today) {
+        summary.skipped.alreadySent++;
+        continue;
+      }
+      if (counter.n >= LIMITS.MAX_DIGEST_EMAILS_PER_DAY || p.mailQuota() <= QUOTA_MARGIN) {
+        summary.skipped.capped++;
+        continue;
+      }
+      try {
+        const mail = composeDigest(gather(p, db, person, workspaceNames, today));
+        if (!mail) {
+          summary.skipped.empty++;
+          continue;
+        }
+        sentMap[person.uid] = today;
+        p.setProp(SENT_PROP, JSON.stringify(prune(sentMap, today)));
+        p.sendMail({ to: person.email, ...mail });
+        counter.n++;
+        p.setProp(COUNT_PROP, JSON.stringify(counter));
+        summary.sent++;
+      } catch (e) {
+        summary.failed++;
+        p.log(`Digest for ${person.uid} failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    return summary;
+  }
+  function prune(map, today) {
+    return Object.fromEntries(Object.entries(map).filter(([, d]) => d === today));
+  }
+  function gather(p, db, person, names, today) {
+    const workspaces = [];
+    let unread = 0;
+    for (const ws of person.workspaces) {
+      const out = {
+        name: names.get(ws.id) ?? "Workspace",
+        overdue: [],
+        today: [],
+        week: []
+      };
+      const boards = db.query({ parent: `workspaces/${ws.id}`, collection: "boards", limit: 100 });
+      for (const b of boards) {
+        if (b.data["archived"] === true) continue;
+        const memberIds = Array.isArray(b.data["memberIds"]) ? b.data["memberIds"] : [];
+        if (b.data["visibility"] === "private" && ws.role !== "admin" && !memberIds.includes(person.uid))
+          continue;
+        const columns = b.data["columns"] ?? [];
+        const items = db.query({
+          parent: b.path,
+          collection: "items",
+          where: [{ field: "assigneeUids", op: "ARRAY_CONTAINS", value: person.uid }],
+          limit: 300
+        });
+        for (const it of items) {
+          if (it.data["deletedAt"] != null || it.data["archived"] === true) continue;
+          const values = it.data["values"] ?? {};
+          if (isDone(columns, values)) continue;
+          const due = dueDateOf(columns, values);
+          const bucket = bucketOf(due, today);
+          if (bucket !== "overdue" && bucket !== "today" && bucket !== "week") continue;
+          out[bucket].push({
+            name: String(it.data["name"] ?? "Untitled"),
+            board: String(b.data["name"] ?? "Board"),
+            due: due ?? "",
+            url: `${APP_URL}/w/${ws.id}/b/${b.id}?item=${it.id}`
+          });
+        }
+      }
+      for (const k of ["overdue", "today", "week"])
+        out[k].sort((a, c) => a.due.localeCompare(c.due));
+      workspaces.push(out);
+      const note = db.query({
+        parent: `workspaces/${ws.id}/notifications/${person.uid}`,
+        collection: "items",
+        where: [{ field: "read", op: "EQUAL", value: false }],
+        limit: 50
+      });
+      unread += note.length;
+    }
+    void p;
+    return { person: person.name.split(" ")[0] ?? person.name, workspaces, unread };
+  }
+
+  // src/housekeeping.ts
+  var TOMBSTONE_DAYS = 30;
+  var ACTIVITY_DAYS = 180;
+  var RUN_HISTORY_DAYS = 30;
+  var READ_NOTIFICATION_DAYS = 30;
+  var ANY_NOTIFICATION_DAYS = 90;
+  var DAY = 864e5;
+  var BATCH = 200;
+  var MAX_PER_STEP = 2e3;
+  var errText = (e) => e instanceof Error ? e.message : String(e);
+  function purge(ctx, spec, opts = {}) {
+    let deleted = 0;
+    for (; ; ) {
+      if (ctx.p.nowMs() >= ctx.deadline) return { deleted, more: true };
+      if (deleted >= MAX_PER_STEP) return { deleted, more: true };
+      const docs = ctx.db.query({ ...spec, limit: BATCH });
+      const doomed = opts.keep ? docs.filter((d) => !opts.keep(d)) : docs;
+      if (doomed.length > 0) {
+        ctx.db.commit(doomed.map((d) => ({ kind: "delete", path: d.path })));
+        opts.onDeleted?.(doomed);
+        deleted += doomed.length;
+      }
+      if (docs.length < BATCH) return { deleted, more: false };
+      if (doomed.length === 0) return { deleted, more: false };
+    }
+  }
+  var olderThan = (field, now, days) => ({
+    field,
+    op: "LESS_THAN_OR_EQUAL",
+    value: new Date(now - days * DAY)
+  });
+  function step(ctx, name, body) {
+    try {
+      return { name, ...body() };
+    } catch (e) {
+      ctx.p.log(`Housekeeping step “${name}” failed: ${errText(e)}`);
+      return { name, deleted: 0, more: false, error: errText(e).slice(0, 200) };
+    }
+  }
+  function purgeTombstones(ctx) {
+    const now = ctx.p.nowMs();
+    let threads = 0;
+    const r = purge(
+      ctx,
+      {
+        collection: "items",
+        group: true,
+        where: [olderThan("deletedAt", now, TOMBSTONE_DAYS)]
+      },
+      {
+        // Notifications also live in collections called "items": only ever touch board items.
+        keep: (d) => !/^workspaces\/[^/]+\/boards\/[^/]+\/items\/[^/]+$/.test(d.path),
+        onDeleted: (docs) => {
+          for (const d of docs) {
+            for (let i = 0; i < 10; i++) {
+              const updates = ctx.db.query({ parent: d.path, collection: "updates", limit: BATCH });
+              if (updates.length === 0) break;
+              ctx.db.commit(updates.map((u) => ({ kind: "delete", path: u.path })));
+              threads += updates.length;
+            }
+          }
+        }
+      }
+    );
+    return { deleted: r.deleted + threads, more: r.more };
+  }
+  function purgeNotifications(ctx) {
+    const now = ctx.p.nowMs();
+    const workspaces = ctx.db.query({ collection: "workspaces", limit: 100 });
+    let deleted = 0;
+    let more = false;
+    for (const w of workspaces) {
+      const members = ctx.db.query({
+        parent: `workspaces/${w.id}`,
+        collection: "members",
+        limit: 200
+      });
+      for (const m of members) {
+        const parent = paths.notifications(w.id, m.id).replace(/\/items$/, "");
+        const a = purge(
+          ctx,
+          {
+            parent,
+            collection: "items",
+            where: [olderThan("createdAt", now, READ_NOTIFICATION_DAYS)]
+          },
+          { keep: (d) => d.data["read"] !== true }
+        );
+        const b = purge(ctx, {
+          parent,
+          collection: "items",
+          where: [olderThan("createdAt", now, ANY_NOTIFICATION_DAYS)]
+        });
+        deleted += a.deleted + b.deleted;
+        more = more || a.more || b.more;
+      }
+    }
+    return { deleted, more };
+  }
+  function runHousekeeping(p, db, opts = {}) {
+    const ctx = { p, db, deadline: p.nowMs() + (opts.budgetMs ?? 4 * 6e4) };
+    const now = p.nowMs();
+    const steps = [
+      step(ctx, "deleted items", () => purgeTombstones(ctx)),
+      step(
+        ctx,
+        "activity log",
+        () => purge(ctx, {
+          collection: "activity",
+          group: true,
+          where: [olderThan("at", now, ACTIVITY_DAYS)]
+        })
+      ),
+      step(
+        ctx,
+        "automation history",
+        () => purge(ctx, {
+          collection: "automationRuns",
+          group: true,
+          where: [olderThan("at", now, RUN_HISTORY_DAYS)]
+        })
+      ),
+      step(ctx, "notifications", () => purgeNotifications(ctx))
+    ];
+    return { at: new Date(now).toISOString(), steps };
+  }
+
+  // src/nightly.ts
+  var NIGHTLY_PROP = "LAST_NIGHTLY";
+  var DIGEST_PROP = "LAST_DIGEST";
+  var msg = (e) => e instanceof Error ? e.message : String(e);
+  function runNightly(p) {
+    const cfg = loadConfig(p);
+    const db = new FirestoreClient(p, cfg.projectId);
+    const started = p.nowMs();
+    const housekeeping = runHousekeeping(p, db, { budgetMs: 3 * 6e4 });
+    let foldersChecked = 0;
+    try {
+      foldersChecked = syncAllFolders(p, cfg, db);
+    } catch (e) {
+      p.log(`Folder sync failed: ${msg(e)}`);
+    }
+    let backups = [];
+    try {
+      backups = backupDue(p, cfg, db, { deadline: started + 5 * 6e4 });
+    } catch (e) {
+      p.log(`Backups failed: ${msg(e)}`);
+    }
+    const report = { housekeeping, foldersChecked, backups };
+    p.setProp(NIGHTLY_PROP, JSON.stringify({ at: new Date(p.nowMs()).toISOString(), ...report }));
+    return report;
+  }
+  function runMorning(p) {
+    const cfg = loadConfig(p);
+    const summary = runDigest(p, new FirestoreClient(p, cfg.projectId));
+    p.setProp(DIGEST_PROP, JSON.stringify({ at: new Date(p.nowMs()).toISOString(), ...summary }));
+    return summary;
+  }
+  var parse = (s) => {
+    try {
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  };
+  function maintenanceStatus(p, workspaceId) {
+    if (!workspaceId) throw new HelperError("bad_request", "A workspace is required.");
+    const n = parse(p.prop(NIGHTLY_PROP));
+    const d = parse(p.prop(DIGEST_PROP));
+    const last = lastBackups(p)[workspaceId];
+    return {
+      nightly: n && {
+        at: n.at,
+        deleted: n.housekeeping.steps.reduce((s, x) => s + x.deleted, 0),
+        problems: n.housekeeping.steps.filter((s) => s.error).map((s) => `${s.name}: ${s.error}`),
+        backups: {
+          ok: n.backups.filter((b) => b.ok).length,
+          failed: n.backups.filter((b) => !b.ok).length
+        }
+      },
+      digest: d && { at: d.at, sent: d.sent, failed: d.failed },
+      lastBackupAt: last ? new Date(last).toISOString() : null
+    };
+  }
+
   // src/gas.ts
   function gasPlatform() {
     const cache = CacheService.getScriptCache();
@@ -2143,6 +2680,16 @@ var Sorted = (() => {
         cache.put(k, v, Math.min(ttl, 21600));
       },
       prop: (n) => props.getProperty(n),
+      setProp: (n, v) => void props.setProperty(n, v),
+      sendMail: (m) => MailApp.sendEmail({
+        to: m.to,
+        subject: m.subject,
+        body: m.text,
+        htmlBody: m.html,
+        name: "Sorted",
+        noReply: true
+      }),
+      mailQuota: () => MailApp.getRemainingDailyQuota(),
       nowMs: () => Date.now(),
       uuid: () => Utilities.getUuid().replace(/-/g, ""),
       sha256Hex: (text) => Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8).map((b) => (b < 0 ? b + 256 : b).toString(16).padStart(2, "0")).join(""),
@@ -2657,6 +3204,10 @@ var Sorted = (() => {
     auth: "admin",
     run: (ctx) => queueStatus(ctx.p, ctx.db, ctx.workspaceId)
   };
+  actions["maintenanceStatus"] = {
+    auth: "admin",
+    run: (ctx) => maintenanceStatus(ctx.p, ctx.workspaceId)
+  };
   actions["uploadStart"] = {
     auth: "member",
     writes: true,
@@ -2741,20 +3292,22 @@ var Sorted = (() => {
       console.error(`Scheduler failed: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
     }
   }
-  function runHousekeeping() {
+  function runHousekeeping2() {
     try {
-      const p = gasPlatform();
-      const cfg = loadConfig(p);
-      const n = syncAllFolders(p, cfg, new FirestoreClient(p, cfg.projectId));
-      console.log(`Housekeeping: Drive sharing checked for ${n} workspace(s).`);
-    } catch (e) {
-      console.error(
-        `Housekeeping failed: ${e instanceof Error ? e.stack ?? e.message : String(e)}`
+      const r = runNightly(gasPlatform());
+      console.log(
+        `Nightly: ${r.housekeeping.steps.map((x) => `${x.name} ${x.deleted}${x.error ? " (failed)" : ""}`).join(", ")}; ${r.foldersChecked} folder(s) checked; ${r.backups.filter((b) => b.ok).length} backup(s).`
       );
+    } catch (e) {
+      console.error(`Nightly failed: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
     }
   }
-  function runDigest() {
-    console.log("Digest tick (nothing to send yet).");
+  function runDigest2() {
+    try {
+      console.log(`Digest: ${JSON.stringify(runMorning(gasPlatform()))}`);
+    } catch (e) {
+      console.error(`Digest failed: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
+    }
   }
   var HANDLERS = ["runScheduler", "runHousekeeping", "runDigest"];
   function setup() {

@@ -4,6 +4,7 @@ import { syncFolderSharing, uploadChunk, uploadStart } from './drive';
 import { loadConfig, TIME_ZONE, VERSION, type HelperConfig } from './config';
 import { FirestoreClient } from './firestore';
 import type { Platform } from './platform';
+import { maintenanceStatus } from './nightly';
 import { queueStatus, rebuildSchedule } from './scheduler';
 
 /** Requests bigger than this are refused (uploads are sent in chunks, later). */
@@ -60,6 +61,10 @@ actions['schedulerStatus'] = {
   run: (ctx) => queueStatus(ctx.p, ctx.db, ctx.workspaceId as string),
 };
 
+actions['maintenanceStatus'] = {
+  auth: 'admin',
+  run: (ctx) => maintenanceStatus(ctx.p, ctx.workspaceId as string),
+};
 actions['uploadStart'] = {
   auth: 'member',
   writes: true,

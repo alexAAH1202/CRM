@@ -30,6 +30,17 @@ export function gasPlatform(): Platform {
       cache.put(k, v, Math.min(ttl, 21600));
     },
     prop: (n) => props.getProperty(n),
+    setProp: (n, v) => void props.setProperty(n, v),
+    sendMail: (m) =>
+      MailApp.sendEmail({
+        to: m.to,
+        subject: m.subject,
+        body: m.text,
+        htmlBody: m.html,
+        name: 'Sorted',
+        noReply: true,
+      }),
+    mailQuota: () => MailApp.getRemainingDailyQuota(),
     nowMs: () => Date.now(),
     uuid: () => Utilities.getUuid().replace(/-/g, ''),
     sha256Hex: (text) =>
