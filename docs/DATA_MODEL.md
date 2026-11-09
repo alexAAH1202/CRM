@@ -355,9 +355,11 @@ mark it read, or delete it.
 Holds one running timer per user per workspace. The doc ID is the uid, so a
 second timer is impossible. Only the owner may write it.
 
-### `workspaces/{wid}/timeEntries/{eid}`
+### Time sessions (Phase 8a)
 
-Archive target for time sessions once an item's inline array passes 200.
+Stored inline in the item's Time tracking cell: `values.{colId} = { sessions: [{ id, uid, start, end,
+note?, rolled? }] }` (epoch ms). Past 200 sessions the oldest 100 become one `rolled` entry per
+person per month (D90), so there is **no** `timeEntries` collection.
 
 ---
 

@@ -16,6 +16,7 @@ const WorkspaceLayout = lazy(() => import('../features/shell/WorkspaceLayout'));
 const WorkspaceHomePage = lazy(() => import('../pages/WorkspaceHomePage'));
 const MembersPage = lazy(() => import('../pages/MembersPage'));
 const MyWorkPage = lazy(() => import('../features/mywork/MyWorkPage'));
+const TimesheetPage = lazy(() => import('../features/time/TimesheetPage'));
 const BoardPage = lazy(() => import('../features/board/BoardPage'));
 const DevComponentsPage = lazy(() => import('../pages/DevComponentsPage'));
 const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
@@ -45,6 +46,7 @@ export function App() {
                   <Route index element={<WorkspaceHomePage />} />
                   <Route path="members" element={<MembersPage />} />
                   <Route path="my-work" element={<MyWorkPage />} />
+                  <Route path="timesheet" element={<TimesheetPage />} />
                   <Route path="b/:bid" element={<BoardPage />} />
                 </Route>
               </Route>

@@ -1,5 +1,6 @@
 import type { Group } from './board';
-import { isComputedType, valueToText, type Column } from './columns';
+import { isComputedType, normalizeValue, valueToText, type Column } from './columns';
+import { toHours, totalMs, type TimeValue } from './timeTracking';
 import type { ItemLike } from './itemLike';
 
 /**
@@ -54,6 +55,11 @@ export function boardToCsv(input: CsvInput): string {
     const raw = it.values[col.id];
     const text = valueToText(col, raw, { peopleName: memberName });
     if (col.type === 'numbers' || col.type === 'rating') return text;
+    // Time goes out as decimal hours so a spreadsheet can add it up.
+    if (col.type === 'time') {
+      const v = normalizeValue(col, raw);
+      return v ? String(toHours(totalMs(v as TimeValue))) : '';
+    }
     if (isComputedType(col.type) && col.type !== 'formula') return text;
     return guardCell(text);
   };

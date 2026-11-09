@@ -790,3 +790,33 @@ me` query per board I can see (only matching items are billed, plus one read per
   visible on touch screens.
 - Calendar fits the screen (no sideways scrolling); compact day cells and event chips, and the
   month's "+" buttons are left to larger screens.
+
+### D90. Time tracking: sessions inline on the item, one timer per person
+
+- A **Time tracking** column holds the sessions (`{ id, uid, start, end, note? }`, times in epoch
+  ms) inline in the item's cell, so showing a list costs no extra reads. Footer = sum; filter and
+  sort use the total (filters compare hours); a formula sees it as hours; CSV exports decimal hours.
+- A person has at most one running timer in a household (`timers/{uid}`, rules unchanged from
+  Phase 1: only its owner writes it, start time is the server's). **Start** while one is running
+  saves the first, then starts the new one. **Stop** is one transaction: it re-reads the item,
+  appends the session and deletes the timer, so two people logging to the same item can't lose a
+  session. Under a second is not recorded; a forgotten timer is recorded as exactly 24 hours and can
+  be deleted and re-entered.
+- Manual time: date, start, hours and minutes, with a note; a session is at most 24 hours and can't
+  end in the future. To change a session, delete it and add it again. People delete their own
+  sessions; admins can delete anyone's. This is enforced in the app, not in the rules (the rules
+  can't look inside a cell, and anyone who can edit an item can edit its cell).
+- A copy of an item or list starts with no logged time.
+- Deviation from the spec: instead of archiving old sessions into a `timeEntries` sub-collection
+  past ~200, the oldest 100 are **rolled up into one entry per person per month** (inline), which
+  keeps every person's and every month's total exact, needs no extra reads or documents, and is
+  tested. Only day-level detail for sessions older than the newest ~100 is lost (the timesheet shows
+  such entries as "earlier, combined").
+
+### D91. The timesheet reads only items that have time on them
+
+- Timesheet (sidebar → Timesheet): period (this week, last week, this month, all time or any dates,
+  in the household's time zone), person, list; grouped by person or by item; CSV export.
+- For each list with a Time tracking column it runs one query ordered by that cell, which returns
+  only items that have the cell set, so a visit costs about one read per tracked item plus one per
+  list (to learn its columns). Results are kept for a minute (Refresh to force).

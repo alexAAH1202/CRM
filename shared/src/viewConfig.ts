@@ -1,3 +1,4 @@
+import { totalMs, type TimeValue } from './timeTracking';
 import type { Group } from './board';
 import {
   normalizeValue,
@@ -175,6 +176,8 @@ export function opsFor(type: ColumnType | 'name'): FilterOp[] {
       return ['contains', 'eq', 'gt', 'lt', 'isEmpty', 'notEmpty'];
     case 'files':
       return ['contains', 'isEmpty', 'notEmpty'];
+    case 'time':
+      return ['eq', 'gt', 'lt', 'isEmpty', 'notEmpty']; // compared in hours
     case 'dependency':
       return ['isEmpty', 'notEmpty'];
     case 'checkbox':
@@ -377,6 +380,12 @@ export function matchesFilter(
       return matchText(((v as FileValue[] | null) ?? []).map((x) => x.name).join(' '), f);
     case 'dependency':
       return true;
+    case 'time': {
+      const n = typeof f.value === 'number' ? f.value : Number(f.value);
+      if (!v || Number.isNaN(n)) return false;
+      const hours = totalMs(v as TimeValue) / 3_600_000;
+      return f.op === 'eq' ? Math.abs(hours - n) < 0.005 : f.op === 'gt' ? hours > n : hours < n;
+    }
     case 'rating':
     case 'progress':
     case 'itemId': {
@@ -474,6 +483,8 @@ function sortKey(
       return valueToText(col, v, ctx.memberName).toLowerCase();
     case 'dependency':
       return (v as DependencyValue[]).length;
+    case 'time':
+      return totalMs(v as TimeValue);
     case 'date':
     case 'createdAt':
     case 'updatedAt':

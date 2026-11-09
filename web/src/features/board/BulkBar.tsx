@@ -121,7 +121,7 @@ function SetValueDialog({
 }
 
 /** Columns that can't be set the same way for many items at once. */
-const NOT_BULK_SETTABLE: readonly ColumnType[] = ['dependency', 'files', 'tags'];
+const NOT_BULK_SETTABLE: readonly ColumnType[] = ['dependency', 'files', 'tags', 'time'];
 
 export function BulkBar(p: BulkBarProps) {
   const [setting, setSetting] = useState(false);

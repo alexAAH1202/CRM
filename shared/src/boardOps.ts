@@ -328,6 +328,16 @@ export interface DuplicableItem extends ItemRef {
  * from `startNumber` (the board counter, read inside a transaction); the counter
  * is advanced once for the whole copy.
  */
+/** A copy starts with no logged time (the hours were someone else's work on the original). */
+export function withoutLoggedTime(
+  columns: readonly Column[],
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const out = { ...values };
+  for (const c of columns) if (c.type === 'time') delete out[c.id];
+  return out;
+}
+
 export function planDuplicateItems(input: {
   wid: string;
   bid: string;
@@ -357,7 +367,7 @@ export function planDuplicateItems(input: {
         groupId: it.groupId,
         order,
         itemNumber: n++,
-        values: it.values,
+        values: withoutLoggedTime(columns, it.values),
       }),
     });
     for (const s of it.subitems) {
@@ -370,7 +380,7 @@ export function planDuplicateItems(input: {
           order: s.order,
           itemNumber: n++,
           parentId: pid,
-          values: s.values,
+          values: withoutLoggedTime(columns, s.values),
         }),
       });
     }
@@ -486,7 +496,10 @@ export function planDuplicateBoard(input: {
       order: it.order,
       itemNumber: it.itemNumber,
       parentId: it.parentId ? (idMap.get(it.parentId) as string) : null,
-      values: remapDependencies(source.board.columns, it.values, idMap),
+      values: withoutLoggedTime(
+        source.board.columns,
+        remapDependencies(source.board.columns, it.values, idMap),
+      ),
     });
     data['archived'] = it.archived;
     ops.push({ kind: 'set', path: boardPaths.item(wid, newBid, idMap.get(it.id) as string), data });

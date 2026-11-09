@@ -1,3 +1,4 @@
+import { TimeCell } from '../time/TimeCell';
 import {
   formatNumber,
   LABEL_COLOR_NAMES,
@@ -548,6 +549,7 @@ const RENDERERS: Record<Column['type'], (p: CellProps) => ReactNode> = {
   email: ContactCell,
   phone: ContactCell,
   files: FilesCell,
+  time: TimeCell,
   dependency: DependencyCell,
   progress: ProgressCell,
   formula: FormulaCell,
