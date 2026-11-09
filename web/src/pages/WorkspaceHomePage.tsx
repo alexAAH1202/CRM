@@ -11,14 +11,14 @@ export default function WorkspaceHomePage() {
       <EmptyState
         icon={<LayoutGrid size={28} />}
         title="No boards yet"
-        body="Boards, groups and items are coming in the next phase. For now you can set up your team."
+        body="Boards, groups and items are coming in the next phase. For now you can invite the people you share life admin with."
         action={
           role === 'admin' ? (
             <Link
               to={`/w/${workspace.id}/members`}
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover"
             >
-              <Users size={16} aria-hidden /> Invite your team
+              <Users size={16} aria-hidden /> Invite people
             </Link>
           ) : undefined
         }

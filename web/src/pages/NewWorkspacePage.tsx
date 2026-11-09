@@ -67,12 +67,13 @@ export default function NewWorkspacePage() {
               {workspaces.length === 0 ? 'Create your workspace' : 'New workspace'}
             </h1>
             <p className="text-sm text-muted">
-              A workspace holds your team's boards. You'll be its admin.
+              A workspace holds your shared boards — bills, chores, renewals and more. You'll be its
+              admin.
             </p>
           </div>
           <TextField
             label="Workspace name"
-            placeholder="e.g. Clinic operations"
+            placeholder="e.g. Our household"
             autoFocus
             error={form.formState.errors.name?.message}
             {...form.register('name')}
