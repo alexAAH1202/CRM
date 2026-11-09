@@ -307,3 +307,13 @@ of the counter).
 A board with 20 bills and a 3-day reminder costs 20 writes to register, then ~170 reads on the day
 they fire. Typical household use stays well under 1% of the daily read quota. Idle cost is ~144 reads
 and ~144 fetches a day.
+
+## Phase 7d background work (helper)
+
+| Job           | When         | Cost                                                                                                                                              |
+| ------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tidy-up       | 3am daily    | A few queries; deletes are writes/deletes (20,000 free a day), capped at 2,000 per step per night                                                 |
+| Weekly backup | one night/wk | Reads every document in each workspace once (about 1 read per document; a household with 5,000 docs = 5,000 reads of the 50,000 daily free reads) |
+| Daily emails  | 7am daily    | Per opted-in person: one query per board (their items only) and one for unread notifications                                                      |
+| Email quota   | daily        | Capped at 80 emails a day (Google allows about 100 for a normal account)                                                                          |
+| CSV import    | on demand    | One write per item plus one counter write per 100 items; reads: one counter read per batch                                                        |

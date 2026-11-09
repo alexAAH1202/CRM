@@ -394,3 +394,12 @@ configurations** without billing. We expect fewer than 20.
 and automation reads and writes also `get()` the board doc to check visibility.
 That's **+1–2 billed reads per request or listener update**, not per document.
 Phase 1 measures this and records it in `QUOTA_BUDGET.md`.
+
+## 7d additions
+
+- `users/{uid}.settings.emailDigest: boolean`: opt-in to the daily summary email (D81).
+- Notification `link` is an in-app path only (D84).
+- Collection-group indexes (single-field overrides) for the nightly tidy-up: `items.deletedAt`,
+  `activity.at`, `automationRuns.at`. After a deploy they take a few minutes to build; until then the
+  tidy-up reports those steps as failed on the Helper card and tries again the next night.
+- Backups are files in Drive, not documents (D80).

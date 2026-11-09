@@ -13,7 +13,8 @@ import type { LabelColor } from './palette';
  * Built-in board templates for household life admin. Phase 2 ships six; more
  * ideas are listed in docs/BACKLOG.md.
  */
-export type TemplateId = 'chores' | 'bills' | 'renewals' | 'maintenance' | 'trip' | 'blank';
+export type TemplateId =
+  'chores' | 'bills' | 'renewals' | 'maintenance' | 'trip' | 'purchases' | 'goals' | 'blank';
 
 interface ColumnSpec {
   key: string;
@@ -300,6 +301,101 @@ const SPECS: TemplateSpec[] = [
       { name: 'Accommodation', group: 'bookings' },
       { name: 'Chargers and adapters', group: 'packing' },
       { name: 'Medications', group: 'packing' },
+    ],
+  },
+  {
+    id: 'purchases',
+    name: 'Big purchases & wishlist',
+    emoji: '🛍️',
+    description: 'Things you want to buy, what they cost, and when.',
+    groups: [
+      { key: 'soon', name: 'Buying soon', color: 'green' },
+      { key: 'saving', name: 'Saving up', color: 'orange' },
+      { key: 'someday', name: 'Someday', color: 'sky' },
+      { key: 'bought', name: 'Bought', color: 'gray' },
+    ],
+    columns: [
+      {
+        key: 'status',
+        type: 'status',
+        title: 'Status',
+        settings: {
+          labels: [
+            L('idea', 'Idea', 'gray'),
+            L('researching', 'Researching', 'blue'),
+            L('saving', 'Saving', 'orange'),
+            L('ready', 'Ready to buy', 'purple'),
+            L('bought', 'Bought', 'green'),
+          ],
+          defaultLabelId: 'idea',
+        },
+      },
+      {
+        key: 'price',
+        type: 'numbers',
+        title: 'Price',
+        settings: { unit: '$', unitPosition: 'prefix', decimals: 0 },
+      },
+      {
+        key: 'saved',
+        type: 'numbers',
+        title: 'Saved so far',
+        settings: { unit: '$', unitPosition: 'prefix', decimals: 0 },
+      },
+      {
+        key: 'togo',
+        type: 'formula',
+        title: 'Still to save',
+        settings: { formula: 'MAX(0, {Price} - {Saved so far})' },
+      },
+      { key: 'priority', type: 'rating', title: 'Want it' },
+      { key: 'by', type: 'date', title: 'Buy by' },
+      { key: 'who', type: 'people', title: 'For' },
+      { key: 'link', type: 'link', title: 'Link' },
+    ],
+    items: [
+      { name: 'New washing machine', group: 'soon', values: { status: 'ready', priority: 5 } },
+      { name: 'Laptop for study', group: 'saving', values: { status: 'saving', priority: 4 } },
+      { name: 'Patio furniture', group: 'someday', values: { priority: 3 } },
+      { name: 'Noise-cancelling headphones', group: 'someday', values: { priority: 2 } },
+    ],
+  },
+  {
+    id: 'goals',
+    name: 'Goals & projects',
+    emoji: '🎯',
+    description: 'Bigger things you’re working towards, in steps.',
+    groups: [
+      { key: 'now', name: 'This quarter', color: 'blue' },
+      { key: 'next', name: 'Next up', color: 'purple' },
+      { key: 'done', name: 'Achieved', color: 'green' },
+    ],
+    columns: [
+      {
+        key: 'status',
+        type: 'status',
+        title: 'Status',
+        settings: {
+          labels: [
+            L('notstarted', 'Not started', 'gray'),
+            L('working', 'On track', 'green'),
+            L('atrisk', 'At risk', 'orange'),
+            L('stuck', 'Stuck', 'red'),
+            L('done', 'Achieved', 'blue'),
+          ],
+          defaultLabelId: 'notstarted',
+        },
+      },
+      { key: 'who', type: 'people', title: 'Owner' },
+      { key: 'dates', type: 'timeline', title: 'Timeline' },
+      { key: 'progress', type: 'progress', title: 'Progress' },
+      { key: 'why', type: 'longText', title: 'Why it matters' },
+    ],
+    items: [
+      { name: 'Build an emergency fund', group: 'now' },
+      { name: 'Renovate the bathroom', group: 'now' },
+      { name: 'Learn to cook five new meals', group: 'next' },
+      { name: 'Plan a family reunion', group: 'next' },
     ],
   },
   {

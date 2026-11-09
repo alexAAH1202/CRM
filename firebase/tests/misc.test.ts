@@ -32,7 +32,7 @@ describe('notifications', () => {
     type: 'mention',
     title: 'You were mentioned',
     body: '',
-    link: '/x',
+    link: `/w/${WID}/b/b1?item=i1`,
     actor,
     read: false,
     createdAt: now(),
@@ -51,6 +51,26 @@ describe('notifications', () => {
       updateDoc(doc(db(env, 'alice'), `${W}/notifications/bob/items/n1`), { read: true }),
     );
     await assertSucceeds(deleteDoc(doc(db(env, 'bob'), `${W}/notifications/bob/items/n1`)));
+  });
+
+  it('links must stay inside the app: no web addresses, scripts or odd paths', async () => {
+    const send = (id: string, link: string) =>
+      setDoc(doc(db(env, 'alice'), `${W}/notifications/bob/items/${id}`), { ...n('alice'), link });
+    await assertSucceeds(send('l1', ''));
+    await assertSucceeds(send('l2', `/w/${WID}`));
+    await assertSucceeds(send('l3', `/w/${WID}/b/b1`));
+    await assertSucceeds(send('l4', `/w/${WID}/b/b1?item=i_1-x`));
+    for (const [i, bad] of [
+      'https://evil.example/login',
+      '//evil.example',
+      'javascript:alert(1)',
+      '/x',
+      `/w/${WID}/../admin`,
+      `/w/${WID}/b/b1?item=i1&next=https://evil.example`,
+      `/w/${WID}/b/b1?item=`,
+      ' /w/w1',
+    ].entries())
+      await assertFails(send(`bad${i}`, bad));
   });
 
   it('editors can notify members; not viewers, outsiders, or non-members as recipients', async () => {

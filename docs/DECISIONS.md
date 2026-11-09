@@ -666,3 +666,62 @@ me` query per board I can see (only matching items are billed, plus one read per
 - The sidebar sorts boards case-insensitively with numbers in order (“Trip 2” before “Trip 10”).
 - Each board's icon colour comes from its id (not its position), so it never changes when boards are
   added or renamed. Grey is not used.
+
+### D79. The nightly tidy-up (3am) deletes only what nobody can see
+
+- Items deleted over 30 days ago (with their comment threads), activity older than 180 days,
+  automation run history older than 30 days, notifications that were read over 30 days ago, and any
+  notification over 90 days old. Each step deletes in batches of 200, at most 2,000 a night, and stops
+  at 3 minutes (a backlog clears over several nights).
+- A step that fails (for example a new index is still building after a deploy) is recorded on the
+  Helper card and the other steps carry on. Everything is safe to run twice.
+- Board items and notifications both live in collections called `items`; the sweep of deleted items
+  checks the full path so a notification can never be treated as a tombstone (tested).
+
+### D80. Weekly backup: one JSON file per workspace, in the workspace's Drive folder
+
+- Written to `Backups/backup-YYYY-MM-DD.json` inside the workspace folder, the newest 8 kept (older
+  ones go to Drive's bin). Holds the workspace, members, invites, folders, and every board with its
+  views, automations, counter and items. Not comments, notifications or activity (large, low value).
+- It reads every document once a week (see QUOTA_BUDGET). Written with all non-ASCII characters
+  escaped, so the upload's byte length is known exactly. A failed backup is shown on the Helper card
+  and retried the next night; it never blocks the other workspaces.
+- Restoring is a manual job for now (the file is plain JSON). A restore button is a possible later
+  addition.
+
+### D81. Daily email: opt-in, one a day, never empty, capped below Google's limit
+
+- Each person switches it on in Notifications → settings (`users/{uid}.settings.emailDigest`); it is
+  off by default, and only shown when the helper is configured.
+- About 7am Melbourne the helper emails each opted-in person their overdue, due-today and due-this-week
+  items (assigned to them, not done, on boards they can see; admins see every private board as
+  everywhere else) plus their unread count. No email on days with nothing to say.
+- At most one per person per day (remembered in a Script Property, written _before_ sending, so a
+  failure or a second trigger can't double-send), 80 a day (`LIMITS.MAX_DIGEST_EMAILS_PER_DAY`), and
+  none at all when Google's remaining quota is under 5. Subject and body are built from escaped text.
+
+### D82. Not built: a server-side search index
+
+- Search already runs over the data on the device (free). An index document would add writes on every
+  edit and a read per search to find items on boards that aren't loaded; not worth it for a household.
+  Revisit if boards get large enough that loading them for search becomes slow.
+
+### D83. CSV import: understand cells or say why not, never guess
+
+- Choose a CSV, map each column (names are matched automatically), see exactly how many items will be
+  created and every cell that can't be used, then import in batches of 100 (each batch numbers its
+  items from the board counter in a transaction). Up to 1,000 rows, 60 columns, 1 MB.
+- Dates are read day-first (17/3/2026); numbers may carry $, commas, %, or brackets for negatives;
+  status, dropdown and tags match by name (case-insensitive) and don't invent options; people match by
+  name or email. A cell that can't be understood is left empty and listed, and its row still imports.
+- Subitem relationships, files, dependencies, timelines and computed columns are not imported.
+- Instant automations don't run for imported items (500 rows would mean 500 notifications), but
+  reminders for imported dates are registered.
+
+### D84. Rules tightened in 7d
+
+- Notification links must be in-app paths (`/w/<id>[/b/<id>[?item=<id>]]` or empty). Before, any
+  string up to 500 characters was accepted, so an editor could put a web address in someone's inbox.
+- Automations: the trigger and each of the (up to 5) conditions and actions must be a map of at most
+  12 keys.
+- `users/{uid}.settings.emailDigest` must be a boolean.

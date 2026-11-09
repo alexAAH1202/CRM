@@ -52,7 +52,7 @@ export interface WhoAmI {
 }
 
 /** Bump when the helper code changes in a way the app should notice. */
-export const HELPER_VERSION = '7c.1';
+export const HELPER_VERSION = '7d.1';
 
 export interface HelperActions {
   ping: { request: Record<string, never>; response: { pong: true; at: string; version: string } };
@@ -66,6 +66,20 @@ export interface HelperActions {
   schedulerStatus: {
     request: { workspaceId: string };
     response: { pending: number; failed: number; nextDue: string | null; stalled: boolean };
+  };
+  /** Admin: did the nightly tidy-up, the weekly backup and the daily emails run? */
+  maintenanceStatus: {
+    request: { workspaceId: string };
+    response: {
+      nightly: {
+        at: string;
+        deleted: number;
+        problems: string[];
+        backups: { ok: number; failed: number };
+      } | null;
+      digest: { at: string; sent: number; failed: number } | null;
+      lastBackupAt: string | null;
+    };
   };
   /** Member: start an upload to the workspace's Drive folder. */
   uploadStart: {

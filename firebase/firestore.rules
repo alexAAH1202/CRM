@@ -117,7 +117,9 @@ service cloud.firestore {
         && isNullableString(request.resource.data.lastWorkspaceId, 128)
         && request.resource.data.settings is map
         && request.resource.data.settings.keys().hasOnly(
-             ['theme', 'favoriteBoardIds', 'mutedNotifications'])
+             ['theme', 'favoriteBoardIds', 'mutedNotifications', 'emailDigest'])
+        && (!('emailDigest' in request.resource.data.settings)
+            || request.resource.data.settings.emailDigest is bool)
         && (!('mutedNotifications' in request.resource.data.settings)
             || (request.resource.data.settings.mutedNotifications is list
                 && request.resource.data.settings.mutedNotifications.size() <= 10))
@@ -485,6 +487,15 @@ service cloud.firestore {
         // shared/automationEngine.ts), so the rules that govern what an automation can do are
         // simply the item/notification rules above: it has no more power than its user.
         match /automations/{aid} {
+          // Each condition/action is a small map (rules can't loop, so the five possible slots
+          // are checked one by one). Keeps a hand-crafted write from smuggling in bulk.
+          function smallMap(l, i) {
+            return l.size() <= i || (l[i] is map && l[i].keys().size() <= 12);
+          }
+          function smallMaps(l) {
+            return smallMap(l, 0) && smallMap(l, 1) && smallMap(l, 2)
+              && smallMap(l, 3) && smallMap(l, 4);
+          }
           function validAutomation(d) {
             return d.keys().hasOnly(
                      ['name', 'enabled', 'ownerUid', 'trigger', 'conditions', 'actions',
@@ -493,12 +504,15 @@ service cloud.firestore {
               && d.enabled is bool
               && isString(d.ownerUid, 1, 128)
               && d.trigger is map
+              && d.trigger.keys().size() <= 12
               && d.trigger.type in ['itemCreated', 'columnChanged', 'statusChangedTo',
                                     'personAssigned', 'movedToGroup', 'subitemsAllDone',
                                     'dateArrives', 'overdue', 'recurring']
               && isList(d.conditions, 5)
               && isList(d.actions, 5)
               && d.actions.size() >= 1
+              && smallMaps(d.conditions)
+              && smallMaps(d.actions)
               && d.updatedAt == request.time;
           }
 
@@ -610,7 +624,11 @@ service cloud.firestore {
                ['mention', 'assignment', 'automation', 'due', 'invite', 'system']
           && isString(request.resource.data.title, 1, 200)
           && isString(request.resource.data.body, 0, 1000)
+          // Links are always inside the app (the bell navigates to them), so an editor can't
+          // plant a web address in someone else's inbox.
           && isString(request.resource.data.link, 0, 500)
+          && request.resource.data.link.matches(
+               '^(/w/[A-Za-z0-9_-]{1,128}(/b/[A-Za-z0-9_-]{1,128}(\\?item=[A-Za-z0-9_-]{1,128})?)?)?$')
           && request.resource.data.actor == request.auth.uid
           && request.resource.data.read == false
           && request.resource.data.createdAt == request.time;

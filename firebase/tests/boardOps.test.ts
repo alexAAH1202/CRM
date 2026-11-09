@@ -49,7 +49,16 @@ function createFromTemplate(
 
 describe('board planners against the rules', () => {
   it('members create a board from any template in one batch', async () => {
-    for (const t of ['chores', 'bills', 'renewals', 'maintenance', 'trip', 'blank'] as const) {
+    for (const t of [
+      'chores',
+      'bills',
+      'renewals',
+      'maintenance',
+      'trip',
+      'purchases',
+      'goals',
+      'blank',
+    ] as const) {
       await assertSucceeds(
         commitOps(
           db(env, 'bob'),

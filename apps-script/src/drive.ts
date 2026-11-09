@@ -24,8 +24,8 @@ import type { HelperConfig } from './config';
 import { PreconditionFailed, type FirestoreClient } from './firestore';
 import type { HttpResponse, Platform } from './platform';
 
-const DRIVE = 'https://www.googleapis.com/drive/v3';
-const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
+export const DRIVE = 'https://www.googleapis.com/drive/v3';
+export const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 const SESSION_TTL_SECONDS = 6 * 3600;
 const MAX_UPLOADS_PER_HOUR = 40;
 
@@ -52,7 +52,7 @@ function driveFail(res: HttpResponse, what: string, p: Platform): never {
   throw new HelperError('internal', 'Google Drive refused the request.');
 }
 
-function driveJson<T>(p: Platform, what: string, req: Parameters<Platform['http']>[0]): T {
+export function driveJson<T>(p: Platform, what: string, req: Parameters<Platform['http']>[0]): T {
   const res = p.http({ ...req, oauth: true });
   if (res.status < 200 || res.status > 299) driveFail(res, what, p);
   try {

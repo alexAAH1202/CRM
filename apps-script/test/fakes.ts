@@ -12,6 +12,9 @@ export function fakePlatform(o: FakeOptions = {}) {
   const cache = new Map<string, { v: string; ttl: number; exp: number }>();
   const calls: HttpRequest[] = [];
   const logs: string[] = [];
+  const props = new Map(Object.entries(o.props ?? {}));
+  const mails: Array<{ to: string; subject: string; text: string; html: string }> = [];
+  let mailQuota = 100;
   let now = o.now ?? Date.parse('2026-03-10T00:00:00Z');
   let seq = 0;
   const p: Platform = {
@@ -24,14 +27,29 @@ export function fakePlatform(o: FakeOptions = {}) {
       return e && e.exp > now && e.v !== '' ? e.v : null;
     },
     cachePut: (k, v, ttl) => void cache.set(k, { v, ttl, exp: now + ttl * 1000 }),
-    prop: (n) => o.props?.[n] ?? null,
+    prop: (n) => props.get(n) ?? null,
+    setProp: (n, v) => void props.set(n, v),
+    sendMail: (m) => {
+      mails.push(m);
+      mailQuota--;
+    },
+    mailQuota: () => mailQuota,
     nowMs: () => now,
     uuid: () => `id${(++seq).toString(36).padStart(6, '0')}`,
     sha256Hex: (t) => createHash('sha256').update(t).digest('hex'),
     b64urlDecode: (t) => Buffer.from(t, 'base64url').toString('utf8'),
     log: (m) => void logs.push(m),
   };
-  return { p, calls, logs, cache, advance: (ms: number) => (now += ms) };
+  return {
+    p,
+    calls,
+    logs,
+    cache,
+    props,
+    mails,
+    setMailQuota: (n: number) => (mailQuota = n),
+    advance: (ms: number) => (now += ms),
+  };
 }
 
 /** An unsigned JWT-shaped string (the helper reads `exp`; Google does the real verification). */

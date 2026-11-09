@@ -3,13 +3,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { Popover } from '../../components/ui';
+import { helperConfigured } from '../../lib/helper';
 import { cx } from '../../lib/cx';
 import { friendlyError } from '../../lib/firestore/errors';
 import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { useBoards } from '../boards/BoardsProvider';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
-import { markAllRead, saveMuted, setRead } from './api';
+import { markAllRead, saveEmailDigest, saveMuted, setRead } from './api';
 import { useNotifications } from './NotificationsProvider';
 
 const MUTE_OPTIONS: Array<{ type: string; label: string; soon?: boolean }> = [
@@ -23,7 +24,7 @@ export function NotificationBell() {
   const user = useCurrentUser();
   const { workspace } = useWorkspace();
   const { items, unread } = useNotifications();
-  const { muted } = useBoards();
+  const { muted, emailDigest } = useBoards();
   const navigate = useNavigate();
   const [settings, setSettings] = useState(false);
   const fail = (e: unknown) => toast.error(friendlyError(e));
@@ -103,6 +104,23 @@ export function NotificationBell() {
                   </span>
                 </label>
               ))}
+              {helperConfigured() && (
+                <label className="flex items-start gap-2 border-t border-border pt-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={emailDigest}
+                    onChange={(e) => void saveEmailDigest(user.uid, e.target.checked).catch(fail)}
+                    className="mt-0.5 h-4 w-4 accent-[var(--c-primary)]"
+                  />
+                  <span>
+                    Email me a daily summary
+                    <span className="block text-xs text-muted">
+                      Around 7am: what’s overdue, due today and due this week. Nothing is sent on
+                      days with nothing to say.
+                    </span>
+                  </span>
+                </label>
+              )}
             </fieldset>
           )}
           {items.length === 0 ? (
