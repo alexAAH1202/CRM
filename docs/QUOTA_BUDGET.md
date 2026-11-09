@@ -229,3 +229,14 @@ Write costs of the new actions:
 These are all user-initiated and occasional; the 15-user daily estimate in §4 (about 1,850
 writes, 31% of reads) is unchanged by them. A one-off duplicate of a large board costs about
 a tenth of a day's reads, so it's worth knowing but not a risk.
+
+## Phase 5a additions
+
+| Listener / read                   | When                             | Cost                                  |
+| --------------------------------- | -------------------------------- | ------------------------------------- |
+| My notifications (newest 30)      | While a workspace is open        | ≤30 reads on first open, then deltas  |
+| Item updates (newest 100)         | Only while an item panel is open | ≤100 reads, then deltas; cached after |
+| Mention / assignment notification | One write each, same batch       | 1 write per person notified           |
+
+A comment that mentions 2 people is 3 writes. Muted types are still written (filtered on the
+recipient's side), so muting does not save writes, only noise.

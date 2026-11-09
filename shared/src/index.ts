@@ -26,3 +26,5 @@ export * from './views';
 export * from './schedule';
 export * from './workload';
 export * from './chartData';
+export * from './richText';
+export * from './updates';

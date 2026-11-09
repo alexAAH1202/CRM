@@ -11,6 +11,13 @@ export const paths = {
   folder: (wid: string, fid: string) => `workspaces/${wid}/folders/${fid}`,
   boards: (wid: string) => `workspaces/${wid}/boards`,
   board: (wid: string, bid: string) => `workspaces/${wid}/boards/${bid}`,
+  notifications: (wid: string, uid: string) => `workspaces/${wid}/notifications/${uid}/items`,
+  notification: (wid: string, uid: string, nid: string) =>
+    `workspaces/${wid}/notifications/${uid}/items/${nid}`,
+  updates: (wid: string, bid: string, iid: string) =>
+    `workspaces/${wid}/boards/${bid}/items/${iid}/updates`,
+  update: (wid: string, bid: string, iid: string, uid: string) =>
+    `workspaces/${wid}/boards/${bid}/items/${iid}/updates/${uid}`,
 } as const;
 
 /** Extracts the workspace id from a member/invite document path. */

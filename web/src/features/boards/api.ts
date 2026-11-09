@@ -5,6 +5,7 @@ import {
   defaultItemValues,
   planApplyConversion,
   planArchiveItems,
+  planAssignmentNotifications,
   planBulkSetCell,
   planDeleteItems,
   planDuplicateBoard,
@@ -33,7 +34,7 @@ import {
   type WriteOp,
 } from '@app/shared';
 import { collection, doc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import {
   commitOps,
   commitOpsChunked,
@@ -175,19 +176,37 @@ export function setCell(input: {
   column: Column;
   value: unknown;
 }) {
-  return commitOps(
-    `cell:${input.column.type}`,
-    planSetCell({
-      wid: input.wid,
-      bid: input.board.id,
-      iid: input.item.id,
-      uid: input.uid,
-      columns: input.board.columns,
-      column: input.column,
-      currentValues: input.item.values,
-      value: input.value,
-    }),
-  );
+  const ops = planSetCell({
+    wid: input.wid,
+    bid: input.board.id,
+    iid: input.item.id,
+    uid: input.uid,
+    columns: input.board.columns,
+    column: input.column,
+    currentValues: input.item.values,
+    value: input.value,
+  });
+  // Tell people when they've been put on an item.
+  if (input.column.type === 'people') {
+    const asList = (v: unknown) =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+    const itemsPath = boardPaths.items(input.wid, input.board.id);
+    ops.push(
+      ...planAssignmentNotifications({
+        wid: input.wid,
+        bid: input.board.id,
+        iid: input.item.id,
+        actor: input.uid,
+        actorName: auth.currentUser?.displayName ?? auth.currentUser?.email ?? 'Someone',
+        itemName: input.item.name || 'an item',
+        boardName: input.board.name,
+        before: asList(input.item.values[input.column.id]),
+        after: asList(input.value),
+        newId: () => newId(itemsPath),
+      }),
+    );
+  }
+  return commitOps(`cell:${input.column.type}`, ops);
 }
 
 export function renameItem(wid: string, bid: string, iid: string, uid: string, name: string) {

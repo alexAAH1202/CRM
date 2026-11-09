@@ -54,6 +54,7 @@ test('views: add Kanban and Calendar, drag to change status / date, rename, dele
 
   // Opening a card edits the same data as the table.
   await done.getByRole('button', { name: label }).click();
+  await ada.getByRole('dialog').getByRole('tab', { name: 'Fields' }).click();
   await expect(ada.getByRole('dialog').getByLabel('Name')).toHaveValue(label.replace('Card: ', ''));
   await ada.keyboard.press('Escape');
 

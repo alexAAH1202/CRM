@@ -136,6 +136,7 @@ export interface BoardTableProps {
   config: ViewConfig;
   onConfig: (patch: Partial<ViewConfig>) => void;
   memberName: (uid: string) => string;
+  onOpenItem: (id: string) => void;
 }
 
 type Confirm = { kind: 'group'; groupId: string } | null;
@@ -156,6 +157,7 @@ export function BoardTable({
   config,
   onConfig,
   memberName,
+  onOpenItem,
 }: BoardTableProps) {
   const user = useCurrentUser();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -561,6 +563,7 @@ export function BoardTable({
     },
     onColumnChangeType: (c) => setDialog({ kind: 'type', column: c }),
     onColumnDefault: (c) => setDialog({ kind: 'default', column: c }),
+    onOpenItem,
     onColumnConfigure: (c) =>
       setDialog({ kind: c.type === 'formula' ? 'formula' : 'progress', column: c }),
     onAddColumn: (c) => {

@@ -22,7 +22,7 @@ import { toast, useToastStore } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { setCell } from '../boards/api';
 import type { BoardItem } from '../boards/types';
-import { ItemDialog, useVisibleItems, type ViewProps } from './viewParts';
+import { useVisibleItems, type ViewProps } from './viewParts';
 
 const ROW = 36;
 const HEAD = 44;
@@ -43,7 +43,6 @@ export function GanttView(p: ViewProps) {
   const user = useCurrentUser();
   const { board, canEdit, config, onConfig, wid } = p;
   const { layout, byId, today } = useVisibleItems(p);
-  const [openId, setOpenId] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const moved = useRef(false);
 
@@ -173,12 +172,11 @@ export function GanttView(p: ViewProps) {
     setDrag(null);
     if (!item || !span) return;
     if (drag.delta !== 0) commit(item, dragSpan(span, drag.mode, drag.delta));
-    else if (!moved.current) setOpenId(item.id);
+    else if (!moved.current) p.onOpenItem(item.id);
   };
 
   const width = range.days * px;
   const todayX = (diffDays(today, range.start) ?? 0) * px + px / 2;
-  const opened = openId ? byId.get(openId) : undefined;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -269,7 +267,7 @@ export function GanttView(p: ViewProps) {
                   <button
                     type="button"
                     className="truncate text-left hover:underline"
-                    onClick={() => setOpenId(l.item.id)}
+                    onClick={() => p.onOpenItem(l.item.id)}
                   >
                     {l.item.name || 'Untitled'}
                   </button>
@@ -384,7 +382,7 @@ export function GanttView(p: ViewProps) {
                   onKeyDown={(e) => {
                     const item = l.item;
                     const base = allSpans.get(item.id);
-                    if (e.key === 'Enter') setOpenId(item.id);
+                    if (e.key === 'Enter') p.onOpenItem(item.id);
                     else if (canEdit && base && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
                       e.preventDefault();
                       const d = e.key === 'ArrowLeft' ? -1 : 1;
@@ -427,7 +425,6 @@ export function GanttView(p: ViewProps) {
           </div>
         </div>
       </div>
-      {opened && <ItemDialog p={p} item={opened} onClose={() => setOpenId(null)} />}
     </div>
   );
 }

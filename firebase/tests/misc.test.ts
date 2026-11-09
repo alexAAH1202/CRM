@@ -101,7 +101,6 @@ describe('folders', () => {
 
 describe('collections reserved for later phases are denied to everyone', () => {
   const paths = [
-    `${W}/boards/${MAIN_BOARD}/items/i1/updates/u1`,
     `${W}/boards/${MAIN_BOARD}/automations/a1`,
     `${W}/boards/${MAIN_BOARD}/automationRuns/r1`,
     `${W}/boards/${MAIN_BOARD}/activity/x1`,

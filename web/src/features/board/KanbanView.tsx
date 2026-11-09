@@ -28,7 +28,7 @@ import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { setCell } from '../boards/api';
 import type { BoardItem } from '../boards/types';
-import { cardFacts, ItemDialog, useAddItem, useVisibleItems, type ViewProps } from './viewParts';
+import { cardFacts, useAddItem, useVisibleItems, type ViewProps } from './viewParts';
 
 function colorOf(name: string): LabelColor {
   let h = 0;
@@ -159,7 +159,6 @@ export function KanbanView(p: ViewProps) {
   const { board, members, canEdit, config, onConfig, memberName, wid } = p;
   const { visible, byId } = useVisibleItems(p);
   const add = useAddItem(p);
-  const [openId, setOpenId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -211,7 +210,6 @@ export function KanbanView(p: ViewProps) {
   };
 
   const dragging = dragId ? byId.get(dragId.split('|')[0] as string) : undefined;
-  const opened = openId ? byId.get(openId) : undefined;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -263,7 +261,7 @@ export function KanbanView(p: ViewProps) {
                     item={it}
                     laneKey={l.key}
                     facts={cardFacts(board.columns, it, laneCol.id, memberName)}
-                    onOpen={() => setOpenId(it.id)}
+                    onOpen={() => p.onOpenItem(it.id)}
                   />
                 ))}
               </Lane>
@@ -278,7 +276,6 @@ export function KanbanView(p: ViewProps) {
           )}
         </DragOverlay>
       </DndContext>
-      {opened && <ItemDialog p={p} item={opened} onClose={() => setOpenId(null)} />}
     </div>
   );
 }

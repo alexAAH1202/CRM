@@ -45,6 +45,7 @@ export interface TableContextValue {
   onColumnChangeType: (c: Column) => void;
   onColumnDefault: (c: Column) => void;
   onColumnConfigure: (c: Column) => void;
+  onOpenItem: (id: string) => void;
   onAddColumn: (c: Column) => void;
   onResize: (columnId: string, width: number) => void;
   setLiveWidth: (columnId: string, width: number | null) => void;

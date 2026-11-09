@@ -8,6 +8,7 @@ import { Avatar, Popover } from '../../components/ui';
 import { cx } from '../../lib/cx';
 import { signOutUser, useCurrentUser } from '../auth/AuthProvider';
 import { BoardList } from './BoardList';
+import { NotificationBell } from '../notifications/NotificationBell';
 import { useSessionStore } from '../workspaces/sessionStore';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
 
@@ -97,8 +98,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <aside className="flex h-full flex-col gap-4 border-r border-border bg-surface p-3">
-      <div className="px-2 pt-1">
-        <Logo />
+      <div className="flex items-center px-2 pt-1">
+        <div className="flex-1">
+          <Logo />
+        </div>
+        <NotificationBell />
       </div>
       <WorkspaceSwitcher />
       <nav aria-label="Workspace" className="flex flex-col gap-1">
@@ -147,7 +151,8 @@ export function MobileTopBar({ onMenu }: { onMenu: () => void }) {
       >
         <Menu size={20} aria-hidden />
       </button>
-      <span className="truncate font-bold">{workspace.name}</span>
+      <span className="flex-1 truncate font-bold">{workspace.name}</span>
+      <NotificationBell />
     </div>
   );
 }

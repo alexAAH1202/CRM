@@ -8,15 +8,12 @@ import {
   type ViewContext,
 } from '@app/shared';
 import { format } from 'date-fns';
-import { useCallback, useMemo, useState } from 'react';
-import { Modal, TextField } from '../../components/ui';
+import { useCallback, useMemo } from 'react';
 import { friendlyError } from '../../lib/firestore/errors';
 import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
-import { createItem, renameItem, setCell } from '../boards/api';
+import { createItem } from '../boards/api';
 import type { Board, BoardItem, WorkspaceMember } from '../boards/types';
-import { CellEnvProvider, useBoardCellEnv } from './cellEnv';
-import { Cell } from './cells';
 
 /** What every non-table view receives from the board page. */
 export interface ViewProps {
@@ -29,6 +26,8 @@ export interface ViewProps {
   config: ViewConfig;
   onConfig: (patch: Partial<ViewConfig>) => void;
   memberName: (uid: string) => string;
+  /** Opens the item side panel. */
+  onOpenItem: (id: string) => void;
 }
 
 /**
@@ -117,58 +116,4 @@ export function cardFacts(
     if (text) out.push({ id: c.id, title: c.title, text });
   }
   return out;
-}
-
-/** Opens from a card: rename and edit every column with the same editors the table uses. */
-export function ItemDialog({
-  p,
-  item,
-  onClose,
-}: {
-  p: ViewProps;
-  item: BoardItem;
-  onClose: () => void;
-}) {
-  const user = useCurrentUser();
-  const { wid, board, members, canEdit, items } = p;
-  const env = useBoardCellEnv(wid, board, items, user.uid);
-  const [name, setName] = useState(item.name);
-  const fail = (e: unknown) => toast.error(friendlyError(e));
-  return (
-    <Modal open onClose={onClose} title={`Item #${item.itemNumber}`}>
-      <CellEnvProvider value={env}>
-        <TextField
-          label="Name"
-          value={name}
-          disabled={!canEdit}
-          maxLength={200}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => {
-            const n = name.trim();
-            if (canEdit && n && n !== item.name)
-              renameItem(wid, board.id, item.id, user.uid, n).catch(fail);
-          }}
-        />
-        <dl className="mt-4 grid gap-3">
-          {board.columns.map((c) => (
-            <div key={c.id} className="grid grid-cols-[8rem_1fr] items-center gap-2">
-              <dt className="truncate text-sm font-semibold text-muted">{c.title}</dt>
-              <dd className="relative h-10 rounded-lg border border-border">
-                <Cell
-                  column={c}
-                  item={item}
-                  itemName={item.name}
-                  canEdit={canEdit}
-                  members={members}
-                  onChange={(value) =>
-                    setCell({ wid, board, item, uid: user.uid, column: c, value }).catch(fail)
-                  }
-                />
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </CellEnvProvider>
-    </Modal>
-  );
 }

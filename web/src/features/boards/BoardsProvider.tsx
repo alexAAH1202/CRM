@@ -15,6 +15,8 @@ interface BoardsState {
   members: WorkspaceMember[] | null;
   folders: Folder[];
   favorites: ReadonlySet<string>;
+  /** Notification types I've muted (hidden from my inbox and its count). */
+  muted: ReadonlySet<string>;
   memberName: (uid: string) => string;
 }
 
@@ -46,6 +48,7 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<WorkspaceMember[] | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [favorites, setFavorites] = useState<ReadonlySet<string>>(new Set());
+  const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     const col = collection(db, paths.boards(workspace.id));
@@ -111,8 +114,17 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       listenDoc('user:favorites', doc(db, paths.user(user.uid)), (snap) => {
-        const ids = (snap.data()?.['settings'] as { favoriteBoardIds?: unknown } | undefined)
-          ?.favoriteBoardIds;
+        const settings = snap.data()?.['settings'] as
+          { favoriteBoardIds?: unknown; mutedNotifications?: unknown } | undefined;
+        const ids = settings?.favoriteBoardIds;
+        const mutedIds = settings?.mutedNotifications;
+        setMuted(
+          new Set(
+            Array.isArray(mutedIds)
+              ? mutedIds.filter((x): x is string => typeof x === 'string')
+              : [],
+          ),
+        );
         setFavorites(
           new Set(Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : []),
         );
@@ -130,9 +142,10 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
       members,
       folders,
       favorites,
+      muted,
       memberName: (uid) => byUid.get(uid) ?? 'Former member',
     };
-  }, [main, mine, members, folders, favorites]);
+  }, [main, mine, members, folders, favorites, muted]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
