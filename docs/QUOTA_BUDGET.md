@@ -165,9 +165,38 @@ against the Firebase console's usage tab.
 | Measurement                                           | Phase | Result       |
 | ----------------------------------------------------- | ----- | ------------ |
 | Rule `get()` cost per membership-gated request        | 1     | _to measure_ |
-| Board open: cold / warm (<30 min) / delta after a day | 2     | _to measure_ |
+| Board open: cold / warm / delta (see the table below) | 2     | measured     |
 | Dashboard load (5 boards, 8 widgets)                  | 8     | _to measure_ |
 | Full 15-user scenario vs this budget                  | 9     | _to measure_ |
+
+### Measured app-side costs (Phases 1–6)
+
+Measured by `e2e/quota-5.spec.ts` against the emulator with the usage meter (which counts
+what the client observes: it can't see rule `get()` reads). The test also fails if a flow
+becomes much dearer. Template board = 7 items.
+
+| Flow                                         | Reads | Writes | Notes                                                              |
+| -------------------------------------------- | ----: | -----: | ------------------------------------------------------------------ |
+| Create a board from a template               |     3 |     10 | board, view, counter, 7 items                                      |
+| Reload a board with a warm cache             |    10 |      0 | all 10 are the app shell (user, members, invites…); **items: 0**   |
+| Open a board cold (7 items)                  |    16 |      0 | shell ~9 + items 7 (+ views 1, automations 1)                      |
+| A teammate edits one cell (you have it open) |     1 |      0 | delta sync: only the changed item                                  |
+| 5 of your own cell edits                     |    10 |     10 | 1 item write + 1 activity write each; **+1 read each** (see below) |
+| Open an item panel, post a comment + mention |     3 |      2 | comment + the mention's notification                               |
+| Open My work (1 board with matches)          |     2 |      0 | 1 per board queried + matches                                      |
+| Back to workspace home (warm)                |     0 |      0 | served from cache                                                  |
+
+**Finding:** your own edits come back through your own board listener and the meter counts
+them as reads (about 1 per edit). Whether Firestore bills that echo isn't something the
+emulator can show, so we budget it as billed (conservative); Phase 9 checks the console.
+The earlier model missed it.
+
+**Revised daily total, 15 users:** the Section 4 table plus 600 reads for own-edit echoes
+(15 × 40) plus ~300 for the new per-board listeners (views, automations: 15 × 10 × 2)
+brings the with-delta-sync total from ≈ 15,500 to **≈ 16,400 reads (33% of 50K)**. Still
+inside the 60% target (≈ 49% on a 1.5× peak day). Writes are unchanged at ≈ 1,850 (9%),
+which already counted the activity log. The measured session start (~10 reads) is below the
+18 the model assumed.
 
 ## 6. Phase 1: rule lookups and sign-in cost (from the rules)
 
@@ -252,3 +281,16 @@ recipient's side), so muting does not save writes, only noise.
 
 For 15 users making ~40 logged edits each per day the log adds ~600 writes/day (3% of the
 20K daily write quota).
+
+## Phase 6 additions
+
+| Read / write         | When                                           | Cost                        |
+| -------------------- | ---------------------------------------------- | --------------------------- |
+| Automations listener | While a board is open                          | ≤20 small docs, then deltas |
+| Run history listener | Only while the Automations panel is open       | ≤100 reads, then deltas     |
+| Run record           | Each automation execution (ran/failed/skipped) | +1 write, same batch        |
+| Action writes        | Item updates, new items, notifications         | 1 write each, same batch    |
+
+A busy automation (fires 100×/day) adds ~100–300 writes/day. Run history is trimmed to 50, so
+it never grows. Edits on boards with item-creating automations use a transaction (1 extra read
+of the counter).

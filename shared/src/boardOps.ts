@@ -17,6 +17,10 @@ export const boardPaths = {
   items: (wid: string, bid: string) => `${paths.board(wid, bid)}/items`,
   item: (wid: string, bid: string, iid: string) => `${paths.board(wid, bid)}/items/${iid}`,
   activity: (wid: string, bid: string) => `${paths.board(wid, bid)}/activity`,
+  runs: (wid: string, bid: string) => `${paths.board(wid, bid)}/automationRuns`,
+  automations: (wid: string, bid: string) => `${paths.board(wid, bid)}/automations`,
+  automation: (wid: string, bid: string, aid: string) =>
+    `${paths.board(wid, bid)}/automations/${aid}`,
   activityDoc: (wid: string, bid: string, id: string) => `${paths.board(wid, bid)}/activity/${id}`,
 };
 
@@ -29,7 +33,8 @@ export interface NewItemInput {
   values?: Record<string, unknown>;
 }
 
-function itemDoc(uid: string, columns: readonly Column[], it: NewItemInput): DocData {
+/** The stored document for a new item (also used by the automation engine). */
+export function buildItemDoc(uid: string, columns: readonly Column[], it: NewItemInput): DocData {
   const values = cleanValues(columns, it.values ?? {});
   return {
     name: it.name.trim(),
@@ -124,7 +129,7 @@ export function planCreateBoard(input: {
     ops.push({
       kind: 'set',
       path: boardPaths.item(wid, bid, input.newItemId()),
-      data: itemDoc(uid, template.columns, { ...it, order, itemNumber: i + 1 }),
+      data: buildItemDoc(uid, template.columns, { ...it, order, itemNumber: i + 1 }),
     });
   });
   return ops;
@@ -174,7 +179,7 @@ export function planCreateItem(input: {
     {
       kind: 'set',
       path: boardPaths.item(wid, bid, input.iid),
-      data: itemDoc(input.uid, input.columns, input.item),
+      data: buildItemDoc(input.uid, input.columns, input.item),
     },
   ];
 }
@@ -344,7 +349,7 @@ export function planDuplicateItems(input: {
     ops.push({
       kind: 'set',
       path: boardPaths.item(wid, bid, pid),
-      data: itemDoc(uid, columns, {
+      data: buildItemDoc(uid, columns, {
         name: `${it.name} (copy)`.slice(0, 500),
         groupId: it.groupId,
         order,
@@ -356,7 +361,7 @@ export function planDuplicateItems(input: {
       ops.push({
         kind: 'set',
         path: boardPaths.item(wid, bid, input.newId()),
-        data: itemDoc(uid, columns, {
+        data: buildItemDoc(uid, columns, {
           name: s.name,
           groupId: it.groupId,
           order: s.order,
@@ -472,7 +477,7 @@ export function planDuplicateBoard(input: {
   const sorted = [...source.items].sort((a, b) => Number(!!a.parentId) - Number(!!b.parentId));
   for (const it of sorted) {
     if (it.parentId && !idMap.has(it.parentId)) continue; // orphaned subitem
-    const data = itemDoc(uid, source.board.columns, {
+    const data = buildItemDoc(uid, source.board.columns, {
       name: it.name,
       groupId: it.groupId,
       order: it.order,

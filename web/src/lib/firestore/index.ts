@@ -11,6 +11,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  getCountFromServer,
   getDocsFromCache,
   runTransaction,
   onSnapshot,
@@ -25,10 +26,21 @@ import {
   type Transaction,
   type WriteBatch,
 } from 'firebase/firestore';
+import { USE_EMULATORS } from '../../config';
 import { db } from '../firebase';
-import { meter } from './meter';
+import { meter, type MeterSnapshot } from './meter';
 
 export { meter } from './meter';
+
+declare global {
+  interface Window {
+    /** Emulator-only test hooks: read and reset the usage meter (used by the quota e2e). */
+    __meter?: { snapshot: () => MeterSnapshot; reset: () => void };
+  }
+}
+if (USE_EMULATORS && typeof window !== 'undefined') {
+  window.__meter = { snapshot: () => meter.getSnapshot(), reset: () => meter.reset() };
+}
 
 export async function readDoc<T = DocumentData>(
   label: string,
@@ -172,6 +184,14 @@ export async function commitOps(label: string, ops: WriteOp[]): Promise<void> {
 /** Large op lists (e.g. deleting a board) split into <=500-op batches. */
 export async function commitOpsChunked(label: string, ops: WriteOp[], size = 100): Promise<void> {
   for (let i = 0; i < ops.length; i += size) await commitOps(label, ops.slice(i, i + size));
+}
+
+/** Number of documents matching a query: an aggregation, billed as 1 read per 1,000 entries (min 1). */
+export async function readCount<T = DocumentData>(label: string, q: Query<T>): Promise<number> {
+  const snap = await getCountFromServer(q);
+  const n = snap.data().count;
+  meter.recordReads(label, Math.max(1, Math.ceil(n / 1000)), false, false);
+  return n;
 }
 
 /** Reads the local cache only (free). Throws if nothing is cached. */

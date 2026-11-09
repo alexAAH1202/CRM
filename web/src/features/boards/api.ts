@@ -7,6 +7,10 @@ import {
   planArchiveItems,
   planAssignmentNotifications,
   planActivity,
+  normalizeValue,
+  isComputedType,
+  cleanValues,
+  type EngineItem,
   cellActivity,
   type ActivityData,
   type ActivityType,
@@ -39,6 +43,12 @@ import {
 } from '@app/shared';
 import { collection, doc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
+import {
+  addAutomationOps,
+  enabledAutomations,
+  runtimeFor,
+  usesNumbering,
+} from '../automations/runtime';
 import {
   commitOps,
   commitOpsChunked,
@@ -231,7 +241,32 @@ export function createItem(input: {
         },
       });
       ops.push(activity(input.wid, input.board.id, input.uid, 'create', iid, input.name.trim()));
-      return ops;
+      const rt = runtimeFor(input.board.id);
+      if (!rt || enabledAutomations(input.board.id).length === 0) return ops;
+      const itemsAfter = new Map<string, EngineItem>(rt.items);
+      itemsAfter.set(iid, {
+        id: iid,
+        name: input.name.trim(),
+        groupId: input.groupId,
+        order,
+        parentId: input.parentId ?? null,
+        itemNumber: next,
+        values: cleanValues(input.board.columns, {
+          ...defaultItemValues(input.board.columns),
+          ...(input.values ?? {}),
+        }),
+        archived: false,
+        deleted: false,
+      });
+      return addAutomationOps({
+        bid: input.board.id,
+        actor: input.uid,
+        baseOps: ops,
+        event: { kind: 'created', itemId: iid },
+        itemsAfter,
+        startNumber: next + 1,
+        counterExists: counter.exists(),
+      });
     }),
   );
 }
@@ -292,7 +327,53 @@ export function setCell(input: {
         change.data,
       ),
     );
-  return commitOps(`cell:${input.column.type}`, ops);
+  return commitWithAutomations(`cell:${input.column.type}`, input.board.id, ops, (base, ctl) => {
+    if (isComputedType(input.column.type)) return base;
+    const before = normalizeValue(input.column, input.item.values[input.column.id]);
+    const after = normalizeValue(input.column, input.value);
+    if (JSON.stringify(before ?? null) === JSON.stringify(after ?? null)) return base;
+    const rt = runtimeFor(input.board.id);
+    if (!rt) return base;
+    const values = { ...input.item.values };
+    if (after === null) delete values[input.column.id];
+    else values[input.column.id] = after;
+    const itemsAfter = new Map<string, EngineItem>(rt.items);
+    itemsAfter.set(input.item.id, { ...input.item, values });
+    return addAutomationOps({
+      bid: input.board.id,
+      actor: input.uid,
+      baseOps: base,
+      event: { kind: 'cell', itemId: input.item.id, columnId: input.column.id, before, after },
+      itemsAfter,
+      startNumber: ctl.startNumber,
+      counterExists: ctl.counterExists,
+    });
+  });
+}
+
+/**
+ * Commits `ops` plus whatever the board's instant automations add, atomically. If an
+ * automation can create items it needs the board counter, so the write becomes a transaction
+ * (which needs a connection); otherwise it is an ordinary batch that also works offline.
+ */
+function commitWithAutomations(
+  label: string,
+  bid: string,
+  ops: WriteOp[],
+  plan: (base: WriteOp[], ctl: { startNumber: number | null; counterExists: boolean }) => WriteOp[],
+): Promise<void> {
+  if (enabledAutomations(bid).length === 0) return commitOps(label, ops);
+  const rt = runtimeFor(bid);
+  if (rt && usesNumbering(bid)) {
+    return serialized(() =>
+      runOpsTransaction(`${label}:auto`, async (get) => {
+        const counter = await get(doc(db, boardPaths.counter(rt.wid, bid)));
+        const next = (counter.data()?.['next'] as number | undefined) ?? 1;
+        return plan(ops, { startNumber: next, counterExists: counter.exists() });
+      }),
+    );
+  }
+  return commitOps(label, plan(ops, { startNumber: null, counterExists: true }));
 }
 
 export function renameItem(wid: string, bid: string, iid: string, uid: string, name: string) {
@@ -469,6 +550,40 @@ export function moveItemsToGroup(input: {
         input.log.groupName,
       ),
     );
+  // A single card/row moved to another group can fire "moved to group" automations.
+  const only = input.moves.length === 1 ? input.moves[0] : undefined;
+  const rt = runtimeFor(input.bid);
+  const before = only ? rt?.items.get(only.id) : undefined;
+  if (
+    only &&
+    rt &&
+    before &&
+    before.groupId !== input.groupId &&
+    enabledAutomations(input.bid).length > 0
+  ) {
+    return commitWithAutomations('item:move', input.bid, ops, (base, ctl) => {
+      const itemsAfter = new Map<string, EngineItem>(rt.items);
+      itemsAfter.set(only.id, { ...before, groupId: input.groupId, order: only.order });
+      for (const c of only.childIds) {
+        const child = rt.items.get(c);
+        if (child) itemsAfter.set(c, { ...child, groupId: input.groupId });
+      }
+      return addAutomationOps({
+        bid: input.bid,
+        actor: input.uid,
+        baseOps: base,
+        event: {
+          kind: 'moved',
+          itemId: only.id,
+          fromGroupId: before.groupId,
+          toGroupId: input.groupId,
+        },
+        itemsAfter,
+        startNumber: ctl.startNumber,
+        counterExists: ctl.counterExists,
+      });
+    });
+  }
   return commitOpsChunked('item:move', ops);
 }
 

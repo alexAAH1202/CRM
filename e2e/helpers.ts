@@ -1,4 +1,4 @@
-import { expect, type Browser, type Page } from '@playwright/test';
+import { expect, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
 
 /** Opens a fresh browser context signed in (via the emulator-only hook) as `email`. */
 const permissionLog = new WeakMap<Page, string[]>();
@@ -11,8 +11,13 @@ export function permissionErrors(page: Page): string[] {
   return permissionLog.get(page) ?? [];
 }
 
-export async function signedInPage(browser: Browser, email: string, name: string): Promise<Page> {
-  const context = await browser.newContext();
+export async function signedInPage(
+  browser: Browser,
+  email: string,
+  name: string,
+  contextOptions: BrowserContextOptions = {},
+): Promise<Page> {
+  const context = await browser.newContext(contextOptions);
   const page = await context.newPage();
   const log: string[] = [];
   permissionLog.set(page, log);

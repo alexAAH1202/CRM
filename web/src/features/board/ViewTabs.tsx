@@ -52,6 +52,7 @@ export function ViewTabs({ wid, bid, views, activeId, canEdit, onSelect }: Props
   const [name, setName] = useState('');
   const virtual = views.length === 1 && views[0]?.id === 'main' && views[0].order === '';
   const canAdd = canEdit && views.length < MAX_VIEWS;
+  const activeView = views.find((v) => v.id === activeId);
 
   const add = async (type: ViewType) => {
     // A board whose first view was never saved gets it now, so it doesn't vanish.
@@ -70,77 +71,72 @@ export function ViewTabs({ wid, bid, views, activeId, canEdit, onSelect }: Props
   };
 
   return (
-    <div role="tablist" aria-label="Views" className="flex min-w-0 flex-wrap items-center gap-1">
-      {views.map((v) => {
-        const Icon = VIEW_ICONS[v.type];
-        const on = v.id === activeId;
-        return (
-          <div
-            key={v.id}
-            className={cx(
-              'flex items-center rounded-full',
-              on ? 'bg-primary-soft text-primary' : 'text-fg hover:bg-surface-2',
-            )}
-          >
+    <div className="flex min-w-0 flex-wrap items-center gap-1">
+      <div role="tablist" aria-label="Views" className="flex min-w-0 flex-wrap items-center gap-1">
+        {views.map((v) => {
+          const Icon = VIEW_ICONS[v.type];
+          const on = v.id === activeId;
+          return (
             <button
+              key={v.id}
               type="button"
               role="tab"
               aria-selected={on}
               onClick={() => onSelect(v.id)}
               className={cx(
                 'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-semibold',
-                on && 'font-bold',
+                on ? 'bg-primary-soft font-bold text-primary' : 'text-fg hover:bg-surface-2',
               )}
             >
               <Icon size={14} aria-hidden /> {v.name}
             </button>
-            {on && canEdit && !virtual && (
-              <Popover
-                label={`${v.name} options`}
-                className="w-44"
-                trigger={(p) => (
-                  <button
-                    {...p}
-                    type="button"
-                    aria-label={`Options for ${v.name}`}
-                    className="mr-1 rounded-full p-1 hover:bg-surface-3"
-                  >
-                    <MoreHorizontal size={14} aria-hidden />
-                  </button>
-                )}
+          );
+        })}
+      </div>
+      {activeView && canEdit && !virtual && (
+        <Popover
+          label={`${activeView.name} options`}
+          className="w-44"
+          trigger={(p) => (
+            <button
+              {...p}
+              type="button"
+              aria-label={`Options for ${activeView.name}`}
+              className="rounded-full p-1.5 text-muted hover:bg-surface-3 hover:text-fg"
+            >
+              <MoreHorizontal size={14} aria-hidden />
+            </button>
+          )}
+        >
+          {(close) => (
+            <div className="flex flex-col">
+              <button
+                type="button"
+                className="rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-2"
+                onClick={() => {
+                  close();
+                  setName(activeView.name);
+                  setRenaming(activeView);
+                }}
               >
-                {(close) => (
-                  <div className="flex flex-col">
-                    <button
-                      type="button"
-                      className="rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-2"
-                      onClick={() => {
-                        close();
-                        setName(v.name);
-                        setRenaming(v);
-                      }}
-                    >
-                      Rename view
-                    </button>
-                    <button
-                      type="button"
-                      disabled={views.length < 2}
-                      title={views.length < 2 ? 'A board needs at least one view' : undefined}
-                      className="rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-surface-2 disabled:opacity-50"
-                      onClick={() => {
-                        close();
-                        setDeleting(v);
-                      }}
-                    >
-                      Delete view
-                    </button>
-                  </div>
-                )}
-              </Popover>
-            )}
-          </div>
-        );
-      })}
+                Rename view
+              </button>
+              <button
+                type="button"
+                disabled={views.length < 2}
+                title={views.length < 2 ? 'A board needs at least one view' : undefined}
+                className="rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-surface-2 disabled:opacity-50"
+                onClick={() => {
+                  close();
+                  setDeleting(activeView);
+                }}
+              >
+                Delete view
+              </button>
+            </div>
+          )}
+        </Popover>
+      )}
       {canAdd && (
         <Popover
           label="Add view"

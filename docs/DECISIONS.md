@@ -461,3 +461,74 @@ me` query per board I can see (only matching items are billed, plus one read per
 
 - Tags already did; Dropdown now shares that component, so a new Dropdown column is usable
   immediately (type a name, press Add) instead of needing a trip to "Edit options".
+
+### D57. Instant automations run in the browser of the person who made the change
+
+- As the spec says: the engine (`shared/automationEngine.ts`, a pure function) runs in the same
+  client, and its writes join the **same batch** as the original edit, so a change and its
+  consequences land together or not at all. Nothing runs when nobody has the app open; the
+  UI says so. Date-based and recurring automations belong to the Apps Script helper (Phase 7).
+- The person's own permissions apply: the rules see ordinary item, notification and run
+  writes from that person, so an automation can never do more than they could. A viewer's
+  edits don't happen, so neither do their automations. "Owner" is whose name is on it and who
+  gets "notify the owner" messages.
+- Only the board that is open is registered with the engine, so only that board's automations
+  can fire. Edits made through other boards' pages, bulk actions (set many / delete many /
+  move many) and undo do not trigger automations; a single drag or cell edit does.
+
+### D58. Loop guard: once per chain, three levels deep
+
+- Actions can themselves trigger automations (set status → another automation reacts). The
+  engine simulates that cascade up front, before writing anything. Two rules stop loops:
+  **an automation never runs twice in one chain of cause and effect** (so a ping-pong pair
+  runs once each, then stops), and chains stop after **3 levels** (MAX_DEPTH). Blocked runs
+  appear in the history as "Skipped" with the reason.
+- A hard cap of 10 items created per change stops "create an item whenever an item is created"
+  from exploding.
+- Every action is validated before any is applied; if one can't work (a deleted column, a
+  deleted group, an unnumberable item while offline) the whole automation is recorded as
+  "failed" and applies nothing, and the person's own edit still goes through.
+
+### D59. Creating items needs the counter, so those edits become transactions
+
+- An automation that creates or duplicates items must number them from the board counter. If
+  the board has any enabled automation like that, a triggering edit is committed as a
+  transaction (needs a connection) instead of a batch. Without such automations, edits keep
+  working offline exactly as before. The counter is written once per batch.
+
+### D60. Recipes are generated from the board's own columns and open in the builder
+
+- ~12 recipes (notify, stamp a date, move/archive when done, finish a parent when all subitems
+  are done, assign the creator, add a starter subitem…). A recipe is only offered if the board has
+  the columns it needs, and it opens pre-filled so the person can adjust before saving.
+- Tokens `@me` and `@today` in "set a column" resolve when it runs; `{item}` in messages and
+  names becomes the item's name.
+
+### D61. A hardening round after Phase 6: measure, don't estimate
+
+- `e2e/quota-5.spec.ts` drives typical flows with the usage meter and **fails if a flow gets
+  dearer** (see QUOTA_BUDGET § Measured app-side costs). It found one cost the model missed:
+  your own edits echo through your own listener (~1 read each). Budgeted as billed; the
+  revised daily total is ≈ 16,400 reads (33%).
+- `e2e/a11y-mobile.spec.ts` scans 14 screens with axe (WCAG A/AA; serious/critical must be
+  zero), exercises a 393px-wide phone, and checks CSV export and the offline banner.
+  The scan found real problems, fixed: the view tabs and the table grid had ARIA roles whose
+  children weren't allowed (buttons directly inside a `tablist`, `grid`, or `row`).
+
+### D62. CSV export is built on the device and guards against formula injection
+
+- Built from the loaded items (zero reads), with computed columns worked out, people by
+  name, and subitems under their parent. Any cell starting with `= + - @` (tab/CR) gets a
+  leading apostrophe so a spreadsheet can't run it as a formula; real numbers are untouched.
+  A BOM is added so Excel reads UTF-8.
+
+### D63. Run history is trimmed when an editor opens a board
+
+- Previously only trimmed when the Automations panel was opened. Now once per board per
+  session: one count aggregation (1 read), and only if there are 10+ more than 50 runs, a read
+  of just the surplus (oldest first), which is deleted. Activity pruning stays with Phase 7.
+
+### D64. An offline banner, not a blocker
+
+- The browser's online/offline events show a banner; Firestore keeps working from its cache and
+  queues writes. The banner says the exceptions (item-creating automations need a connection).

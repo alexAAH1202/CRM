@@ -1,15 +1,19 @@
 import { EMPTY_VIEW_CONFIG } from '@app/shared';
-import { Activity, Archive, Lock, Settings, ShieldAlert } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Activity, Archive, Download, Lock, Settings, ShieldAlert, Zap } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { FullPageSpinner } from '../../components/FullPageSpinner';
 import { Button, EmptyState, SidePanel, Skeleton } from '../../components/ui';
+import { useCurrentUser } from '../auth/AuthProvider';
 import { useBoards } from '../boards/BoardsProvider';
 import type { Board } from '../boards/types';
 import { useBoardDoc, useBoardItems } from '../boards/useBoardData';
 import { useViewConfig } from '../boards/useViewConfig';
 import { useViews, type BoardView } from '../boards/useViews';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
+import { trimRunHistory } from '../automations/api';
+import { AutomationsPanel } from '../automations/AutomationsPanel';
+import { useAutomations, useBoardAutomationsRegistration } from '../automations/useAutomations';
 import { ActivityList } from '../activity/ActivityList';
 import { BoardSettingsDialog } from './BoardSettingsDialog';
 import { BoardTable } from './BoardTable';
@@ -19,6 +23,7 @@ import { ChartView } from './ChartView';
 import { GanttView } from './GanttView';
 import { WorkloadView } from './WorkloadView';
 import { KanbanView } from './KanbanView';
+import { downloadBoardCsv } from './exportCsv';
 import { ItemPanel } from './ItemPanel';
 import { ViewTabs } from './ViewTabs';
 
@@ -29,7 +34,21 @@ function BoardView({ board: b }: { board: Board }) {
   const [search, setSearch] = useState('');
   const [settings, setSettings] = useState(false);
   const [activity, setActivity] = useState(false);
+  const [autoOpen, setAutoOpen] = useState(false);
+  const user = useCurrentUser();
+  const automations = useAutomations(workspace.id, b.id);
+  useBoardAutomationsRegistration({
+    wid: workspace.id,
+    board: b,
+    automations: automations.automations,
+    items: items.status === 'ready' ? items.data : null,
+    members,
+    memberName,
+  });
   const canEdit = role !== 'viewer' && !b.archived;
+  useEffect(() => {
+    if (canEdit) void trimRunHistory(workspace.id, b.id).catch(() => undefined);
+  }, [canEdit, workspace.id, b.id]);
   const { views } = useViews(workspace.id, b.id);
   const [params, setParams] = useSearchParams();
   // A board with no saved view doc yet shows an implicit "Main table".
@@ -100,6 +119,24 @@ function BoardView({ board: b }: { board: Board }) {
               <p className="mt-1 line-clamp-2 text-sm text-muted">{b.description}</p>
             )}
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={items.status !== 'ready'}
+            onClick={() => items.status === 'ready' && downloadBoardCsv(b, items.data, memberName)}
+            aria-label="Export CSV"
+            title="Download this board as a spreadsheet (CSV)"
+          >
+            <Download size={14} aria-hidden /> <span className="hidden lg:inline">Export</span>
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setAutoOpen(true)}
+            aria-label="Automations"
+          >
+            <Zap size={14} aria-hidden /> <span className="hidden sm:inline">Automations</span>
+          </Button>
           <Button
             variant="secondary"
             size="sm"
@@ -180,6 +217,19 @@ function BoardView({ board: b }: { board: Board }) {
       )}
       {itemId && items.status === 'ready' && members && (
         <ItemPanel p={viewProps} itemId={itemId} isAdmin={role === 'admin'} onClose={closeItem} />
+      )}
+      {autoOpen && members && (
+        <AutomationsPanel
+          wid={workspace.id}
+          board={b}
+          members={members}
+          memberName={memberName}
+          automations={automations.automations}
+          me={user.uid}
+          canEdit={canEdit}
+          isAdmin={role === 'admin'}
+          onClose={() => setAutoOpen(false)}
+        />
       )}
       {activity && (
         <SidePanel open onClose={() => setActivity(false)} title={`Activity on ${b.name}`}>
