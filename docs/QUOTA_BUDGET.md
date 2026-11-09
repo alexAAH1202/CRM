@@ -252,3 +252,16 @@ recipient's side), so muting does not save writes, only noise.
 
 For 15 users making ~40 logged edits each per day the log adds ~600 writes/day (3% of the
 20K daily write quota).
+
+## Phase 6 additions
+
+| Read / write         | When                                           | Cost                        |
+| -------------------- | ---------------------------------------------- | --------------------------- |
+| Automations listener | While a board is open                          | ≤20 small docs, then deltas |
+| Run history listener | Only while the Automations panel is open       | ≤100 reads, then deltas     |
+| Run record           | Each automation execution (ran/failed/skipped) | +1 write, same batch        |
+| Action writes        | Item updates, new items, notifications         | 1 write each, same batch    |
+
+A busy automation (fires 100×/day) adds ~100–300 writes/day. Run history is trimmed to 50, so
+it never grows. Edits on boards with item-creating automations use a transaction (1 extra read
+of the counter).

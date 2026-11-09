@@ -114,7 +114,7 @@ function LabelChips({
   );
 }
 
-function FilterValue({
+export function FilterValue({
   filter,
   column,
   members,

@@ -241,14 +241,40 @@ Emoji reactions are P1 and not built yet.
 ### `boards/{bid}/automations/{aid}`
 
 ```ts
-{ enabled, name, trigger: {...}, conditions: [...], actions: [...],
-  ownerUid, createdAt, updatedAt }
+{ name, enabled, ownerUid,
+  trigger: { type: 'itemCreated' }
+         | { type: 'columnChanged', columnId: string | null }          // null = any column
+         | { type: 'statusChangedTo', columnId, labelId }
+         | { type: 'personAssigned', columnId: string | null, uid: string | null }
+         | { type: 'movedToGroup', groupId }
+         | { type: 'subitemsAllDone', columnId, labelId },
+  conditions: Filter[],                 // same shape as view filters; all must match (max 5)
+  actions: Array<                       // 1–5, run in order
+      { type: 'setValue', columnId, value }          // value may be '@me' (people) or '@today' (date)
+    | { type: 'moveToGroup', groupId }
+    | { type: 'createItem', name, groupId: string | null, subitem: boolean }   // {item} = the item's name
+    | { type: 'duplicate' }                           // copy of the item (subitems are not copied)
+    | { type: 'archive' }
+    | { type: 'notify', to: 'assignees'|'owner'|'actor'|'person', uid, message }>,
+  createdAt, updatedAt }
 ```
+
+Max 20 per board. The owner is whoever created it and never changes. Any editor may edit or
+switch one off; the owner or an admin deletes it. Scheduled triggers (dates, recurring) are
+added with the Apps Script helper in Phase 7.
 
 ### `boards/{bid}/automationRuns/{rid}` (capped at 50/board, pruned)
 
 ```ts
-{ automationId, status: 'ok'|'failed'|'skipped', error?, itemId?, depth, at }
+{ automationId, name, status: 'ok'|'failed'|'skipped', error?, itemId, depth, actor, at }
+```
+
+One entry per execution ("ran"), per refusal ("failed": e.g. a column it sets was deleted) and
+per loop-guard stop ("skipped"). Written in the same batch as the change that caused it.
+The panel shows the newest 50 and deletes older ones (editors may; Apps Script will too).
+
+```ts
+
 ```
 
 ### `boards/{bid}/activity/{id}` (capped, pruned)
