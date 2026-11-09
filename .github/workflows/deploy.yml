@@ -26,6 +26,9 @@ jobs:
       VITE_FIREBASE_AUTH_DOMAIN: life-management-de315.firebaseapp.com
       VITE_FIREBASE_PROJECT_ID: life-management-de315
       VITE_FIREBASE_APP_ID: 1:290995869060:web:a8f40b73d254ebda2839d1
+      # The Apps Script helper's web app URL (not a secret): set as a repository *variable*
+      # named APPS_SCRIPT_URL (SETUP B4.5). Empty until the helper is deployed.
+      VITE_APPS_SCRIPT_URL: ${{ vars.APPS_SCRIPT_URL }}
     steps:
       - name: Check deploy credentials are configured
         env:

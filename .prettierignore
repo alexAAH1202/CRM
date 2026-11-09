@@ -5,3 +5,4 @@ coverage
 package-lock.json
 firebase/emulator-data
 PROJECT_SPEC.md
+apps-script/release/Code.js

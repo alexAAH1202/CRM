@@ -559,3 +559,39 @@ me` query per board I can see (only matching items are billed, plus one read per
 - Deliberately **no service worker**: it would cache old app code and can serve a stale
   version after a deploy. Offline use is already handled by Firestore's own cache for data;
   the app shell needs a connection to load the first time each session.
+
+### D69. The helper checks who is calling on every request
+
+- The browser sends its Firebase **ID token** in the JSON body (text/plain, so no CORS
+  preflight). The helper asks Google's Identity Toolkit (`accounts:lookup`) whether the token is
+  genuine, unexpired and from this project; it never trusts a uid or role in the request. A
+  successful check is cached for up to 5 minutes (never longer than the token lives, keyed by a
+  hash of the token) to protect the URL Fetch quota. Then it reads the caller's
+  `workspaces/{wid}/members/{uid}` document to get their role; actions say which role they need
+  (any member, admin, or write access that viewers don't have).
+- Only `ping` (and opening the URL in a browser) works without a token. Unknown action names,
+  including `__proto__`/`constructor`, are refused. Unexpected exceptions are logged in the
+  script's own log and the caller only sees a generic message.
+- Because the helper uses the script owner's credentials, **Firestore rules are not applied to
+  it**. That's why every action must re-check the caller's role itself, and why the router is
+  the only entry point (tests attack it directly).
+
+### D70. One pasted file, built and checked by CI
+
+- Apps Script has no module system, so `npm run build -w apps-script` bundles the helper and
+  the parts of `shared` it uses (the automation engine and planners in 7b) into one file,
+  `apps-script/release/Code.js` (~20 KB). It is committed, and `npm run check` fails if it is
+  out of date, so what you paste is always what the tests ran. `shared` is marked
+  `sideEffects: false` so unused code (e.g. the validation library) is left out.
+- The built file is also loaded in a sandbox with stand-ins for Apps Script's services, to
+  prove the entry points exist as top-level functions and `doPost`/`setup` work.
+- Updates are a manual paste + "new version" (documented), not clasp from CI, because a clasp
+  login can't be done from a browser-only setup.
+
+### D71. Platform adapter and REST writes shared with the app
+
+- All Apps Script services sit behind one small interface (`platform.ts`), so auth, Firestore
+  access and routing run in plain Node tests with fakes (32 tests).
+- The helper turns the same `WriteOp`s the web app and rules tests execute into Firestore REST
+  writes (field masks, server timestamps and array unions as transforms), so scheduled
+  automations (7b) reuse the shared planners and engine instead of a second implementation.

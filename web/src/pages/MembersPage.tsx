@@ -25,6 +25,7 @@ import {
   revokeInvite,
 } from '../features/workspaces/api';
 import { useSessionStore } from '../features/workspaces/sessionStore';
+import { HelperStatus } from '../features/helper/HelperStatus';
 import { useWorkspace } from '../features/workspaces/WorkspaceProvider';
 import { db } from '../lib/firebase';
 import { listenQuery } from '../lib/firestore';
@@ -326,6 +327,8 @@ export default function MembersPage() {
           </ul>
         )}
       </section>
+      {isAdmin && <HelperStatus />}
+
       {isAdmin && workspace.adminUids.length === 1 && (
         <p className="text-sm text-muted">
           Tip: make a second person an admin so the workspace is never locked if one account is

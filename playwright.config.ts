@@ -20,6 +20,8 @@ export default defineConfig({
     command: 'npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
+    // Makes the app believe a helper is deployed; tests answer its calls themselves (e2e/helper-7).
+    env: { VITE_APPS_SCRIPT_URL: 'https://helper.test/exec' },
     timeout: 180_000,
   },
 });
