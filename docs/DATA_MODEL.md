@@ -148,6 +148,10 @@ authorization.**
 The item autonumber is assigned in a transaction against this doc, which no one
 listens to, so creating an item doesn't fan out a board-doc update.
 
+Rules only require `1 <= next <= old + 500`: not strictly increasing, because rules
+run before Firestore's stale-read check and a strict rule turns a retryable conflict
+between two simultaneous creates into `permission-denied` (see D43).
+
 ### `boards/{bid}/items/{iid}`
 
 ```ts
@@ -186,6 +190,17 @@ listens to, so creating an item doesn't fan out a board-doc update.
   | link           | `{ url, text }` (http(s)/mailto only; `javascript:` refused) |
 
   An empty cell removes its key from `values`.
+
+  Phase 3 additions:
+
+  | Column type                                                | Stored value / setting                                                   |
+  | ---------------------------------------------------------- | ------------------------------------------------------------------------ |
+  | rating                                                     | `number` 1–5 (cleared = field removed)                                   |
+  | email, phone                                               | `string`                                                                 |
+  | tags                                                       | tag ids (`string[]`), tags live in column `settings`                     |
+  | files                                                      | `[{ name, url, ... }]` (links, max 20; http(s) only)                     |
+  | dependency                                                 | `[{ id, lag }]` predecessor item ids, `lag` in days (±365, max 30 preds) |
+  | formula, progress, itemId, createdAt, updatedAt, createdBy | **never stored**: computed on render from the column's `settings`        |
 
   Column `settings` also carry (2b): `summary` (footer: none/count/sum/avg/min/max/
   distribution) and `defaultValue` (what new items start with; status uses

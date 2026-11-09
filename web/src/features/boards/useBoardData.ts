@@ -56,6 +56,7 @@ function toItem(d: QueryDocumentSnapshot<DocumentData>): BoardItem {
     archived: x['archived'] === true,
     deleted: x['deletedAt'] != null,
     createdBy: String(x['createdBy'] ?? ''),
+    createdAtMs: x['createdAt'] instanceof Timestamp ? x['createdAt'].toMillis() : null,
     updatedAtMs: ts instanceof Timestamp ? ts.toMillis() : null,
   };
 }

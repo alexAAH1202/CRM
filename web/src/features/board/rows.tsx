@@ -327,6 +327,7 @@ export function ColumnsRow({
             onMove={(dir) => t.onColumnMove(c, dir)}
             onChangeType={() => t.onColumnChangeType(c)}
             onDefault={() => t.onColumnDefault(c)}
+            onConfigure={() => t.onColumnConfigure(c)}
           />
           <ResizeHandle columnId={c.id} width={t.widths[i] ?? 150} />
         </div>

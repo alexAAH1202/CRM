@@ -103,7 +103,7 @@ describe('board planners against the rules', () => {
     await assertFails(commitOps(db(env, 'carol'), ops2));
   });
 
-  it('create item bumps the counter; reusing an old number is rejected by the counter rule', async () => {
+  it('create item bumps the counter; a huge jump is rejected by the counter rule', async () => {
     const cols = [makeColumn('people')];
     const mk = (iid: string, n: number) =>
       planCreateItem({
@@ -122,7 +122,7 @@ describe('board planners against the rules', () => {
         counterExists: true,
       });
     await assertSucceeds(commitOps(db(env, 'bob'), mk('n1', 2))); // counter 2 -> 3
-    await assertFails(commitOps(db(env, 'bob'), mk('n2', 1))); // would move counter backwards
+    await assertFails(commitOps(db(env, 'bob'), mk('n2', 9999))); // jump beyond +500
     const snap = await getDoc(doc(db(env, 'bob'), boardPaths.counter(WID, MAIN_BOARD)));
     expect(snap.data()?.['next']).toBe(3);
   });

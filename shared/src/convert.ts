@@ -3,6 +3,7 @@ import {
   makeColumn,
   normalizeUrl,
   normalizeValue,
+  RATING_MAX,
   valueToText,
   type CellValue,
   type Column,
@@ -11,6 +12,23 @@ import {
 } from './columns';
 import { shortId } from './ids';
 import { LABEL_COLOR_NAMES } from './palette';
+
+/** Types whose values are stored as typed data and can be converted between each other. */
+export const CONVERTIBLE_TYPES: readonly ColumnType[] = [
+  'text',
+  'longText',
+  'status',
+  'dropdown',
+  'tags',
+  'people',
+  'date',
+  'numbers',
+  'rating',
+  'checkbox',
+  'link',
+  'email',
+  'phone',
+];
 
 export interface ConversionResult {
   column: Column;
@@ -70,23 +88,30 @@ export function convertColumn(
   items: ReadonlyArray<{ id: string; value: unknown }>,
   ctx: ConversionContext,
 ): ConversionResult {
-  if (old.type === newType) return { column: old, changes: [], kept: 0, cleared: 0 };
+  if (
+    old.type === newType ||
+    !CONVERTIBLE_TYPES.includes(old.type) ||
+    !CONVERTIBLE_TYPES.includes(newType)
+  ) {
+    return { column: old, changes: [], kept: 0, cleared: 0 };
+  }
   const column: Column = { ...makeColumn(newType, old.title), id: old.id };
   const oldLabels =
     old.type === 'status'
       ? old.settings.labels
-      : old.type === 'dropdown'
+      : old.type === 'dropdown' || old.type === 'tags'
         ? old.settings.options
         : undefined;
+  const isLabelType = (t: ColumnType) => t === 'status' || t === 'dropdown' || t === 'tags';
 
   // Label-to-label conversions keep ids and colours.
-  if (oldLabels && (newType === 'status' || newType === 'dropdown')) {
+  if (oldLabels && isLabelType(newType)) {
     column.settings =
       newType === 'status' ? { labels: oldLabels, defaultLabelId: null } : { options: oldLabels };
   }
 
   const texts = items.map((i) => valueToText(old, i.value, ctx.memberName));
-  if ((newType === 'status' || newType === 'dropdown') && !oldLabels) {
+  if (isLabelType(newType) && !oldLabels) {
     const labels = labelsFromTexts(texts);
     column.settings = newType === 'status' ? { labels, defaultLabelId: null } : { options: labels };
   }
@@ -112,7 +137,8 @@ export function convertColumn(
         next = text || null;
         break;
       case 'status':
-      case 'dropdown': {
+      case 'dropdown':
+      case 'tags': {
         let name = text;
         if (oldLabels && Array.isArray(before))
           name = oldLabels.find((l) => l.id === before[0])?.name ?? '';
@@ -130,6 +156,17 @@ export function convertColumn(
         next = uids.length ? [...new Set(uids)] : null;
         break;
       }
+      case 'rating': {
+        const n = parseNumber(text);
+        next = n !== null && n >= 0.5 && n <= RATING_MAX + 0.5 ? Math.round(n) : null;
+        break;
+      }
+      case 'email':
+        next = normalizeValue({ ...column, type: 'email' }, text.trim());
+        break;
+      case 'phone':
+        next = normalizeValue({ ...column, type: 'phone' }, text.trim());
+        break;
       case 'date':
         next = parseDate(text);
         break;

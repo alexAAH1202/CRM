@@ -42,6 +42,19 @@ import type { Board, BoardItem } from './types';
 
 const newId = (path: string) => doc(collection(db, path)).id;
 
+/**
+ * Item creation takes a number from the board's shared counter inside a transaction.
+ * Two of those in flight at once (typing the next item before the last one finished)
+ * collide on the counter and one is rejected, so they run one after another.
+ */
+let counterQueue: Promise<unknown> = Promise.resolve();
+const lastIssuedOrder = new Map<string, string>();
+function serialized<T>(task: () => Promise<T>): Promise<T> {
+  const run = counterQueue.then(task, task);
+  counterQueue = run.catch(() => undefined);
+  return run;
+}
+
 export async function createBoard(input: {
   wid: string;
   uid: string;
@@ -116,26 +129,39 @@ export function createItem(input: {
   fallbackNumber: number;
 }): Promise<void> {
   const iid = newId(boardPaths.items(input.wid, input.board.id));
-  return runOpsTransaction('item:create', async (get) => {
-    const counter = await get(doc(db, boardPaths.counter(input.wid, input.board.id)));
-    const next = (counter.data()?.['next'] as number | undefined) ?? input.fallbackNumber;
-    return planCreateItem({
-      wid: input.wid,
-      bid: input.board.id,
-      iid,
-      uid: input.uid,
-      columns: input.board.columns,
-      counterExists: counter.exists(),
-      item: {
-        name: input.name,
-        groupId: input.groupId,
-        order: keyBetween(input.afterOrder, null),
-        itemNumber: next,
-        parentId: input.parentId ?? null,
-        values: { ...defaultItemValues(input.board.columns), ...(input.values ?? {}) },
-      },
-    });
-  });
+  // Items typed in quick succession must land in order, even before the first one has come
+  // back from the server: go after the later of the last order on screen and the last one we issued.
+  const slot = `${input.board.id}:${input.parentId ?? input.groupId}`;
+  const issued = lastIssuedOrder.get(slot) ?? null;
+  const base =
+    [input.afterOrder, issued]
+      .filter((x): x is string => x !== null)
+      .sort()
+      .at(-1) ?? null;
+  const order = keyBetween(base, null);
+  lastIssuedOrder.set(slot, order);
+  return serialized(() =>
+    runOpsTransaction('item:create', async (get) => {
+      const counter = await get(doc(db, boardPaths.counter(input.wid, input.board.id)));
+      const next = (counter.data()?.['next'] as number | undefined) ?? input.fallbackNumber;
+      return planCreateItem({
+        wid: input.wid,
+        bid: input.board.id,
+        iid,
+        uid: input.uid,
+        columns: input.board.columns,
+        counterExists: counter.exists(),
+        item: {
+          name: input.name,
+          groupId: input.groupId,
+          order: keyBetween(input.afterOrder, null),
+          itemNumber: next,
+          parentId: input.parentId ?? null,
+          values: { ...defaultItemValues(input.board.columns), ...(input.values ?? {}) },
+        },
+      });
+    }),
+  );
 }
 
 export function setCell(input: {
@@ -314,20 +340,22 @@ export function duplicateItems(input: {
   fallbackNumber: number;
 }) {
   const itemsPath = boardPaths.items(input.wid, input.board.id);
-  return runOpsTransaction('item:duplicate', async (get) => {
-    const counter = await get(doc(db, boardPaths.counter(input.wid, input.board.id)));
-    return planDuplicateItems({
-      wid: input.wid,
-      bid: input.board.id,
-      uid: input.uid,
-      columns: input.board.columns,
-      startNumber: (counter.data()?.['next'] as number | undefined) ?? input.fallbackNumber,
-      counterExists: counter.exists(),
-      items: input.items,
-      lastOrderByGroup: input.lastOrderByGroup,
-      newId: () => newId(itemsPath),
-    });
-  });
+  return serialized(() =>
+    runOpsTransaction('item:duplicate', async (get) => {
+      const counter = await get(doc(db, boardPaths.counter(input.wid, input.board.id)));
+      return planDuplicateItems({
+        wid: input.wid,
+        bid: input.board.id,
+        uid: input.uid,
+        columns: input.board.columns,
+        startNumber: (counter.data()?.['next'] as number | undefined) ?? input.fallbackNumber,
+        counterExists: counter.exists(),
+        items: input.items,
+        lastOrderByGroup: input.lastOrderByGroup,
+        newId: () => newId(itemsPath),
+      });
+    }),
+  );
 }
 
 // ------------------------------------------------------- 2b: column actions

@@ -1,9 +1,9 @@
 import {
-  COLUMN_META,
-  COLUMN_TYPES,
+  cleanColumnTitle,
+  COLUMN_PICKER,
+  CONVERTIBLE_TYPES,
   LABEL_COLOR_NAMES,
   LABEL_COLORS,
-  makeColumn,
   shortId,
   summaryKindOf,
   summaryOptions,
@@ -11,16 +11,19 @@ import {
   type Column,
   type ColumnType,
   type Label,
+  type PickerGroup,
   type SummaryKind,
 } from '@app/shared';
 import {
   ArrowLeft,
   ArrowRight,
+  Calculator,
   Check,
   ChevronDown,
   Pencil,
   Plus,
   Repeat,
+  SlidersHorizontal,
   Sigma,
   Star,
   Tags,
@@ -33,11 +36,20 @@ import { Button, Modal, Popover, SelectField, TextField } from '../../components
 const menuItem =
   'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-2';
 
+const PICKER_GROUPS: PickerGroup[] = [
+  'Text & numbers',
+  'Choices & people',
+  'Dates',
+  'Links & files',
+  'Calculated',
+  'Relations',
+];
+
 export function AddColumnButton({ onAdd }: { onAdd: (c: Column) => void }) {
   return (
     <Popover
       label="Add column"
-      className="w-64"
+      className="max-h-[70vh] w-72 overflow-auto"
       placement="bottom-end"
       trigger={(p) => (
         <button
@@ -52,21 +64,28 @@ export function AddColumnButton({ onAdd }: { onAdd: (c: Column) => void }) {
     >
       {(close) => (
         <div className="flex flex-col">
-          {COLUMN_TYPES.map((t: ColumnType) => (
-            <button
-              key={t}
-              type="button"
-              className={menuItem}
-              onClick={() => {
-                onAdd(makeColumn(t));
-                close();
-              }}
-            >
-              <span className="flex-1">
-                <span className="block font-semibold">{COLUMN_META[t].label}</span>
-                <span className="block text-xs text-muted">{COLUMN_META[t].description}</span>
-              </span>
-            </button>
+          {PICKER_GROUPS.map((g) => (
+            <section key={g} aria-label={g}>
+              <h3 className="px-3 pt-2 pb-1 text-xs font-bold tracking-wide text-muted uppercase">
+                {g}
+              </h3>
+              {COLUMN_PICKER.filter((e) => e.group === g).map((e) => (
+                <button
+                  key={e.key}
+                  type="button"
+                  className={menuItem}
+                  onClick={() => {
+                    onAdd(e.make());
+                    close();
+                  }}
+                >
+                  <span className="flex-1">
+                    <span className="block font-semibold">{e.label}</span>
+                    <span className="block text-xs text-muted">{e.description}</span>
+                  </span>
+                </button>
+              ))}
+            </section>
           ))}
         </div>
       )}
@@ -267,6 +286,9 @@ const DEFAULTABLE: ColumnType[] = [
   'date',
   'checkbox',
   'dropdown',
+  'rating',
+  'email',
+  'phone',
   'link',
 ];
 
@@ -280,6 +302,7 @@ export function ColumnHeader({
   onMove,
   onChangeType,
   onDefault,
+  onConfigure,
 }: {
   column: Column;
   canEdit: boolean;
@@ -290,6 +313,8 @@ export function ColumnHeader({
   onMove: (dir: -1 | 1) => void;
   onChangeType: () => void;
   onDefault: () => void;
+  /** Opens the formula or progress settings dialog. */
+  onConfigure: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [dialog, setDialog] = useState<'labels' | 'numbers' | 'delete' | null>(null);
@@ -304,7 +329,7 @@ export function ColumnHeader({
         maxLength={60}
         className="h-full w-full border-2 border-primary bg-surface px-2 text-center text-xs font-semibold outline-none"
         onBlur={(e) => {
-          const t = e.target.value.trim();
+          const t = cleanColumnTitle(e.target.value); // no { } — formulas use them for references
           if (t && t !== column.title) onSave({ ...column, title: t });
           setRenaming(false);
         }}
@@ -323,7 +348,11 @@ export function ColumnHeader({
     );
 
   const labelsKey =
-    column.type === 'status' ? 'labels' : column.type === 'dropdown' ? 'options' : null;
+    column.type === 'status'
+      ? 'labels'
+      : column.type === 'dropdown' || column.type === 'tags'
+        ? 'options'
+        : null;
 
   return (
     <>
@@ -377,16 +406,42 @@ export function ColumnHeader({
                 <Tags size={14} aria-hidden /> Unit & format
               </button>
             )}
-            <button
-              type="button"
-              className={menuItem}
-              onClick={() => {
-                close();
-                onChangeType();
-              }}
-            >
-              <Repeat size={14} aria-hidden /> Change type
-            </button>
+            {column.type === 'formula' && (
+              <button
+                type="button"
+                className={menuItem}
+                onClick={() => {
+                  close();
+                  onConfigure();
+                }}
+              >
+                <Calculator size={14} aria-hidden /> Edit formula
+              </button>
+            )}
+            {column.type === 'progress' && (
+              <button
+                type="button"
+                className={menuItem}
+                onClick={() => {
+                  close();
+                  onConfigure();
+                }}
+              >
+                <SlidersHorizontal size={14} aria-hidden /> Progress settings
+              </button>
+            )}
+            {CONVERTIBLE_TYPES.includes(column.type) && (
+              <button
+                type="button"
+                className={menuItem}
+                onClick={() => {
+                  close();
+                  onChangeType();
+                }}
+              >
+                <Repeat size={14} aria-hidden /> Change type
+              </button>
+            )}
             {DEFAULTABLE.includes(column.type) && (
               <button
                 type="button"

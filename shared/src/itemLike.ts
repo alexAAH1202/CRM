@@ -9,4 +9,8 @@ export interface ItemLike {
   values: Record<string, unknown>;
   archived: boolean;
   deleted: boolean;
+  /** For the Created / Last updated / Created by columns. */
+  createdBy?: string;
+  createdAtMs?: number | null;
+  updatedAtMs?: number | null;
 }

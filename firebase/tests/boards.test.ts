@@ -216,10 +216,11 @@ describe('views and item counter', () => {
     );
   });
 
-  it('counter only moves forward, by at most 500', async () => {
+  it('counter stays sane: at least 1, at most +500 (stale writes allowed for retries)', async () => {
     const ref = doc(db(env, 'bob'), `${B}/${MAIN_BOARD}/meta/counter`);
     await assertSucceeds(updateDoc(ref, { next: 3 }));
-    await assertFails(updateDoc(ref, { next: 1 }));
+    await assertSucceeds(updateDoc(ref, { next: 1 }));
+    await assertFails(updateDoc(ref, { next: 0 }));
     await assertFails(updateDoc(ref, { next: 10_000 }));
     await assertFails(
       updateDoc(doc(db(env, 'carol'), `${B}/${MAIN_BOARD}/meta/counter`), { next: 4 }),

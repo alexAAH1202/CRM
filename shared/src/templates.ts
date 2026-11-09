@@ -107,6 +107,12 @@ const SPECS: TemplateSpec[] = [
       },
       { key: 'due', type: 'date', title: 'Due date' },
       {
+        key: 'daysToDue',
+        type: 'formula',
+        title: 'Due in (days)',
+        settings: { formula: 'IF({Due date} = "", "", DAYS({Due date}, TODAY()))' },
+      },
+      {
         key: 'repeats',
         type: 'dropdown',
         title: 'Repeats',
@@ -155,6 +161,12 @@ const SPECS: TemplateSpec[] = [
     columns: [
       { key: 'who', type: 'people', title: 'Whose' },
       { key: 'expiry', type: 'date', title: 'Expires' },
+      {
+        key: 'daysLeft',
+        type: 'formula',
+        title: 'Days left',
+        settings: { formula: 'IF({Expires} = "", "", DAYS({Expires}, TODAY()))' },
+      },
       {
         key: 'status',
         type: 'status',
@@ -220,6 +232,12 @@ const SPECS: TemplateSpec[] = [
       },
       { key: 'last', type: 'date', title: 'Last done' },
       { key: 'next', type: 'date', title: 'Next due' },
+      {
+        key: 'overdue',
+        type: 'formula',
+        title: 'Overdue?',
+        settings: { formula: 'IF({Next due} = "", "", IF({Next due} < TODAY(), "Overdue", "OK"))' },
+      },
       {
         key: 'cost',
         type: 'numbers',

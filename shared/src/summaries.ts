@@ -1,4 +1,5 @@
 import {
+  formatComputedNumber,
   formatNumber,
   normalizeValue,
   type Column,
@@ -21,8 +22,19 @@ export function summaryOptions(type: ColumnType): SummaryKind[] {
   switch (type) {
     case 'numbers':
       return ['none', 'sum', 'avg', 'min', 'max', 'count'];
+    case 'formula':
+      return ['none', 'sum', 'avg', 'min', 'max', 'count'];
+    case 'rating':
+    case 'progress':
+      return ['none', 'avg', 'count'];
+    case 'itemId':
+    case 'createdAt':
+    case 'updatedAt':
+    case 'createdBy':
+      return ['none'];
     case 'status':
     case 'dropdown':
+    case 'tags':
       return ['none', 'distribution', 'count'];
     default:
       return ['none', 'count'];
@@ -84,6 +96,13 @@ export function summarize(col: Column, rawValues: readonly unknown[]): Summary {
   return {
     kind: 'number',
     op: kind as 'sum' | 'avg' | 'min' | 'max',
-    text: formatNumber(result, col.settings),
+    text:
+      col.type === 'numbers'
+        ? formatNumber(result, col.settings)
+        : col.type === 'progress'
+          ? `${Math.round(result)}%`
+          : col.type === 'rating'
+            ? `${Math.round(result * 10) / 10} / 5`
+            : formatComputedNumber(result, col.settings),
   };
 }

@@ -4,88 +4,35 @@ import {
   normalizeUrl,
   normalizeValue,
   type Column,
-  type Label,
   type LinkValue,
   type TimelineValue,
 } from '@app/shared';
-import { format, parseISO } from 'date-fns';
 import { Check, ExternalLink } from 'lucide-react';
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Avatar, Button, Popover } from '../../components/ui';
 import { cx } from '../../lib/cx';
-import type { BoardItem, WorkspaceMember } from '../boards/types';
-
-export interface CellProps {
-  column: Column;
-  item: BoardItem;
-  itemName: string;
-  canEdit: boolean;
-  members: WorkspaceMember[];
-  onChange: (value: unknown) => void;
-}
-
-const cellBase = 'flex h-full w-full items-center px-2 text-sm';
-const cellButton = cx(cellBase, 'text-left hover:bg-surface-2 focus-visible:outline-offset-[-2px]');
-
-export function fmtDate(iso: string): string {
-  const d = parseISO(iso);
-  return format(d, d.getFullYear() === new Date().getFullYear() ? 'd MMM' : 'd MMM yyyy');
-}
-
-/** Inline text-ish editor: Enter/blur saves, Escape cancels. Never writes per keystroke. */
-function InlineInput({
-  initial,
-  type = 'text',
-  label,
-  onCommit,
-  onCancel,
-  align = 'left',
-}: {
-  initial: string;
-  type?: 'text' | 'number' | 'date';
-  label: string;
-  onCommit: (v: string) => void;
-  onCancel: () => void;
-  align?: 'left' | 'right';
-}) {
-  const [v, setV] = useState(initial);
-  const done = useRef(false);
-  const finish = (save: boolean) => {
-    if (done.current) return;
-    done.current = true;
-    if (save && v !== initial) onCommit(v);
-    else onCancel();
-  };
-  return (
-    <input
-      autoFocus
-      type={type}
-      aria-label={label}
-      value={v}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={() => finish(true)}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === 'Enter') finish(true);
-        if (e.key === 'Escape') finish(false);
-      }}
-      className={cx(
-        'h-full w-full border-2 border-primary bg-surface px-2 text-sm outline-none',
-        align === 'right' && 'text-right',
-      )}
-    />
-  );
-}
-
-function useEditing() {
-  const [editing, setEditing] = useState(false);
-  return { editing, start: () => setEditing(true), stop: () => setEditing(false) };
-}
-
-function Empty() {
-  return <span className="text-muted/0 group-hover/row:text-muted">–</span>;
-}
-
-// ------------------------------------------------------------------ text-ish
+import {
+  ContactCell,
+  CreatedByCell,
+  DateStampCell,
+  DependencyCell,
+  FilesCell,
+  FormulaCell,
+  ItemIdCell,
+  ProgressCell,
+  RatingCell,
+  TagsCell,
+} from './cellsExtra';
+import {
+  type CellProps,
+  Empty,
+  InlineInput,
+  LabelOption,
+  cellBase,
+  cellButton,
+  fmtDate,
+  useEditing,
+} from './cellParts';
 
 function TextCell({ column, item, itemName, canEdit, onChange }: CellProps) {
   const { editing, start, stop } = useEditing();
@@ -407,30 +354,6 @@ function LinkCell({ column, item, itemName, canEdit, onChange }: CellProps) {
 
 // ----------------------------------------------------------------- choosers
 
-function LabelOption({
-  label,
-  selected,
-  onClick,
-}: {
-  label: Label;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  const c = LABEL_COLORS[label.color];
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={selected}
-      className="flex h-9 w-full items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold"
-      style={{ background: c.bg, color: c.text }}
-    >
-      {selected && <Check size={14} aria-hidden />}
-      {label.name}
-    </button>
-  );
-}
-
 function StatusCell({ column, item, itemName, canEdit, onChange }: CellProps) {
   const v = normalizeValue(column, item.values[column.id]) as string | null;
   const labels = column.settings.labels ?? [];
@@ -628,13 +551,28 @@ const RENDERERS: Record<Column['type'], (p: CellProps) => ReactNode> = {
   longText: LongTextCell,
   status: StatusCell,
   dropdown: DropdownCell,
+  tags: TagsCell,
   people: PeopleCell,
   date: DateCell,
   timeline: TimelineCell,
   numbers: NumbersCell,
+  rating: RatingCell,
   checkbox: CheckboxCell,
   link: LinkCell,
+  email: ContactCell,
+  phone: ContactCell,
+  files: FilesCell,
+  dependency: DependencyCell,
+  progress: ProgressCell,
+  formula: FormulaCell,
+  itemId: ItemIdCell,
+  createdAt: DateStampCell,
+  updatedAt: DateStampCell,
+  createdBy: CreatedByCell,
 };
+
+export type { CellProps };
+export { fmtDate };
 
 export function Cell(props: CellProps) {
   const R = RENDERERS[props.column.type];

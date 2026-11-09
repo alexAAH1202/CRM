@@ -4,6 +4,8 @@ import {
   valueToText,
   type Column,
   type ColumnType,
+  type DependencyValue,
+  type FileValue,
   type LinkValue,
   type TimelineValue,
 } from './columns';
@@ -93,17 +95,34 @@ export function opsFor(type: ColumnType | 'name'): FilterOp[] {
     case 'text':
     case 'longText':
     case 'link':
+    case 'email':
+    case 'phone':
       return ['contains', 'notContains', 'is', 'isEmpty', 'notEmpty'];
     case 'status':
     case 'dropdown':
+    case 'tags':
     case 'people':
       return ['anyOf', 'noneOf', 'isEmpty', 'notEmpty'];
+    case 'createdBy':
+      return ['anyOf', 'noneOf'];
     case 'date':
       return ['on', 'before', 'after', 'overdue', 'isEmpty', 'notEmpty'];
+    case 'createdAt':
+    case 'updatedAt':
+      return ['on', 'before', 'after'];
     case 'timeline':
       return ['on', 'overdue', 'isEmpty', 'notEmpty'];
     case 'numbers':
+    case 'rating':
+    case 'progress':
+    case 'itemId':
       return ['eq', 'gt', 'lt', 'isEmpty', 'notEmpty'];
+    case 'formula':
+      return ['contains', 'eq', 'gt', 'lt', 'isEmpty', 'notEmpty'];
+    case 'files':
+      return ['contains', 'isEmpty', 'notEmpty'];
+    case 'dependency':
+      return ['isEmpty', 'notEmpty'];
     case 'checkbox':
       return ['checked', 'unchecked'];
   }
@@ -234,11 +253,48 @@ export function matchesFilter(
       return f.op === 'noneOf' ? !has : has;
     }
     case 'dropdown':
-    case 'people': {
+    case 'tags':
+    case 'people':
+    case 'createdBy': {
       const want = (Array.isArray(f.value) ? f.value : []).map((x) => (x === ME ? ctx.me : x));
-      const have = Array.isArray(v) ? (v as string[]) : [];
+      const have = Array.isArray(v) ? (v as string[]) : typeof v === 'string' ? [v] : [];
       const any = have.some((x) => want.includes(x));
       return f.op === 'noneOf' ? !any : any;
+    }
+    case 'email':
+    case 'phone':
+      return matchText(typeof v === 'string' ? v : '', f);
+    case 'files':
+      return matchText(((v as FileValue[] | null) ?? []).map((x) => x.name).join(' '), f);
+    case 'dependency':
+      return true;
+    case 'rating':
+    case 'progress':
+    case 'itemId': {
+      const n = typeof f.value === 'number' ? f.value : Number(f.value);
+      if (typeof v !== 'number' || Number.isNaN(n)) return false;
+      return f.op === 'eq' ? v === n : f.op === 'gt' ? v > n : v < n;
+    }
+    case 'formula': {
+      if (f.op === 'eq' || f.op === 'gt' || f.op === 'lt') {
+        const n = typeof f.value === 'number' ? f.value : Number(f.value);
+        if (typeof v !== 'number' || Number.isNaN(n)) return false;
+        return f.op === 'eq' ? v === n : f.op === 'gt' ? v > n : v < n;
+      }
+      return matchText(
+        typeof v === 'string'
+          ? v
+          : typeof v === 'number' || typeof v === 'boolean'
+            ? String(v)
+            : '',
+        f,
+      );
+    }
+    case 'createdAt':
+    case 'updatedAt': {
+      const d = filterValueDate(f);
+      if (!d || typeof v !== 'string') return false;
+      return f.op === 'on' ? v === d : f.op === 'before' ? v < d : v > d;
     }
     case 'date': {
       if (f.op === 'overdue') return typeof v === 'string' && v < ctx.today;
@@ -301,15 +357,31 @@ function sortKey(
     case 'status':
       return (col.settings.labels ?? []).findIndex((l) => l.id === v);
     case 'dropdown':
+    case 'tags':
+    case 'files':
       return valueToText(col, v).toLowerCase();
     case 'people':
+    case 'createdBy':
       return valueToText(col, v, ctx.memberName).toLowerCase();
+    case 'dependency':
+      return (v as DependencyValue[]).length;
     case 'date':
+    case 'createdAt':
+    case 'updatedAt':
       return v as string;
     case 'timeline':
       return (v as TimelineValue).start;
     case 'numbers':
+    case 'rating':
+    case 'progress':
+    case 'itemId':
       return v as number;
+    case 'formula':
+      return typeof v === 'string'
+        ? v.toLowerCase()
+        : typeof v === 'boolean'
+          ? Number(v)
+          : (v as number);
     case 'checkbox':
       return 1;
     case 'link':

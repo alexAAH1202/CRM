@@ -328,3 +328,36 @@ Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
 
 - **Reason:** light label colours (grey, yellow, sky) as text on the page background
   failed WCAG AA contrast (found by looking at a "grey" group).
+
+### D40. Formula engine: own tokenizer, parser and tree-walking evaluator
+
+- **Reason:** no `eval`/`new Function` (safe for user-typed formulas; runs in the browser
+  and Apps Script alike). Max 1000 characters, nesting depth 60.
+- Columns are referenced by title in `{braces}`; renames rewrite formulas.
+  Precedence: comparison < `&` < `+ -` < `* /` < unary `-` < `^` (right-assoc, `-2^2 = -4`).
+- Blank counts as 0 in arithmetic and "" in text joins. Errors are values that
+  propagate and show as `#ERROR — reason`; `IFERROR` catches them.
+
+### D41. Computed columns are never stored
+
+- Formula, progress, item ID, created/updated time and created-by are derived on render
+  (`applyComputed`): no writes, can't go stale. Filters/sort/summaries use the computed
+  values. Cycles between formulas are detected and reported.
+
+### D42. Dependencies are `[{id, lag}]` with cycle prevention
+
+- The picker disables items that would create a loop (`wouldCreateCycle`); duplicating
+  a board remaps ids. The time-tracking column is deferred to Phase 8.
+
+### D43. Counter rule relaxed; item creation is serialised on the client
+
+- **Found by:** rapid subitem entry giving 403s; reproduced with two concurrent
+  transactions (same user and two users).
+- **Cause:** a "counter strictly increases" rule is evaluated before Firestore's retry
+  logic, so the slower commit became permission-denied instead of retrying.
+- **Fix:** rule only checks `1 <= next <= old + 500`; regression test in
+  `firebase/tests/concurrent.test.ts`. The client also queues creations as defence.
+
+### D44. Tags and files are not offered in bulk-set or column defaults
+
+- **Reason:** list values with per-column ids/metadata; bulk overwrite would surprise.
