@@ -50,11 +50,21 @@ export interface WhoAmI {
 }
 
 /** Bump when the helper code changes in a way the app should notice. */
-export const HELPER_VERSION = '7a.1';
+export const HELPER_VERSION = '7b.1';
 
 export interface HelperActions {
   ping: { request: Record<string, never>; response: { pong: true; at: string; version: string } };
   whoami: { request: { workspaceId?: string }; response: WhoAmI };
+  /** Admin: recompute the whole schedule queue from the data (the repair button). */
+  rebuildSchedule: {
+    request: { workspaceId: string };
+    response: { boards: number; automations: number; registered: number; removed: number };
+  };
+  /** Admin: how many scheduled runs are waiting, and whether the scheduler looks stuck. */
+  schedulerStatus: {
+    request: { workspaceId: string };
+    response: { pending: number; failed: number; nextDue: string | null; stalled: boolean };
+  };
 }
 export type HelperActionName = keyof HelperActions;
 

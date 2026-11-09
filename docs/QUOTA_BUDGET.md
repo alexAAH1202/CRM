@@ -294,3 +294,16 @@ For 15 users making ~40 logged edits each per day the log adds ~600 writes/day (
 A busy automation (fires 100×/day) adds ~100–300 writes/day. Run history is trimmed to 50, so
 it never grows. Edits on boards with item-creating automations use a transaction (1 extra read
 of the counter).
+
+## Phase 7b additions
+
+| Read / write / fetch                       | When                          | Cost                                                                                                                  |
+| ------------------------------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Scheduler tick, nothing due                | every 10 min (144/day)        | 1 query = 1 read, 1 URL Fetch (144/day of 20,000)                                                                     |
+| Event registered/updated/removed (browser) | with the edit that implies it | 1 write per scheduled automation per changed item                                                                     |
+| An event fires                             | when due                      | ~4 reads (workspace, board, members, automations) + the board's items (≤150) once per board per tick; 1 atomic commit |
+| A recurring "every item" run               | when due                      | the items are already loaded; 1 write per changed item                                                                |
+
+A board with 20 bills and a 3-day reminder costs 20 writes to register, then ~170 reads on the day
+they fire. Typical household use stays well under 1% of the daily read quota. Idle cost is ~144 reads
+and ~144 fetches a day.

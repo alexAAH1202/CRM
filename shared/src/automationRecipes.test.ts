@@ -26,12 +26,21 @@ describe('recipes', () => {
   });
   it('a board with no status or people column only gets the simple ones', () => {
     const ids = recipesFor({ columns: [], groups: [] }, 'me').map((r) => r.id);
-    expect(ids).toEqual(['created-notify', 'created-subitem']);
+    expect(ids).toEqual(['created-notify', 'created-subitem', 'monthly-check']);
   });
   it('there are about a dozen recipes in total', () => {
     const all = new Set<string>();
     for (const t of TEMPLATES)
       for (const r of recipesFor(buildTemplate(t.id as TemplateId), 'me')) all.add(r.id);
-    expect(all.size).toBeGreaterThanOrEqual(11);
+    expect(all.size).toBeGreaterThanOrEqual(17);
+    for (const id of [
+      'remind-before',
+      'remind-today',
+      'overdue-nudge',
+      'weekly-reset',
+      'repeat-in-7',
+      'monthly-check',
+    ])
+      expect(all.has(id), id).toBe(true);
   });
 });

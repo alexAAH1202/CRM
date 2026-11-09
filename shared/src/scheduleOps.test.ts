@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- loose test data */
 import { describe, expect, it } from 'vitest';
 import {
   parseAutomation,

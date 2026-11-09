@@ -333,7 +333,9 @@ deployments → ✏️ (edit) → Version: New version → Deploy**.
 - Code changes take effect only after this step.
 - The Members page card tells you when the deployed helper is older than the
   app expects.
-- You only need to re-run `setup` if I tell you a new trigger was added.
+- You only need to re-run `setup` if I tell you a new trigger was added. (Phase 7b needs no new
+  trigger: the scheduler that `setup` already created starts doing real work once the new code is
+  deployed.)
 
 (Optional, later: this can be automated from GitHub Actions with clasp. It
 needs a one-time `clasp login` token stored as a GitHub secret.)

@@ -23,6 +23,8 @@ export interface Platform {
   cachePut(key: string, value: string, ttlSeconds: number): void;
   prop(name: string): string | null;
   nowMs(): number;
+  /** A fresh random id (Apps Script: Utilities.getUuid()). */
+  uuid(): string;
   sha256Hex(text: string): string;
   /** Decodes base64url text (as in a JWT segment) to a UTF-8 string. Apps Script has no atob(). */
   b64urlDecode(text: string): string;

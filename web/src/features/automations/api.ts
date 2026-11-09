@@ -7,7 +7,8 @@ import {
 } from '@app/shared';
 import { collection, doc, limit, orderBy, query } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { commitOps, readCount, readQuery } from '../../lib/firestore';
+import { commitOps, commitOpsChunked, readCount, readQuery } from '../../lib/firestore';
+import { scheduleOpsForAutomation } from './runtime';
 
 export type AutomationDraft = Omit<Automation, 'id'>;
 export const AUTOMATION_LIMIT = MAX_AUTOMATIONS;
@@ -18,12 +19,14 @@ export function createAutomation(
   draft: AutomationDraft,
 ): Promise<string> {
   const id = doc(collection(db, boardPaths.automations(wid, bid))).id;
-  return commitOps('automation:create', [
+  // A scheduled automation also registers its upcoming runs (in the same go).
+  return commitOpsChunked('automation:create', [
     {
       kind: 'set',
       path: boardPaths.automation(wid, bid, id),
       data: { ...automationData(draft), createdAt: SERVER_TIME, updatedAt: SERVER_TIME },
     },
+    ...scheduleOpsForAutomation(bid, id, { id, ...draft }),
   ]).then(() => id);
 }
 
@@ -33,12 +36,13 @@ export function updateAutomation(wid: string, bid: string, id: string, draft: Au
     ownerUid: string;
   };
   void _owner;
-  return commitOps('automation:update', [
+  return commitOpsChunked('automation:update', [
     {
       kind: 'update',
       path: boardPaths.automation(wid, bid, id),
       data: { ...rest, updatedAt: SERVER_TIME },
     },
+    ...scheduleOpsForAutomation(bid, id, { id, ...draft }),
   ]);
 }
 
@@ -47,8 +51,9 @@ export function setAutomationEnabled(wid: string, bid: string, a: Automation, en
 }
 
 export function deleteAutomation(wid: string, bid: string, id: string) {
-  return commitOps('automation:delete', [
+  return commitOpsChunked('automation:delete', [
     { kind: 'delete', path: boardPaths.automation(wid, bid, id) },
+    ...scheduleOpsForAutomation(bid, id, null),
   ]);
 }
 

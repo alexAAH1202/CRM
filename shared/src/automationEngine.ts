@@ -7,7 +7,6 @@ import {
   MAX_DEPTH,
   MAX_NOTIFY,
   TOKEN_ME,
-  TOKEN_TODAY,
   type Action,
   type Automation,
 } from './automations';
@@ -79,6 +78,8 @@ export interface EngineResult {
   created: number;
   /** The counter value to store afterwards (null if nothing was numbered). */
   counterNext: number | null;
+  /** Every item after the automations ran (so a caller handling several events needn't re-read). */
+  items: ReadonlyMap<string, EngineItem>;
 }
 
 interface Work extends EngineItem {
@@ -513,6 +514,7 @@ export function runAutomations(input: EngineInput): EngineResult {
     runs,
     created: createdIds.length,
     counterNext: createdIds.length > 0 ? counter : null,
+    items: working,
   };
 }
 

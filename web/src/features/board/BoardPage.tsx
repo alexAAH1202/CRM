@@ -1,4 +1,4 @@
-import { EMPTY_VIEW_CONFIG } from '@app/shared';
+import { DEFAULT_TIMEZONE, EMPTY_VIEW_CONFIG } from '@app/shared';
 import {
   Activity,
   Archive,
@@ -55,6 +55,7 @@ function BoardView({ board: b }: { board: Board }) {
     items: items.status === 'ready' ? items.data : null,
     members,
     memberName,
+    tz: workspace.settings?.timezone ?? DEFAULT_TIMEZONE,
   });
   const canEdit = role !== 'viewer' && !b.archived;
   useEffect(() => {

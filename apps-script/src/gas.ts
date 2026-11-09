@@ -24,6 +24,7 @@ export function gasPlatform(): Platform {
     },
     prop: (n) => props.getProperty(n),
     nowMs: () => Date.now(),
+    uuid: () => Utilities.getUuid().replace(/-/g, ''),
     sha256Hex: (text) =>
       Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8)
         .map((b) => (b < 0 ? b + 256 : b).toString(16).padStart(2, '0'))

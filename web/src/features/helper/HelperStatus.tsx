@@ -1,7 +1,9 @@
-import { HELPER_VERSION, HelperError, type WhoAmI } from '@app/shared';
+import { HELPER_VERSION, HelperError, type HelperActions, type WhoAmI } from '@app/shared';
 import { CheckCircle2, CircleAlert, CircleDashed, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '../../components/ui';
+import { friendlyError } from '../../lib/firestore/errors';
+import { toast } from '../../stores/toast';
 import { callHelper, helperConfigured } from '../../lib/helper';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
 
@@ -40,6 +42,30 @@ export function HelperStatus() {
   }, [check]);
 
   const outdated = state.kind === 'ok' && state.me.version !== HELPER_VERSION;
+
+  // Scheduled-automation queue (needs a helper new enough to know about it).
+  const [queue, setQueue] = useState<HelperActions['schedulerStatus']['response'] | null>(null);
+  const [rebuilding, setRebuilding] = useState(false);
+  useEffect(() => {
+    setQueue(null);
+    if (state.kind !== 'ok' || outdated) return;
+    callHelper('schedulerStatus', { workspaceId: workspace.id }, { retries: 0 })
+      .then(setQueue)
+      .catch(() => setQueue(null));
+  }, [state, outdated, workspace.id]);
+
+  const rebuild = () => {
+    setRebuilding(true);
+    callHelper('rebuildSchedule', { workspaceId: workspace.id }, { timeoutMs: 120_000, retries: 0 })
+      .then((r) => {
+        toast.success(
+          `Schedule rebuilt: ${r.registered} upcoming run${r.registered === 1 ? '' : 's'} registered, ${r.removed} stale one${r.removed === 1 ? '' : 's'} removed.`,
+        );
+        check();
+      })
+      .catch((e: unknown) => toast.error(friendlyError(e)))
+      .finally(() => setRebuilding(false));
+  };
 
   return (
     <section aria-labelledby="helper-h" className="space-y-3 rounded-3xl bg-surface p-5 shadow-sm">
@@ -93,6 +119,29 @@ export function HelperStatus() {
               (SETUP B4.6).
             </p>
           )}
+        </div>
+      )}
+      {state.kind === 'ok' && !outdated && queue && (
+        <div className="space-y-2 border-t border-border pt-3 text-sm">
+          <p>
+            <span className="font-semibold">Scheduled runs:</span> {queue.pending} waiting
+            {queue.nextDue ? `, next ${new Date(queue.nextDue).toLocaleString()}` : ''}
+            {queue.failed > 0 ? `, ${queue.failed} gave up` : ''}.
+          </p>
+          {queue.stalled && (
+            <p role="alert" className="text-danger">
+              Something has been waiting for over 30 minutes. In Apps Script, open Triggers and
+              check that “runScheduler” is there and its last run succeeded.
+            </p>
+          )}
+          <Button size="sm" variant="secondary" onClick={rebuild} disabled={rebuilding}>
+            <RefreshCw size={14} aria-hidden className={rebuilding ? 'animate-spin' : ''} /> Rebuild
+            schedule
+          </Button>
+          <span className="ml-2 text-xs text-muted">
+            Use this if reminders seem to be missing (for example after importing or duplicating
+            items).
+          </span>
         </div>
       )}
       {state.kind === 'error' && (
