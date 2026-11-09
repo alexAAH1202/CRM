@@ -7,6 +7,7 @@ import { listenQuery } from '../../lib/firestore';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
 import { listenDoc } from '../../lib/firestore';
+import { setActivityNameLookup } from './api';
 import type { BoardSummary, Folder, WorkspaceMember } from './types';
 
 interface BoardsState {
@@ -146,6 +147,10 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
       memberName: (uid) => byUid.get(uid) ?? 'Former member',
     };
   }, [main, mine, members, folders, favorites, muted]);
+
+  useEffect(() => {
+    setActivityNameLookup(value.memberName);
+  }, [value.memberName]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

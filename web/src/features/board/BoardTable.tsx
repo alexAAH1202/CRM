@@ -406,7 +406,16 @@ export function BoardTable({
 
   const doDelete = (ids: string[]) => {
     const all = ids.flatMap(treeIds);
-    deleteItems(wid, board.id, uid, all)
+    deleteItems(
+      wid,
+      board.id,
+      uid,
+      all,
+      ids.flatMap((id) => {
+        const it = items.get(id);
+        return it ? [{ id, name: it.name }] : [];
+      }),
+    )
       .then(() => {
         setSelected(new Set());
         withUndo(`Deleted ${ids.length} item${ids.length === 1 ? '' : 's'}`, () =>
@@ -428,6 +437,13 @@ export function BoardTable({
         childIds: (childrenOf.get(id) ?? []).map((c) => c.id),
         order: order[i]!,
       })),
+      log: {
+        items: ids.flatMap((id) => {
+          const it = items.get(id);
+          return it ? [{ id, name: it.name }] : [];
+        }),
+        groupName: board.groups.find((g) => g.id === groupId)?.name ?? '',
+      },
     }).catch(fail);
   };
 
@@ -701,6 +717,15 @@ export function BoardTable({
           order: drop.order,
         },
       ],
+      // Only a change of group is worth logging (a reorder within a group is not).
+      ...(drop.groupId !== item.groupId
+        ? {
+            log: {
+              items: [{ id: item.id, name: item.name }],
+              groupName: board.groups.find((g) => g.id === drop.groupId)?.name ?? '',
+            },
+          }
+        : {}),
     }).catch(fail);
   };
 

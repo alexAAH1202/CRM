@@ -254,8 +254,15 @@ Emoji reactions are P1 and not built yet.
 ### `boards/{bid}/activity/{id}` (capped, pruned)
 
 ```ts
-{ type, itemId, actor, data: {...}, at }
+{ type: 'create'|'delete'|'status'|'people'|'date'|'move'|'bulk'|'automation',
+  itemId: string | null, itemName, actor, data: { column?, from?, to?, group?, count?, text? }, at }
 ```
+
+One entry per meaningful event, written in the same batch as the change (a cell edit on a
+status / people / date / timeline column, a new item, a delete, a change of group, or a
+bulk action as a single summary entry). `from`/`to` are readable text, so entries need no
+joins. Append-only: no edits; only admins (or the Apps Script pruner, which uses a service
+account) delete. Index: `(itemId asc, at desc)` for the item's Activity tab.
 
 ---
 

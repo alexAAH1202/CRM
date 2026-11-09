@@ -429,3 +429,35 @@ Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
 
 - Every view (table, Kanban, Calendar, Gantt) opens the same panel, and notification links
   open it directly. Tabs: Updates, Fields, Files (Activity arrives with the activity log).
+
+### D53. The activity log is written with the change, and only for meaningful events
+
+- Status / people / date / timeline edits, new items, deletes and moves are logged; text and
+  number edits are not (they'd double the writes for little value). A bulk action writes one
+  summary entry ("set Status on 12 items"), not one per item.
+- It costs one extra write per logged event, in the same batch, so the log can't disagree
+  with the data. Pruning (cap per board) belongs to the Apps Script helper in Phase 7;
+  until then entries accumulate slowly (one per meaningful edit).
+- The activity tab only listens while it is open (newest 30 for an item, 50 for a board).
+
+### D54. My Work reads per board, once, and is not live
+
+- A collection-group query across every board would need a rules check per document (a
+  board lookup each) and a new index. Instead the page runs one `assigneeUids array-contains
+me` query per board I can see (only matching items are billed, plus one read per board),
+  then reads the board doc only for boards that have matches (for its due-date and "done"
+  columns). Results are reused for a minute and refreshed with the Refresh button.
+- "Due" = a Date column titled like "due" (else the first Date column, else a Timeline's end).
+  "Done" = a Status whose label reads Done/Complete/Paid/Closed… (hidden unless asked for).
+
+### D55. Search covers boards always, and items from boards opened on this device
+
+- Searching every item in every board would mean reading every item (far over the free
+  quota). Item search reads only the local cache, which is free, so it finds items in boards
+  you've opened here. The palette says how many boards it looked in. Ctrl/Cmd+K opens it.
+- A server-side search (Apps Script keeping a small index) is a possible later upgrade.
+
+### D56. Dropdown cells create options in place
+
+- Tags already did; Dropdown now shares that component, so a new Dropdown column is usable
+  immediately (type a name, press Add) instead of needing a trip to "Edit options".

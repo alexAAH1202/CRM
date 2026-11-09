@@ -7,16 +7,18 @@ import { friendlyError } from '../../lib/firestore/errors';
 import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { renameItem, setCell } from '../boards/api';
+import { ActivityList } from '../activity/ActivityList';
 import { UpdatesTab } from '../updates/UpdatesTab';
 import { CellEnvProvider, useBoardCellEnv } from './cellEnv';
 import { Cell } from './cells';
 import type { ViewProps } from './viewParts';
 
-type Tab = 'fields' | 'updates' | 'files';
+type Tab = 'fields' | 'updates' | 'files' | 'activity';
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'updates', label: 'Updates' },
   { id: 'fields', label: 'Fields' },
   { id: 'files', label: 'Files' },
+  { id: 'activity', label: 'Activity' },
 ];
 
 /** The item "page": opens as a side panel from any view, or from a notification link. */
@@ -136,6 +138,9 @@ export function ItemPanel({
               />
               <dl className="grid gap-3">{board.columns.map(field)}</dl>
             </div>
+          )}
+          {tab === 'activity' && (
+            <ActivityList wid={wid} bid={board.id} itemId={item.id} memberName={memberName} />
           )}
           {tab === 'files' &&
             (fileCols.length === 0 ? (

@@ -59,7 +59,9 @@ describe('activity', () => {
       data: { group: 'g'.repeat(500), count: 2.7 },
     });
     expect(op).toMatchObject({ kind: 'set', path: 'workspaces/w/boards/b/activity/a1' });
-    const d = (op as unknown as { data: { itemName: string; data: { group: string; count: number } } }).data;
+    const d = (
+      op as unknown as { data: { itemName: string; data: { group: string; count: number } } }
+    ).data;
     expect(d.itemName).toHaveLength(200);
     expect(d.data.group).toHaveLength(200);
     expect(d.data.count).toBe(2);

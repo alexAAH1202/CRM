@@ -6,6 +6,10 @@ import {
   planApplyConversion,
   planArchiveItems,
   planAssignmentNotifications,
+  planActivity,
+  cellActivity,
+  type ActivityData,
+  type ActivityType,
   planBulkSetCell,
   planDeleteItems,
   planDuplicateBoard,
@@ -45,6 +49,68 @@ import {
 import type { Board, BoardItem } from './types';
 
 const newId = (path: string) => doc(collection(db, path)).id;
+
+// ---- activity log: one small entry, in the same batch as the change it describes.
+
+let personName: (uid: string) => string = (u) => u;
+/** Lets the log say "Bob" instead of a uid (set once by the workspace's member list). */
+export function setActivityNameLookup(fn: (uid: string) => string) {
+  personName = fn;
+}
+
+function activity(
+  wid: string,
+  bid: string,
+  actor: string,
+  type: ActivityType,
+  itemId: string | null,
+  itemName: string,
+  data?: ActivityData,
+): WriteOp {
+  return planActivity({
+    wid,
+    bid,
+    id: newId(boardPaths.activity(wid, bid)),
+    actor,
+    type,
+    itemId,
+    itemName,
+    ...(data ? { data } : {}),
+  });
+}
+
+/** One entry for a single item, or a single summary entry when many were touched at once. */
+function activityForMany(
+  wid: string,
+  bid: string,
+  actor: string,
+  verb: 'deleted' | 'moved',
+  items: ReadonlyArray<{ id: string; name: string }>,
+  group?: string,
+): WriteOp[] {
+  if (items.length === 0) return [];
+  if (items.length === 1) {
+    const it = items[0] as { id: string; name: string };
+    return [
+      activity(
+        wid,
+        bid,
+        actor,
+        verb === 'deleted' ? 'delete' : 'move',
+        it.id,
+        it.name,
+        group ? { group } : {},
+      ),
+    ];
+  }
+  return [
+    activity(wid, bid, actor, 'bulk', null, '', {
+      text: verb,
+      count: items.length,
+      ...(group ? { group } : {}),
+    }),
+  ];
+}
 
 /**
  * Item creation takes a number from the board's shared counter inside a transaction.
@@ -148,7 +214,7 @@ export function createItem(input: {
     runOpsTransaction('item:create', async (get) => {
       const counter = await get(doc(db, boardPaths.counter(input.wid, input.board.id)));
       const next = (counter.data()?.['next'] as number | undefined) ?? input.fallbackNumber;
-      return planCreateItem({
+      const ops = planCreateItem({
         wid: input.wid,
         bid: input.board.id,
         iid,
@@ -158,12 +224,14 @@ export function createItem(input: {
         item: {
           name: input.name,
           groupId: input.groupId,
-          order: keyBetween(input.afterOrder, null),
+          order,
           itemNumber: next,
           parentId: input.parentId ?? null,
           values: { ...defaultItemValues(input.board.columns), ...(input.values ?? {}) },
         },
       });
+      ops.push(activity(input.wid, input.board.id, input.uid, 'create', iid, input.name.trim()));
+      return ops;
     }),
   );
 }
@@ -206,6 +274,24 @@ export function setCell(input: {
       }),
     );
   }
+  const change = cellActivity({
+    column: input.column,
+    before: input.item.values[input.column.id],
+    after: input.value,
+    memberName: personName,
+  });
+  if (change)
+    ops.push(
+      activity(
+        input.wid,
+        input.board.id,
+        input.uid,
+        change.type,
+        input.item.id,
+        input.item.name,
+        change.data,
+      ),
+    );
   return commitOps(`cell:${input.column.type}`, ops);
 }
 
@@ -337,18 +423,23 @@ export function bulkSetCell(input: {
   items: BoardItem[];
   value: unknown;
 }) {
-  return commitOpsChunked(
-    'bulk:set',
-    planBulkSetCell({
-      wid: input.wid,
-      bid: input.board.id,
-      uid: input.uid,
-      columns: input.board.columns,
-      column: input.column,
-      items: input.items,
-      value: input.value,
-    }),
-  );
+  const ops = planBulkSetCell({
+    wid: input.wid,
+    bid: input.board.id,
+    uid: input.uid,
+    columns: input.board.columns,
+    column: input.column,
+    items: input.items,
+    value: input.value,
+  });
+  if (input.items.length > 0)
+    ops.push(
+      activity(input.wid, input.board.id, input.uid, 'bulk', null, '', {
+        text: `set ${input.column.title}`,
+        count: input.items.length,
+      }),
+    );
+  return commitOpsChunked('bulk:set', ops);
 }
 
 export function moveItemsToGroup(input: {
@@ -357,17 +448,28 @@ export function moveItemsToGroup(input: {
   uid: string;
   groupId: string;
   moves: Array<ItemTree & { order: string }>;
+  /** For the activity log: the moved items' names and the target group's name. */
+  log?: { items: Array<{ id: string; name: string }>; groupName: string };
 }) {
-  return commitOpsChunked(
-    'item:move',
-    planMoveItems({
-      wid: input.wid,
-      bid: input.bid,
-      uid: input.uid,
-      groupId: input.groupId,
-      moves: input.moves,
-    }),
-  );
+  const ops = planMoveItems({
+    wid: input.wid,
+    bid: input.bid,
+    uid: input.uid,
+    groupId: input.groupId,
+    moves: input.moves,
+  });
+  if (input.log)
+    ops.push(
+      ...activityForMany(
+        input.wid,
+        input.bid,
+        input.uid,
+        'moved',
+        input.log.items,
+        input.log.groupName,
+      ),
+    );
+  return commitOpsChunked('item:move', ops);
 }
 
 /** `ids` must already include subitems of any parent being archived/deleted. */
@@ -381,8 +483,17 @@ export function archiveItems(
   return commitOpsChunked('item:archive', planArchiveItems(wid, bid, uid, ids, archived));
 }
 
-export function deleteItems(wid: string, bid: string, uid: string, ids: string[]) {
-  return commitOpsChunked('item:delete', planDeleteItems(wid, bid, uid, ids));
+export function deleteItems(
+  wid: string,
+  bid: string,
+  uid: string,
+  ids: string[],
+  /** For the activity log: the top-level items being deleted. */
+  logged?: Array<{ id: string; name: string }>,
+) {
+  const ops = planDeleteItems(wid, bid, uid, ids);
+  if (logged) ops.push(...activityForMany(wid, bid, uid, 'deleted', logged));
+  return commitOpsChunked('item:delete', ops);
 }
 
 /** Undo for deletes: clears the tombstone (and archive flag). */

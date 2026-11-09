@@ -1,15 +1,16 @@
 import { EMPTY_VIEW_CONFIG } from '@app/shared';
-import { Archive, Lock, Settings, ShieldAlert } from 'lucide-react';
+import { Activity, Archive, Lock, Settings, ShieldAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { FullPageSpinner } from '../../components/FullPageSpinner';
-import { Button, EmptyState, Skeleton } from '../../components/ui';
+import { Button, EmptyState, SidePanel, Skeleton } from '../../components/ui';
 import { useBoards } from '../boards/BoardsProvider';
 import type { Board } from '../boards/types';
 import { useBoardDoc, useBoardItems } from '../boards/useBoardData';
 import { useViewConfig } from '../boards/useViewConfig';
 import { useViews, type BoardView } from '../boards/useViews';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
+import { ActivityList } from '../activity/ActivityList';
 import { BoardSettingsDialog } from './BoardSettingsDialog';
 import { BoardTable } from './BoardTable';
 import { BoardToolbar } from './BoardToolbar';
@@ -27,6 +28,7 @@ function BoardView({ board: b }: { board: Board }) {
   const items = useBoardItems(workspace.id, b.id);
   const [search, setSearch] = useState('');
   const [settings, setSettings] = useState(false);
+  const [activity, setActivity] = useState(false);
   const canEdit = role !== 'viewer' && !b.archived;
   const { views } = useViews(workspace.id, b.id);
   const [params, setParams] = useSearchParams();
@@ -98,6 +100,14 @@ function BoardView({ board: b }: { board: Board }) {
               <p className="mt-1 line-clamp-2 text-sm text-muted">{b.description}</p>
             )}
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setActivity(true)}
+            aria-label="Board activity"
+          >
+            <Activity size={14} aria-hidden /> <span className="hidden sm:inline">Activity</span>
+          </Button>
           {role !== 'viewer' && (
             <Button
               variant="secondary"
@@ -170,6 +180,20 @@ function BoardView({ board: b }: { board: Board }) {
       )}
       {itemId && items.status === 'ready' && members && (
         <ItemPanel p={viewProps} itemId={itemId} isAdmin={role === 'admin'} onClose={closeItem} />
+      )}
+      {activity && (
+        <SidePanel open onClose={() => setActivity(false)} title={`Activity on ${b.name}`}>
+          <ActivityList
+            wid={workspace.id}
+            bid={b.id}
+            itemId={null}
+            memberName={memberName}
+            onOpenItem={(id) => {
+              setActivity(false);
+              viewProps.onOpenItem(id);
+            }}
+          />
+        </SidePanel>
       )}
       {settings && <BoardSettingsDialog board={b} open onClose={() => setSettings(false)} />}
     </div>

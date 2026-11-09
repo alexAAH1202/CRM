@@ -240,3 +240,15 @@ a tenth of a day's reads, so it's worth knowing but not a risk.
 
 A comment that mentions 2 people is 3 writes. Muted types are still written (filtered on the
 recipient's side), so muting does not save writes, only noise.
+
+## Phase 5b additions
+
+| Read / write                   | When                                               | Cost                                                              |
+| ------------------------------ | -------------------------------------------------- | ----------------------------------------------------------------- |
+| Activity entry                 | Each status/people/date edit, create, delete, move | +1 write, same batch                                              |
+| Item / board activity listener | Only while that tab/panel is open                  | ≤30 / ≤50 reads, then deltas                                      |
+| My Work                        | On opening the page (1-min reuse)                  | 1 read per board + 1 per matching item + 1 per board with matches |
+| Search                         | Opening the palette                                | 0 (local cache only)                                              |
+
+For 15 users making ~40 logged edits each per day the log adds ~600 writes/day (3% of the
+20K daily write quota).
