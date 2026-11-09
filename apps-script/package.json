@@ -3,13 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/copy-manifest.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node scripts/build.mjs",
+    "check:release": "node scripts/build.mjs --check",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
     "push": "npm run build && clasp push",
     "deploy": "npm run push && clasp deploy"
   },
   "devDependencies": {
     "@google/clasp": "^3.4.1",
-    "@types/google-apps-script": "^2.0.15"
+    "@types/google-apps-script": "^2.0.15",
+    "esbuild": "^0.25.10"
+  },
+  "dependencies": {
+    "@app/shared": "*"
   }
 }

@@ -28,6 +28,7 @@ export default tseslint.config(
       '**/coverage/**',
       'firebase/emulator-data/**',
       'apps-script/scripts/**',
+      'apps-script/release/**', // generated single-file bundle
       'firebase/scripts/**',
     ],
   },

@@ -271,28 +271,37 @@ Steps B4.1–B4.3 can be done any time. B4.4–B4.6 need the Phase 7 code.
 > Script Properties as `DRIVE_ROOT_FOLDER_ID`. The helper creates one
 > subfolder per workspace inside it.
 
-#### B4.4. Create the script project (Phase 7)
+#### B4.4. Create the script project and paste the code
+
+Do this **after the pull request that adds the helper is merged** (the files live on
+the `main` branch). Use the same Google account as before.
 
 1. Open https://script.google.com and click **New project**. Click "Untitled
    project" (top-left) and rename it `Sorted helper`.
 2. **⚙ Project Settings** (left sidebar):
    - Tick **Show "appsscript.json" manifest file in editor**.
    - Under **Google Cloud Platform (GCP) Project**, click **Change project**.
-     Enter the project number **290995869060** (Firebase console → Project
-     settings → General → "Project number"), then **Set project**. This
-     requires B4.2 to be done first.
-3. **Editor** (`< >` icon):
-   - Open `appsscript.json`, select all, and paste the manifest I give you.
-   - Open `Code.gs`, select all, and paste the code file I give you.
-   - Press **Ctrl+S** (or **Cmd+S**).
-4. **Authorize:** pick `setup` from the function dropdown in the toolbar, then
-   click **Run**.
-   - Choose your account. At "Google hasn't verified this app" click
-     **Advanced → Go to Sorted helper (unsafe)**, then **Allow**.
-   - The scopes are Firestore, Drive, sending email, external requests and
-     triggers. `setup` also creates the scheduled triggers.
+     Enter the project number **290995869060**, then **Set project**. (This
+     needs B4.2 done first.)
+3. **Editor** (`< >` icon) → paste the two files from GitHub:
+   - Open https://github.com/alexAAH1202/CRM/blob/main/apps-script/release/appsscript.json
+     and click the **Copy raw file** button (two overlapping squares, top
+     right of the file). In the Apps Script editor open `appsscript.json`,
+     press **Ctrl+A** (select all), then **Ctrl+V** (paste).
+   - Do the same with https://github.com/alexAAH1202/CRM/blob/main/apps-script/release/Code.js
+     into `Code.gs` (select all first, so nothing old is left behind). The
+     file is about 20 KB; that's normal.
+   - Press **Ctrl+S** to save.
+4. **Authorize:** in the toolbar choose the function **`setup`** from the
+   dropdown and click **Run**.
+   - Pick your account. At "Google hasn't verified this app" click **Advanced
+     → Go to Sorted helper (unsafe) → Allow**. This is your own script, so
+     the warning is expected.
+   - When the run finishes, the **Execution log** at the bottom should say
+     `Sorted helper 7a.1 is set up…`. If it shows a red error instead, copy
+     it to me.
 
-#### B4.5. Deploy as a web app (Phase 7)
+#### B4.5. Deploy as a web app
 
 1. **Deploy → New deployment**. Click the ⚙ next to "Select type" and choose
    **Web app**.
@@ -300,20 +309,31 @@ Steps B4.1–B4.3 can be done any time. B4.4–B4.6 need the Phase 7 code.
    - **Description:** `v1`
    - **Execute as:** **Me (your email)**
    - **Who has access:** **Anyone**. This is required so the website can call
-     it. Every request is still checked against a Firebase sign-in token (see
-     DECISIONS D10).
-3. Click **Deploy**, then copy the **Web app URL**, which ends in `/exec`, and
-   send it to me. I'll add it to the deploy workflow as `VITE_APPS_SCRIPT_URL`.
-   It isn't a secret.
+     it. Every request except a plain "ping" is still checked against a
+     Firebase sign-in token and the person's workspace role (DECISIONS D69).
+3. Click **Deploy** and copy the **Web app URL** (it ends in `/exec`).
+4. **Check it's alive:** paste the URL into a new browser tab. You should see
+   a line of text like `{"ok":true,"data":{"name":"Sorted helper","version":"7a.1",…}}`.
+   (If you see a Google sign-in page, "Who has access" isn't set to Anyone.)
+5. **Tell the website about it** (pick one):
+   - Send me the URL and I'll add it to the deploy workflow; **or**
+   - On GitHub open **Settings → Secrets and variables → Actions → Variables
+     tab → New repository variable**, name `APPS_SCRIPT_URL`, value = the URL,
+     then re-run the latest **Deploy** workflow.
+6. After the site redeploys, open **Members** in the app. As an admin you'll
+   see a **Sorted helper** card that should say **Connected**.
 
 #### B4.6. Updating the helper later
 
-Paste the new code, save, then go to **Deploy → Manage deployments → ✏️
-(edit) → Version: New version → Deploy**.
+Paste the new `Code.js` (select all first), save, then **Deploy → Manage
+deployments → ✏️ (edit) → Version: New version → Deploy**.
 
 - **Don't** use "New deployment" for updates. That creates a new URL, and the
   website would still call the old one.
 - Code changes take effect only after this step.
+- The Members page card tells you when the deployed helper is older than the
+  app expects.
+- You only need to re-run `setup` if I tell you a new trigger was added.
 
 (Optional, later: this can be automated from GitHub Actions with clasp. It
 needs a one-time `clasp login` token stored as a GitHub secret.)
@@ -322,8 +342,10 @@ needs a one-time `clasp login` token stored as a GitHub secret.)
 
 These are created automatically by the `setup` function in B4.4. To check
 them, open the clock icon (**Triggers**) in the Apps Script editor. You should
-see the scheduler (every 10 minutes), housekeeping (daily) and the digest
-(daily).
+see the scheduler (every 10 minutes), housekeeping (daily, 3am Melbourne time)
+and the digest (daily, 7am). In this first helper release they only write a
+log line; they start doing real work in the following Phase 7 updates, with no
+extra setup.
 
 ### B6. Custom domain (optional, any time)
 
