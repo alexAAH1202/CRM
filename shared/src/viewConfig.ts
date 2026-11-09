@@ -58,19 +58,51 @@ export interface ViewConfig {
 }
 
 export type CalendarMode = 'month' | 'week';
+export type GanttZoom = 'day' | 'week' | 'month';
+export type ChartType = 'bar' | 'stacked' | 'pie' | 'line';
+export type ChartMeasure = 'count' | 'sum' | 'avg';
+
+export const DEFAULT_CAPACITY_HOURS = 40;
+export const MAX_CAPACITY_HOURS = 168;
 
 export interface ViewOptions {
   /** Kanban: a status / dropdown / people column id. */
   laneColumnId: string | null;
-  /** Calendar: a date or timeline column id. */
+  /** Calendar and Workload: a date or timeline column id. */
   dateColumnId: string | null;
   calendarMode: CalendarMode;
+  /** Gantt: a timeline column id, and how zoomed in. */
+  ganttColumnId: string | null;
+  zoom: GanttZoom;
+  /** Workload: hours come from this Numbers column (else from the dates), split by this People column. */
+  effortColumnId: string | null;
+  peopleColumnId: string | null;
+  /** Hours per person per week, with per-person overrides (uid → hours). */
+  capacity: number;
+  capacityByUid: Record<string, number>;
+  /** Chart. */
+  chartType: ChartType;
+  groupColumnId: string | null;
+  stackColumnId: string | null;
+  measure: ChartMeasure;
+  valueColumnId: string | null;
 }
 
 export const EMPTY_VIEW_OPTIONS: ViewOptions = {
   laneColumnId: null,
   dateColumnId: null,
   calendarMode: 'month',
+  ganttColumnId: null,
+  zoom: 'week',
+  effortColumnId: null,
+  peopleColumnId: null,
+  capacity: DEFAULT_CAPACITY_HOURS,
+  capacityByUid: {},
+  chartType: 'bar',
+  groupColumnId: null,
+  stackColumnId: null,
+  measure: 'count',
+  valueColumnId: null,
 };
 
 export const NAME_COLUMN_ID = 'name';
@@ -208,10 +240,32 @@ export function parseViewConfig(raw: unknown): ViewConfig {
 export function parseViewOptions(raw: unknown): ViewOptions {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const str = (v: unknown) => (typeof v === 'string' && v.length > 0 && v.length <= 64 ? v : null);
+  const hours = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 1 && v <= MAX_CAPACITY_HOURS ? v : fallback;
+  const byUid: Record<string, number> = {};
+  if (r['capacityByUid'] && typeof r['capacityByUid'] === 'object') {
+    for (const [k, v] of Object.entries(r['capacityByUid'] as Record<string, unknown>)) {
+      if (k.length <= 64 && Object.keys(byUid).length < 50)
+        byUid[k] = hours(v, DEFAULT_CAPACITY_HOURS);
+    }
+  }
+  const oneOf = <T extends string>(v: unknown, all: readonly T[], d: T): T =>
+    all.includes(v as T) ? (v as T) : d;
   return {
     laneColumnId: str(r['laneColumnId']),
     dateColumnId: str(r['dateColumnId']),
     calendarMode: r['calendarMode'] === 'week' ? 'week' : 'month',
+    ganttColumnId: str(r['ganttColumnId']),
+    zoom: oneOf(r['zoom'], ['day', 'week', 'month'] as const, 'week'),
+    effortColumnId: str(r['effortColumnId']),
+    peopleColumnId: str(r['peopleColumnId']),
+    capacity: hours(r['capacity'], DEFAULT_CAPACITY_HOURS),
+    capacityByUid: byUid,
+    chartType: oneOf(r['chartType'], ['bar', 'stacked', 'pie', 'line'] as const, 'bar'),
+    groupColumnId: str(r['groupColumnId']),
+    stackColumnId: str(r['stackColumnId']),
+    measure: oneOf(r['measure'], ['count', 'sum', 'avg'] as const, 'count'),
+    valueColumnId: str(r['valueColumnId']),
   };
 }
 
@@ -230,19 +284,7 @@ export function pruneViewConfig(config: ViewConfig, columns: readonly Column[]):
     sort: config.sort.filter((s) => known(s.columnId)),
     groupBy: groupCol && GROUPABLE_TYPES.includes(groupCol.type) ? groupCol.id : null,
     hiddenCols: config.hiddenCols.filter((id) => ids.has(id)),
-    options: {
-      ...config.options,
-      laneColumnId: columns.some(
-        (c) => c.id === config.options.laneColumnId && GROUPABLE_TYPES.includes(c.type),
-      )
-        ? config.options.laneColumnId
-        : null,
-      dateColumnId: columns.some(
-        (c) => c.id === config.options.dateColumnId && (c.type === 'date' || c.type === 'timeline'),
-      )
-        ? config.options.dateColumnId
-        : null,
-    },
+    options: pruneOptions(config.options, columns),
   };
 }
 
@@ -582,3 +624,28 @@ export function buildLayout<T extends ItemLike>(input: LayoutInput<T>): Array<La
   ];
   return keys.map((k) => buckets.get(k)!).filter((g) => g.rows.length > 0);
 }
+
+function pruneOptions(o: ViewOptions, columns: readonly Column[]): ViewOptions {
+  const pick = (id: string | null, ok: (c: Column) => boolean) =>
+    columns.some((c) => c.id === id && ok(c)) ? id : null;
+  return {
+    ...o,
+    laneColumnId: pick(o.laneColumnId, (c) => GROUPABLE_TYPES.includes(c.type)),
+    dateColumnId: pick(o.dateColumnId, (c) => c.type === 'date' || c.type === 'timeline'),
+    ganttColumnId: pick(o.ganttColumnId, (c) => c.type === 'timeline'),
+    effortColumnId: pick(o.effortColumnId, (c) => c.type === 'numbers' || c.type === 'formula'),
+    peopleColumnId: pick(o.peopleColumnId, (c) => c.type === 'people'),
+    groupColumnId: pick(o.groupColumnId, (c) => CHART_GROUP_TYPES.includes(c.type)),
+    stackColumnId: pick(o.stackColumnId, (c) => CHART_GROUP_TYPES.includes(c.type)),
+    valueColumnId: pick(o.valueColumnId, (c) => c.type === 'numbers' || c.type === 'formula'),
+  };
+}
+
+/** Column types a chart can group by. */
+export const CHART_GROUP_TYPES: readonly ColumnType[] = [
+  'status',
+  'dropdown',
+  'people',
+  'date',
+  'checkbox',
+];
