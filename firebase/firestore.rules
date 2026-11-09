@@ -494,7 +494,8 @@ service cloud.firestore {
               && isString(d.ownerUid, 1, 128)
               && d.trigger is map
               && d.trigger.type in ['itemCreated', 'columnChanged', 'statusChangedTo',
-                                    'personAssigned', 'movedToGroup', 'subitemsAllDone']
+                                    'personAssigned', 'movedToGroup', 'subitemsAllDone',
+                                    'dateArrives', 'overdue', 'recurring']
               && isList(d.conditions, 5)
               && isList(d.actions, 5)
               && d.actions.size() >= 1
@@ -534,6 +535,37 @@ service cloud.firestore {
             && request.resource.data.at == request.time;
           allow update: if false;
           // Capped at 50 per board: editors tidy the oldest (and the housekeeping job later).
+          allow delete: if canEditBoard(wid, bid);
+        }
+
+        // -------------------------------------------------- scheduled events
+
+        // The queue the Apps Script helper works from. The browser keeps it in step with the data
+        // in the same batch as each edit (shared/scheduleOps.ts). Clients only ever write fresh,
+        // pending events; progress (done/failed/attempts) is written by the helper, which uses IAM
+        // and bypasses these rules. Ids are deterministic so deleting needs no lookup.
+        match /scheduledEvents/{eid} {
+          allow read: if isAdmin(wid);
+
+          allow create, update: if canEditBoard(wid, bid)
+            && request.resource.data.keys().hasOnly(
+                 ['kind', 'automationId', 'itemId', 'boardId', 'fireAt', 'status', 'attempts',
+                  'idempotencyKey', 'dateValue', 'updatedAt'])
+            && request.resource.data.kind in ['date', 'overdue', 'recurring']
+            && isString(request.resource.data.automationId, 1, 128)
+            && isNullableString(request.resource.data.itemId, 128)
+            && request.resource.data.boardId == bid
+            && request.resource.data.fireAt is timestamp
+            && request.resource.data.status == 'pending'
+            && request.resource.data.attempts == 0
+            && isString(request.resource.data.idempotencyKey, 1, 400)
+            && (request.resource.data.dateValue == null
+                || isString(request.resource.data.dateValue, 10, 10))
+            && request.resource.data.updatedAt == request.time
+            && eid == (request.resource.data.itemId == null
+                ? request.resource.data.automationId
+                : request.resource.data.automationId + '_' + request.resource.data.itemId);
+
           allow delete: if canEditBoard(wid, bid);
         }
 
