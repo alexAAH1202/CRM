@@ -1,7 +1,10 @@
 import {
+  formatBytes,
   formatComputedNumber,
   formulaErrorOf,
   isIsoDate,
+  isPreviewable,
+  drivePreviewUrl,
   LABEL_COLOR_NAMES,
   LABEL_COLORS,
   MAX_FILES,
@@ -15,10 +18,25 @@ import {
   type FileValue,
   type Label,
 } from '@app/shared';
-import { Check, FileText, Link2, Mail, Phone, Star, Trash2, TriangleAlert } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Popover } from '../../components/ui';
+import {
+  Check,
+  Eye,
+  FileText,
+  Link2,
+  Mail,
+  Phone,
+  Star,
+  Trash2,
+  TriangleAlert,
+  Upload,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Avatar, Button, Modal, Popover } from '../../components/ui';
 import { cx } from '../../lib/cx';
+import { friendlyError } from '../../lib/firestore/errors';
+import { helperConfigured } from '../../lib/helper';
+import { toast } from '../../stores/toast';
+import { fileValueFor, uploadToDrive } from '../files/upload';
 import { useCellEnv } from './cellEnv';
 import { Empty, LabelOption, cellBase, cellButton, fmtDate, type CellProps } from './cellParts';
 
@@ -274,6 +292,35 @@ export function FilesCell({ column, item, itemName, canEdit, onChange }: CellPro
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
+  const env = useCellEnv();
+  const [upload, setUpload] = useState<{ name: string; fraction: number } | null>(null);
+  const [preview, setPreview] = useState<FileValue | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  // Uploads can outlive the popover, so finish against the latest values, not the ones at the start.
+  const latest = useRef({ files, onChange });
+  latest.current = { files, onChange };
+
+  const startUpload = (file: File) => {
+    if (upload) return;
+    if (latest.current.files.length >= MAX_FILES) {
+      setError(`You can attach up to ${MAX_FILES} files`);
+      return;
+    }
+    setError('');
+    setUpload({ name: file.name, fraction: 0 });
+    uploadToDrive(env.wid, file, {
+      onProgress: (fraction) => setUpload({ name: file.name, fraction }),
+    })
+      .then((done) => {
+        const cur = latest.current;
+        const next = normalizeValue(column, [...cur.files, fileValueFor(done, env.uid)]) as
+          FileValue[] | null;
+        if (next) cur.onChange(next);
+        toast.success(`Uploaded ${done.name}`);
+      })
+      .catch((e: unknown) => setError(friendlyError(e)))
+      .finally(() => setUpload(null));
+  };
   const chips = (
     <span className="flex min-w-0 gap-1 overflow-hidden">
       {files.map((f) => (
@@ -313,6 +360,33 @@ export function FilesCell({ column, item, itemName, canEdit, onChange }: CellPro
 
   return (
     <div className={cx(cellBase, 'gap-1 px-0')}>
+      <Modal
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        title={preview?.name ?? 'Preview'}
+      >
+        {preview?.driveFileId && (
+          <div className="space-y-2">
+            <iframe
+              title={`Preview of ${preview.name}`}
+              src={drivePreviewUrl(preview.driveFileId)}
+              className="h-[70vh] w-full rounded-lg border border-border"
+            />
+            <p className="text-xs text-muted">
+              Not loading? Make sure you’re signed in to Google with the same email you use here, or{' '}
+              <a
+                href={preview.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline"
+              >
+                open it in Drive
+              </a>
+              .
+            </p>
+          </div>
+        )}
+      </Modal>
       <div className="min-w-0 flex-1 px-2">{chips}</div>
       <Popover
         label={`${column.title} for ${itemName}`}
@@ -345,6 +419,19 @@ export function FilesCell({ column, item, itemName, canEdit, onChange }: CellPro
                   >
                     {f.name}
                   </a>
+                  {f.size !== undefined && (
+                    <span className="shrink-0 text-xs text-muted">{formatBytes(f.size)}</span>
+                  )}
+                  {f.driveFileId && isPreviewable(f.mimeType) && (
+                    <button
+                      type="button"
+                      aria-label={`Preview ${f.name}`}
+                      onClick={() => setPreview(f)}
+                      className="rounded p-1 text-muted hover:bg-surface-2"
+                    >
+                      <Eye size={14} aria-hidden />
+                    </button>
+                  )}
                   <button
                     type="button"
                     aria-label={`Remove ${f.name}`}
@@ -356,6 +443,52 @@ export function FilesCell({ column, item, itemName, canEdit, onChange }: CellPro
                 </li>
               ))}
             </ul>
+          )}
+          {helperConfigured() && (
+            <div className="space-y-1">
+              <input
+                ref={input}
+                type="file"
+                aria-label="Choose a file to upload"
+                className="sr-only"
+                tabIndex={-1}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) startUpload(f);
+                }}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                type="button"
+                disabled={upload !== null}
+                onClick={() => input.current?.click()}
+              >
+                <Upload size={14} aria-hidden /> Upload a file
+              </Button>
+              {upload && (
+                <div className="space-y-1" role="status">
+                  <p className="truncate text-xs text-muted">
+                    Uploading {upload.name}… {Math.round(upload.fraction * 100)}%
+                  </p>
+                  <div
+                    role="progressbar"
+                    aria-label="Upload progress"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(upload.fraction * 100)}
+                    className="h-1.5 overflow-hidden rounded-full bg-surface-3"
+                  >
+                    <div
+                      className="h-full rounded-full bg-primary transition-[width]"
+                      style={{ width: `${upload.fraction * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-muted">Up to 10 MB. Saved in your shared Drive folder.</p>
+            </div>
           )}
           <form
             className="space-y-2"
@@ -381,9 +514,7 @@ export function FilesCell({ column, item, itemName, canEdit, onChange }: CellPro
             />
             {error && <p className="text-sm text-danger">{error}</p>}
             <div className="flex items-center justify-between">
-              <p className="text-xs text-muted">
-                Attach by link. Uploads arrive with the Google Drive helper.
-              </p>
+              <p className="text-xs text-muted">Or attach a link to a file.</p>
               <Button size="sm" type="submit">
                 Add
               </Button>

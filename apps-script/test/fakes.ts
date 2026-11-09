@@ -9,7 +9,7 @@ export interface FakeOptions {
 
 /** A Platform whose network is scripted by the test, with a real in-memory cache. */
 export function fakePlatform(o: FakeOptions = {}) {
-  const cache = new Map<string, { v: string; ttl: number }>();
+  const cache = new Map<string, { v: string; ttl: number; exp: number }>();
   const calls: HttpRequest[] = [];
   const logs: string[] = [];
   let now = o.now ?? Date.parse('2026-03-10T00:00:00Z');
@@ -19,8 +19,11 @@ export function fakePlatform(o: FakeOptions = {}) {
       calls.push(req);
       return o.respond?.(req) ?? { status: 404, body: '{"error":{"message":"no route"}}' };
     },
-    cacheGet: (k) => cache.get(k)?.v ?? null,
-    cachePut: (k, v, ttl) => void cache.set(k, { v, ttl }),
+    cacheGet: (k) => {
+      const e = cache.get(k);
+      return e && e.exp > now && e.v !== '' ? e.v : null;
+    },
+    cachePut: (k, v, ttl) => void cache.set(k, { v, ttl, exp: now + ttl * 1000 }),
     prop: (n) => o.props?.[n] ?? null,
     nowMs: () => now,
     uuid: () => `id${(++seq).toString(36).padStart(6, '0')}`,

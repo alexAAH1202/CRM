@@ -5,7 +5,9 @@
  * answer OPTIONS). Every request except `ping` carries a Firebase ID token that is verified
  * here before anything happens (see router.ts / auth.ts).
  */
-import { DEFAULT_DRIVE_ROOT, TIME_ZONE, VERSION } from './config';
+import { DEFAULT_DRIVE_ROOT, TIME_ZONE, VERSION, loadConfig } from './config';
+import { syncAllFolders } from './drive';
+import { FirestoreClient } from './firestore';
 import { gasPlatform } from './gas';
 import { handleRequest } from './router';
 import { runDueEvents } from './scheduler';
@@ -43,7 +45,16 @@ export function runScheduler(): void {
   }
 }
 export function runHousekeeping(): void {
-  console.log('Housekeeping tick (nothing to do yet).');
+  try {
+    const p = gasPlatform();
+    const cfg = loadConfig(p);
+    const n = syncAllFolders(p, cfg, new FirestoreClient(p, cfg.projectId));
+    console.log(`Housekeeping: Drive sharing checked for ${n} workspace(s).`);
+  } catch (e) {
+    console.error(
+      `Housekeeping failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`,
+    );
+  }
 }
 export function runDigest(): void {
   console.log('Digest tick (nothing to send yet).');

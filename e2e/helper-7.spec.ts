@@ -103,7 +103,10 @@ test('Helper status card is for admins only: a viewer does not see it, and the h
   const vi = await signedInPage(browser, email, 'Vera Viewer');
   let calls = 0;
   await vi.route(URL_GLOB, (route) => {
-    calls++;
+    // Joining asks the helper to share the Drive folder with the new member (any role); that is the
+    // only call a non-admin is expected to cause. The admin-only card must not call anything.
+    const action = (JSON.parse(route.request().postData() ?? '{}') as { action?: string }).action;
+    if (action !== 'syncFolderSharing') calls++;
     return route.fulfill(failure('forbidden', 'no'));
   });
   await vi.getByRole('button', { name: 'Join workspace' }).click();

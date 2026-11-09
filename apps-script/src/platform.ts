@@ -5,16 +5,22 @@
  */
 export interface HttpRequest {
   url: string;
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
   body?: string;
   /** Send the script owner's OAuth token (for Firestore / Drive). */
   oauth?: boolean;
+  /** Raw bytes, base64-encoded (used instead of `body`; for Drive uploads). */
+  bodyBase64?: string;
+  /** Default true. Drive's resumable uploads answer 308, which must not be followed. */
+  followRedirects?: boolean;
 }
 
 export interface HttpResponse {
   status: number;
   body: string;
+  /** Response headers, names lower-cased (only where a caller needs one, e.g. Location). */
+  headers?: Record<string, string>;
 }
 
 export interface Platform {

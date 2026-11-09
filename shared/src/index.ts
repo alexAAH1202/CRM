@@ -35,6 +35,7 @@ export * from './automations';
 export * from './automationEngine';
 export * from './automationRecipes';
 export * from './csv';
+export * from './files';
 export * from './helperProtocol';
 export * from './scheduling';
 export * from './scheduleOps';

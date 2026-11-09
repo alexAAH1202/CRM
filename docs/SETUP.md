@@ -333,6 +333,10 @@ deployments → ✏️ (edit) → Version: New version → Deploy**.
 - Code changes take effect only after this step.
 - The Members page card tells you when the deployed helper is older than the
   app expects.
+- Phase 7c needs **no new trigger and no new permission**: the Drive scope was already granted by
+  `setup`. After pasting the new code and deploying a new version, upload a small file from a Files
+  column to try it. If Drive says it isn't allowed, make sure the **Google Drive API** is enabled
+  (B4.1).
 - You only need to re-run `setup` if I tell you a new trigger was added. (Phase 7b needs no new
   trigger: the scheduler that `setup` already created starts doing real work once the new code is
   deployed.)

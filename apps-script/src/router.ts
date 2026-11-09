@@ -1,5 +1,6 @@
 import { HelperError, type HelperActionName, type HelperResponse, type WhoAmI } from '@app/shared';
 import { roleIn, verifyIdToken, type Caller, type Role } from './auth';
+import { syncFolderSharing, uploadChunk, uploadStart } from './drive';
 import { loadConfig, TIME_ZONE, VERSION, type HelperConfig } from './config';
 import { FirestoreClient } from './firestore';
 import type { Platform } from './platform';
@@ -57,6 +58,24 @@ actions['rebuildSchedule'] = {
 actions['schedulerStatus'] = {
   auth: 'admin',
   run: (ctx) => queueStatus(ctx.p, ctx.db, ctx.workspaceId as string),
+};
+
+actions['uploadStart'] = {
+  auth: 'member',
+  writes: true,
+  run: (ctx, req) =>
+    uploadStart(ctx.p, ctx.cfg, ctx.db, ctx.caller as Caller, ctx.workspaceId as string, req),
+};
+actions['uploadChunk'] = {
+  auth: 'member',
+  writes: true,
+  run: (ctx, req) => uploadChunk(ctx.p, ctx.caller as Caller, ctx.workspaceId as string, req),
+};
+// Any member may ask for a sync (it only makes Drive match the members list, and is rate-limited),
+// so a new joiner can get access without waiting for an admin.
+actions['syncFolderSharing'] = {
+  auth: 'member',
+  run: (ctx) => syncFolderSharing(ctx.p, ctx.cfg, ctx.db, ctx.workspaceId as string),
 };
 
 /** Later phases add their actions here (scheduler tools, uploads, backup…). */

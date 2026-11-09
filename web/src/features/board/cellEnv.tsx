@@ -7,6 +7,9 @@ import type { Board, BoardItem } from '../boards/types';
 
 /** What cells need from the board beyond their own item (kept in context, not prop-drilled). */
 export interface CellEnv {
+  /** For uploads and attribution. */
+  wid: string;
+  uid: string;
   /** Every item on the board (for dependency pickers and names). */
   items: ReadonlyMap<string, BoardItem>;
   /**
@@ -34,6 +37,8 @@ export function useBoardCellEnv(
 ): CellEnv {
   return useMemo(
     () => ({
+      wid,
+      uid,
       items,
       // A new tag must exist on the column before an item can refer to it.
       saveColumnAndSet: (column: Column, item: BoardItem, value: unknown) => {
