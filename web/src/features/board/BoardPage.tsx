@@ -1,5 +1,14 @@
 import { EMPTY_VIEW_CONFIG } from '@app/shared';
-import { Activity, Archive, Download, Lock, Settings, ShieldAlert, Zap } from 'lucide-react';
+import {
+  Activity,
+  Archive,
+  Download,
+  Lock,
+  Settings,
+  ShieldAlert,
+  Trash2,
+  Zap,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { FullPageSpinner } from '../../components/FullPageSpinner';
@@ -25,6 +34,7 @@ import { WorkloadView } from './WorkloadView';
 import { KanbanView } from './KanbanView';
 import { downloadBoardCsv } from './exportCsv';
 import { ItemPanel } from './ItemPanel';
+import { TrashPanel } from './TrashPanel';
 import { ViewTabs } from './ViewTabs';
 
 function BoardView({ board: b }: { board: Board }) {
@@ -35,6 +45,7 @@ function BoardView({ board: b }: { board: Board }) {
   const [settings, setSettings] = useState(false);
   const [activity, setActivity] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const user = useCurrentUser();
   const automations = useAutomations(workspace.id, b.id);
   useBoardAutomationsRegistration({
@@ -119,6 +130,18 @@ function BoardView({ board: b }: { board: Board }) {
               <p className="mt-1 line-clamp-2 text-sm text-muted">{b.description}</p>
             )}
           </div>
+          {role !== 'viewer' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={items.status !== 'ready'}
+              onClick={() => setTrashOpen(true)}
+              aria-label="Recently deleted"
+              title="Recently deleted: restore items you removed"
+            >
+              <Trash2 size={14} aria-hidden />
+            </Button>
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -192,6 +215,29 @@ function BoardView({ board: b }: { board: Board }) {
           </div>
         </div>
       </header>
+      {items.status === 'ready' &&
+        canEdit &&
+        [...items.data.values()].every((i) => i.deleted || i.archived) && (
+          <p
+            role="status"
+            className="border-b border-border bg-primary-soft px-4 py-2 text-sm text-primary sm:px-6"
+          >
+            {active.type === 'table' ? (
+              <>
+                This board is empty. Type a name in <strong>+ Add item</strong> and press Enter (or
+                click away) to add your first item, then click a cell to fill it in.
+              </>
+            ) : (
+              <>
+                No items yet.{' '}
+                {active.type === 'kanban' || active.type === 'calendar'
+                  ? 'Add one right here, or'
+                  : 'Add items'}{' '}
+                in the table view; they appear in every view.
+              </>
+            )}
+          </p>
+        )}
       {items.status === 'ready' && members && views !== null ? (
         active.type === 'kanban' ? (
           <KanbanView {...viewProps} />
@@ -217,6 +263,15 @@ function BoardView({ board: b }: { board: Board }) {
       )}
       {itemId && items.status === 'ready' && members && (
         <ItemPanel p={viewProps} itemId={itemId} isAdmin={role === 'admin'} onClose={closeItem} />
+      )}
+      {trashOpen && items.status === 'ready' && (
+        <TrashPanel
+          wid={workspace.id}
+          board={b}
+          items={items.data}
+          canEdit={canEdit}
+          onClose={() => setTrashOpen(false)}
+        />
       )}
       {autoOpen && members && (
         <AutomationsPanel

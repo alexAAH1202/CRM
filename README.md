@@ -1,4 +1,4 @@
-# [APP_NAME]
+# Sorted
 
 A colourful, shared life-admin organiser (bills, chores, renewals, plans) for a household or small group, built on a monday.com-style board engine. It runs entirely
 on free tiers: the Firebase Spark plan plus a Google Apps Script helper.

@@ -12,10 +12,10 @@ import { useWorkspace } from '../workspaces/WorkspaceProvider';
 import { markAllRead, saveMuted, setRead } from './api';
 import { useNotifications } from './NotificationsProvider';
 
-const MUTE_OPTIONS: Array<{ type: string; label: string }> = [
+const MUTE_OPTIONS: Array<{ type: string; label: string; soon?: boolean }> = [
   { type: 'mention', label: 'When someone @mentions me' },
   { type: 'assignment', label: 'When I’m assigned to an item' },
-  { type: 'due', label: 'When something I own is due' },
+  { type: 'due', label: 'When something I own is due', soon: true },
 ];
 
 /** Bell + inbox. Click a notification to jump to the item; toggle read/unread; mute types. */
@@ -88,6 +88,7 @@ export function NotificationBell() {
                   <input
                     type="checkbox"
                     checked={!muted.has(o.type)}
+                    disabled={o.soon}
                     onChange={(e) => {
                       const next = new Set(muted);
                       if (e.target.checked) next.delete(o.type);
@@ -96,7 +97,10 @@ export function NotificationBell() {
                     }}
                     className="h-4 w-4 accent-[var(--c-primary)]"
                   />
-                  {o.label}
+                  <span className={o.soon ? 'text-muted' : undefined}>
+                    {o.label}
+                    {o.soon && ' (coming soon: reminders)'}
+                  </span>
                 </label>
               ))}
             </fieldset>
