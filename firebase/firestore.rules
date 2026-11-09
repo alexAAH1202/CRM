@@ -458,6 +458,26 @@ service cloud.firestore {
           allow delete: if isAdmin(wid) || canEditBoard(wid, bid);
         }
 
+        // ------------------------------------------------------- activity log
+
+        // Only meaningful events are logged (see shared/activity.ts). Entries are append-only:
+        // never edited. Pruning is done by the Apps Script helper (service account).
+        match /activity/{aid} {
+          allow read: if canSeeBoard(wid, bid);
+          allow create: if canEditBoard(wid, bid)
+            && request.resource.data.keys().hasOnly(
+                 ['type', 'itemId', 'itemName', 'actor', 'data', 'at'])
+            && request.resource.data.type in
+                 ['create', 'delete', 'status', 'people', 'date', 'move', 'bulk', 'automation']
+            && isNullableString(request.resource.data.itemId, 128)
+            && isString(request.resource.data.itemName, 0, 200)
+            && request.resource.data.actor == request.auth.uid
+            && request.resource.data.data is map
+            && request.resource.data.at == request.time;
+          allow update: if false;
+          allow delete: if isAdmin(wid);
+        }
+
         // ------------------------------------------- item number counter
 
         match /meta/counter {

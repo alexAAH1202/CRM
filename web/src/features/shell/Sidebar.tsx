@@ -1,4 +1,15 @@
-import { Check, ChevronsUpDown, Home, LogOut, Mail, Menu, Plus, Users } from 'lucide-react';
+import {
+  Check,
+  ChevronsUpDown,
+  Home,
+  ListChecks,
+  LogOut,
+  Mail,
+  Menu,
+  Plus,
+  Search,
+  Users,
+} from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Logo } from '../../components/Logo';
@@ -8,6 +19,7 @@ import { Avatar, Popover } from '../../components/ui';
 import { cx } from '../../lib/cx';
 import { signOutUser, useCurrentUser } from '../auth/AuthProvider';
 import { BoardList } from './BoardList';
+import { useOpenSearch } from './searchContext';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { useSessionStore } from '../workspaces/sessionStore';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
@@ -95,6 +107,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { workspace, role } = useWorkspace();
   const base = `/w/${workspace.id}`;
   const name = user.displayName ?? user.email ?? 'You';
+  const openSearch = useOpenSearch();
 
   return (
     <aside className="flex h-full flex-col gap-4 border-r border-border bg-surface p-3">
@@ -106,8 +119,24 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       <WorkspaceSwitcher />
       <nav aria-label="Workspace" className="flex flex-col gap-1">
+        <button
+          type="button"
+          onClick={() => {
+            openSearch();
+            onNavigate?.();
+          }}
+          className="flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-semibold text-fg hover:bg-surface-2"
+        >
+          <Search size={18} aria-hidden /> Search
+          <kbd className="ml-auto rounded border border-border px-1.5 text-xs font-normal text-muted">
+            Ctrl K
+          </kbd>
+        </button>
         <NavLink to={base} end className={navItem} onClick={onNavigate}>
           <Home size={18} aria-hidden /> Home
+        </NavLink>
+        <NavLink to={`${base}/my-work`} className={navItem} onClick={onNavigate}>
+          <ListChecks size={18} aria-hidden /> My work
         </NavLink>
         <NavLink to={`${base}/members`} className={navItem} onClick={onNavigate}>
           <Users size={18} aria-hidden /> Members

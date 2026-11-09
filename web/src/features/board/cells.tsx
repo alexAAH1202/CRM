@@ -416,63 +416,6 @@ function StatusCell({ column, item, itemName, canEdit, onChange }: CellProps) {
   );
 }
 
-function DropdownCell({ column, item, itemName, canEdit, onChange }: CellProps) {
-  const v = (normalizeValue(column, item.values[column.id]) as string[] | null) ?? [];
-  const options = column.settings.options ?? [];
-  const chips = (
-    <span className="flex min-w-0 gap-1 overflow-hidden">
-      {v.map((id) => {
-        const o = options.find((x) => x.id === id);
-        if (!o) return null;
-        const c = LABEL_COLORS[o.color];
-        return (
-          <span
-            key={id}
-            className="truncate rounded-full px-2 py-0.5 text-xs font-semibold"
-            style={{ background: c.bg, color: c.text }}
-          >
-            {o.name}
-          </span>
-        );
-      })}
-    </span>
-  );
-  if (!canEdit) return <div className={cellBase}>{chips}</div>;
-  return (
-    <Popover
-      label={`${column.title} for ${itemName}`}
-      className="w-56"
-      trigger={(p) => (
-        <button
-          type="button"
-          {...p}
-          className={cellButton}
-          aria-label={`Edit ${column.title} for ${itemName}`}
-        >
-          {v.length ? chips : <Empty />}
-        </button>
-      )}
-    >
-      {options.length === 0 ? (
-        <p className="p-2 text-sm text-muted">No options yet. Add some from the column menu.</p>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          {options.map((o) => (
-            <LabelOption
-              key={o.id}
-              label={o}
-              selected={v.includes(o.id)}
-              onClick={() =>
-                onChange(v.includes(o.id) ? v.filter((x) => x !== o.id) : [...v, o.id])
-              }
-            />
-          ))}
-        </div>
-      )}
-    </Popover>
-  );
-}
-
 function PeopleCell({ column, item, itemName, canEdit, members, onChange }: CellProps) {
   const v = (normalizeValue(column, item.values[column.id]) as string[] | null) ?? [];
   const byUid = new Map(members.map((m) => [m.uid, m]));
@@ -550,7 +493,7 @@ const RENDERERS: Record<Column['type'], (p: CellProps) => ReactNode> = {
   text: TextCell,
   longText: LongTextCell,
   status: StatusCell,
-  dropdown: DropdownCell,
+  dropdown: (p) => <TagsCell {...p} noun="option" />,
   tags: TagsCell,
   people: PeopleCell,
   date: DateCell,

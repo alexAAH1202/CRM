@@ -160,7 +160,15 @@ export function ContactCell({ column, item, itemName, canEdit, onChange }: CellP
 
 // --------------------------------------------------------------------- tags
 
-export function TagsCell({ column, item, itemName, canEdit, onChange }: CellProps) {
+/** Tags and Dropdown share this: pick from the options, or type a new one right here. */
+export function TagsCell({
+  column,
+  item,
+  itemName,
+  canEdit,
+  onChange,
+  noun = 'tag',
+}: CellProps & { noun?: 'tag' | 'option' }) {
   const env = useCellEnv();
   const options = column.settings.options ?? [];
   const v = (normalizeValue(column, item.values[column.id]) as string[] | null) ?? [];
@@ -242,8 +250,8 @@ export function TagsCell({ column, item, itemName, canEdit, onChange }: CellProp
             }}
           >
             <input
-              aria-label="New tag"
-              placeholder="New tag…"
+              aria-label={`New ${noun}`}
+              placeholder={`New ${noun}…`}
               maxLength={40}
               value={name}
               onChange={(e) => setName(e.target.value)}
