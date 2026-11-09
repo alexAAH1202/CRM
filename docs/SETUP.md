@@ -210,29 +210,104 @@ If you ever want a local copy:
 4. Run `npm run firebase -- login`.
 5. Deploy with `npm run deploy:rules` and `npm run deploy:hosting`.
 
-### B4. Apps Script helper (Phase 7, detailed instructions then)
+### B4. Apps Script helper (browser only)
 
-The outline, so there are no surprises:
+Use the **same Google account that owns the Firebase project** for every step.
+The helper runs as that account and uses its access to Firestore and Drive.
 
-1. In the Google Cloud console for the **same project**, enable the
-   **Cloud Firestore API** and the **Google Drive API**, and configure the
-   OAuth consent screen (External, Testing, with yourself as a test user).
-2. Install clasp: `npx clasp login`, then
-   `npx clasp create --type webapp --rootDir dist` inside `apps-script/`.
-   Copy `.clasp.json.example` if you prefer.
-3. In the Apps Script editor go to **Project Settings → Google Cloud Platform
-   (GCP) Project → Change project** and enter the Firebase project's **project
-   number** (Firebase console → Project settings → General).
-4. `npm -w apps-script run push`, then run a setup function once in the editor
-   to authorize the scopes listed in `apps-script/appsscript.json`.
-5. **Deploy → New deployment → Web app** (Execute as: Me; Who has access:
-   Anyone). Copy the URL into `web/.env.local` as `VITE_APPS_SCRIPT_URL`.
-6. Create a Drive folder for workspace files and share its ID with me.
+Steps B4.1–B4.3 can be done any time. B4.4–B4.6 need the Phase 7 code.
 
-### B5. Time-driven triggers (Phase 7)
+#### B4.1. Enable APIs (Google Cloud console)
 
-These are created by a `setupTriggers()` function you run once from the editor.
-Instructions will come with Phase 7.
+1. Open https://console.cloud.google.com/apis/library?project=life-management-de315.
+   The top bar should show **life-management-de315**.
+2. Search **Cloud Firestore API** and open it. If it says **API Enabled**,
+   that's fine; otherwise click **Enable**.
+3. Go back, search **Google Drive API**, and click **Enable**.
+4. Also check that **Identity Toolkit API** is enabled. Firebase Auth turns it
+   on, and the helper uses it to verify sign-ins.
+
+#### B4.2. OAuth consent screen ("Google Auth Platform")
+
+1. Open https://console.cloud.google.com/auth/overview?project=life-management-de315
+   and click **Get started**. If the menu still says "OAuth consent screen",
+   it's the same thing.
+2. **App information:** name `[APP_NAME] helper`; user support email: your
+   email. Click **Next**.
+3. **Audience:** choose **External**. Click **Next**.
+4. **Contact information:** your email. Click **Next**, tick the agreement,
+   then **Continue → Create**.
+5. Open the **Audience** page and click **Publish app → Confirm**, so the
+   status reads **In production**.
+   - Don't leave it in **Testing**. In Testing, Google expires the
+     authorization after 7 days and the scheduled jobs stop.
+   - You do **not** need to submit for verification. Only your own account
+     authorizes the script. You'll see a "Google hasn't verified this app"
+     warning once, which is expected.
+
+#### B4.3. Drive folder for workspace files
+
+1. In https://drive.google.com click **New → New folder** and name it, for
+   example, `[APP_NAME] files`.
+2. Open the folder. The address bar shows
+   `https://drive.google.com/drive/folders/<FOLDER_ID>`. Copy the long
+   `<FOLDER_ID>` and send it to me. It isn't a secret.
+3. Don't share the folder with anyone manually. The helper adds and removes
+   workspace members as viewers automatically.
+
+#### B4.4. Create the script project (Phase 7)
+
+1. Open https://script.google.com and click **New project**. Click "Untitled
+   project" (top-left) and rename it `[APP_NAME] helper`.
+2. **⚙ Project Settings** (left sidebar):
+   - Tick **Show "appsscript.json" manifest file in editor**.
+   - Under **Google Cloud Platform (GCP) Project**, click **Change project**.
+     Enter the project number **290995869060** (Firebase console → Project
+     settings → General → "Project number"), then **Set project**. This
+     requires B4.2 to be done first.
+3. **Editor** (`< >` icon):
+   - Open `appsscript.json`, select all, and paste the manifest I give you.
+   - Open `Code.gs`, select all, and paste the code file I give you.
+   - Press **Ctrl+S** (or **Cmd+S**).
+4. **Authorize:** pick `setup` from the function dropdown in the toolbar, then
+   click **Run**.
+   - Choose your account. At "Google hasn't verified this app" click
+     **Advanced → Go to [APP_NAME] helper (unsafe)**, then **Allow**.
+   - The scopes are Firestore, Drive, sending email, external requests and
+     triggers. `setup` also creates the scheduled triggers.
+
+#### B4.5. Deploy as a web app (Phase 7)
+
+1. **Deploy → New deployment**. Click the ⚙ next to "Select type" and choose
+   **Web app**.
+2. Fill in the form:
+   - **Description:** `v1`
+   - **Execute as:** **Me (your email)**
+   - **Who has access:** **Anyone**. This is required so the website can call
+     it. Every request is still checked against a Firebase sign-in token (see
+     DECISIONS D10).
+3. Click **Deploy**, then copy the **Web app URL**, which ends in `/exec`, and
+   send it to me. I'll add it to the deploy workflow as `VITE_APPS_SCRIPT_URL`.
+   It isn't a secret.
+
+#### B4.6. Updating the helper later
+
+Paste the new code, save, then go to **Deploy → Manage deployments → ✏️
+(edit) → Version: New version → Deploy**.
+
+- **Don't** use "New deployment" for updates. That creates a new URL, and the
+  website would still call the old one.
+- Code changes take effect only after this step.
+
+(Optional, later: this can be automated from GitHub Actions with clasp. It
+needs a one-time `clasp login` token stored as a GitHub secret.)
+
+### B5. Scheduled triggers
+
+These are created automatically by the `setup` function in B4.4. To check
+them, open the clock icon (**Triggers**) in the Apps Script editor. You should
+see the scheduler (every 10 minutes), housekeeping (daily) and the digest
+(daily).
 
 ### B6. Custom domain (optional, any time)
 
