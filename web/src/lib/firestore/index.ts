@@ -7,6 +7,7 @@ import { resolveSentinels, type DocData, type WriteOp } from '@app/shared';
 import {
   arrayRemove,
   arrayUnion,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -134,6 +135,7 @@ export function createBatch(label: string): MeteredBatch {
 
 const sdkSentinels = {
   serverTime: () => serverTimestamp(),
+  deleteField: () => deleteField(),
   arrayUnion: (...v: unknown[]) => arrayUnion(...v),
   arrayRemove: (...v: unknown[]) => arrayRemove(...v),
 };

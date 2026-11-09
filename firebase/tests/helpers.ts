@@ -3,6 +3,7 @@ import { resolveSentinels, type DocData, type WriteOp } from '@app/shared';
 import {
   arrayRemove,
   arrayUnion,
+  deleteField,
   doc,
   serverTimestamp,
   setDoc,
@@ -39,6 +40,7 @@ export function db(env: RulesTestEnvironment, who: Persona | null): Firestore {
 
 const sdkSentinels = {
   serverTime: () => serverTimestamp(),
+  deleteField: () => deleteField(),
   arrayUnion: (...v: unknown[]) => arrayUnion(...v),
   arrayRemove: (...v: unknown[]) => arrayRemove(...v),
 };

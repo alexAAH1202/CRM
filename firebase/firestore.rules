@@ -96,8 +96,12 @@ service cloud.firestore {
       return canSeeBoardData(wid, get(boardPath(wid, bid)).data);
     }
 
+    // Writes check the board as it will be *after* the request, so a board and
+    // its first items/view/counter can be created in one batch (templates).
     function canEditBoard(wid, bid) {
-      return canEdit(wid) && canSeeBoard(wid, bid);
+      return canEdit(wid)
+        && existsAfter(boardPath(wid, bid))
+        && canSeeBoardData(wid, getAfter(boardPath(wid, bid)).data);
     }
 
     // ------------------------------------------------------------------ users
@@ -411,7 +415,7 @@ service cloud.firestore {
             && (resource == null
                 ? request.resource.data.createdBy == request.auth.uid
                 : request.resource.data.createdBy == resource.data.createdBy);
-          allow delete: if canEditBoard(wid, bid);
+          allow delete: if isAdmin(wid) || canEditBoard(wid, bid);
         }
 
         // ------------------------------------------- item number counter
@@ -428,6 +432,8 @@ service cloud.firestore {
             && request.resource.data.next is int
             && request.resource.data.next > resource.data.next
             && request.resource.data.next <= resource.data.next + 500;
+          // Only when an admin deletes the whole board.
+          allow delete: if isAdmin(wid);
         }
       }
 

@@ -57,7 +57,12 @@ describe('workspace op planners', () => {
   it('resolves sentinels recursively', () => {
     const out = resolveSentinels(
       { a: SERVER_TIME, b: { c: [SERVER_TIME] }, d: 1 },
-      { serverTime: () => 'NOW', arrayUnion: () => 'U', arrayRemove: () => 'R' },
+      {
+        serverTime: () => 'NOW',
+        deleteField: () => 'DEL',
+        arrayUnion: () => 'U',
+        arrayRemove: () => 'R',
+      },
     );
     expect(out).toEqual({ a: 'NOW', b: { c: ['NOW'] }, d: 1 });
   });

@@ -8,6 +8,10 @@
 export const SERVER_TIME = Object.freeze({ __op: 'serverTime' as const });
 export type ServerTime = typeof SERVER_TIME;
 
+/** Removes a field in an update (e.g. clearing a cell). */
+export const DELETE_FIELD = Object.freeze({ __op: 'deleteField' as const });
+export type DeleteField = typeof DELETE_FIELD;
+
 export interface ArrayUnion {
   __op: 'arrayUnion';
   values: unknown[];
@@ -24,7 +28,7 @@ export function arrayRemove(...values: unknown[]): ArrayRemove {
   return { __op: 'arrayRemove', values };
 }
 
-export type Sentinel = ServerTime | ArrayUnion | ArrayRemove;
+export type Sentinel = ServerTime | DeleteField | ArrayUnion | ArrayRemove;
 
 export function isSentinel(v: unknown): v is Sentinel {
   return typeof v === 'object' && v !== null && '__op' in v;
@@ -45,6 +49,7 @@ export function resolveSentinels(
   value: unknown,
   f: {
     serverTime: () => unknown;
+    deleteField: () => unknown;
     arrayUnion: (...v: unknown[]) => unknown;
     arrayRemove: (...v: unknown[]) => unknown;
   },
@@ -53,6 +58,8 @@ export function resolveSentinels(
     switch (value.__op) {
       case 'serverTime':
         return f.serverTime();
+      case 'deleteField':
+        return f.deleteField();
       case 'arrayUnion':
         return f.arrayUnion(...value.values);
       case 'arrayRemove':
