@@ -21,6 +21,37 @@ test('typing an item name and clicking away saves it; Escape cancels', async ({ 
   await ada.getByRole('button', { name: /Status: .*Change for Test Test/ }).click();
   await ada.getByRole('dialog').getByRole('button').first().click();
 
+  // A brand-new Dropdown column has no options: add them right from the cell.
+  await ada.getByRole('button', { name: 'Add column' }).first().click();
+  await ada
+    .getByRole('dialog', { name: 'Add column' })
+    .getByRole('button', { name: /^Dropdown/ })
+    .first()
+    .click();
+  await ada.getByRole('button', { name: /Edit Dropdown for Test Test/ }).click();
+  const pop = ada.getByRole('dialog', { name: /Dropdown for Test Test/ });
+  await pop.getByLabel('New option').fill('Red');
+  await pop.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(
+    ada.getByRole('row').filter({ hasText: 'Test Test' }).getByText('Red'),
+  ).toBeVisible();
+  await ada.getByRole('button', { name: /Edit Dropdown for Test Test/ }).click();
+  await ada
+    .getByRole('dialog', { name: /Dropdown for Test Test/ })
+    .getByLabel('New option')
+    .fill('Blue');
+  await ada.keyboard.press('Enter');
+  await ada.waitForTimeout(800);
+  await ada.reload();
+  await expect(
+    ada.getByRole('row').filter({ hasText: 'Test Test' }).getByText('Red'),
+  ).toBeVisible();
+  await ada.getByRole('button', { name: /Edit Dropdown for Test Test/ }).click();
+  await expect(
+    ada.getByRole('dialog', { name: /Dropdown for Test Test/ }).getByText('Blue'),
+  ).toBeVisible();
+  await ada.keyboard.press('Escape');
+
   await add.fill('Never added');
   await ada.keyboard.press('Escape');
   await ada.getByRole('heading', { name: 'Blank board' }).click();

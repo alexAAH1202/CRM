@@ -16,6 +16,8 @@ export const boardPaths = {
   counter: (wid: string, bid: string) => `${paths.board(wid, bid)}/meta/counter`,
   items: (wid: string, bid: string) => `${paths.board(wid, bid)}/items`,
   item: (wid: string, bid: string, iid: string) => `${paths.board(wid, bid)}/items/${iid}`,
+  activity: (wid: string, bid: string) => `${paths.board(wid, bid)}/activity`,
+  activityDoc: (wid: string, bid: string, id: string) => `${paths.board(wid, bid)}/activity/${id}`,
 };
 
 export interface NewItemInput {
