@@ -255,6 +255,11 @@ Steps B4.1–B4.3 can be done any time. B4.4–B4.6 need the Phase 7 code.
 3. Don't share the folder with anyone manually. The helper adds and removes
    workspace members as viewers automatically.
 
+> ✅ **Done (2026-11-09).** Root folder ID:
+> `1RinTNsHtgeK0yjycf339SL0TQ3S7gRcV`. Phase 7 stores it in the script's
+> Script Properties as `DRIVE_ROOT_FOLDER_ID`. The helper creates one
+> subfolder per workspace inside it.
+
 #### B4.4. Create the script project (Phase 7)
 
 1. Open https://script.google.com and click **New project**. Click "Untitled
