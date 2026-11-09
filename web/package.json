@@ -1,0 +1,37 @@
+{
+  "name": "@app/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "build:emulator": "tsc -p tsconfig.json && vite build --mode emulator"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.2.1",
+    "tailwindcss": "^4.3.5",
+    "vite": "^8.3.6"
+  },
+  "dependencies": {
+    "@app/shared": "^0.0.0",
+    "@floating-ui/react-dom": "^2.1.9",
+    "@hookform/resolvers": "^7.0.5",
+    "@tanstack/react-virtual": "^3.14.26",
+    "date-fns": "^4.4.0",
+    "firebase": "^13.2.0",
+    "lucide-react": "^1.70.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.91.0",
+    "react-router-dom": "^7.18.5",
+    "zod": "^4.6.7",
+    "zustand": "^5.1.0"
+  }
+}

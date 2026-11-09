@@ -1,0 +1,42 @@
+{
+  "name": "app-root",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "web",
+    "firebase",
+    "apps-script"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail -n emu,web,seed -c magenta,cyan,gray \"npm run emulators\" \"npm -w web run dev\" \"node firebase/scripts/seed-emulator.mjs\"",
+    "emulators": "npm -w firebase run emulators",
+    "build": "npm -w web run build && npm -w apps-script run build",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test --workspaces --if-present",
+    "test:rules": "npm -w firebase run test:rules",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:rules && npm -w web run build:emulator && npm -w apps-script run build",
+    "deploy:rules": "npm -w firebase run deploy:rules",
+    "deploy:hosting": "npm -w firebase run deploy:hosting",
+    "firebase": "npm -w firebase exec -- firebase",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "concurrently": "^10.0.7",
+    "eslint": "^10.14.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "5.9",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0"
+  }
+}

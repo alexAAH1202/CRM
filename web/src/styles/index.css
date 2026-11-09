@@ -1,0 +1,100 @@
+@import 'tailwindcss';
+
+/* Dark mode is driven by data-theme on <html> (set before paint in index.html). */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* ---------------------------------------------------------------------------
+ * Design tokens. Components use the Tailwind names in @theme below, never raw
+ * hex values, so light/dark and future rebranding change in one place.
+ * Label colours (status pills etc.) live in @app/shared/palette.ts.
+ * ------------------------------------------------------------------------- */
+:root {
+  --c-bg: #f5f6fb;
+  --c-surface: #ffffff;
+  --c-surface-2: #eef0f7;
+  --c-surface-3: #e2e5f0;
+  --c-border: #d6dae6;
+  --c-text: #1b1f2a;
+  --c-text-muted: #545b70;
+  --c-primary: #5b4be1;
+  --c-primary-hover: #4a3bcb;
+  --c-primary-text: #ffffff;
+  --c-primary-soft: #ebe8fc;
+  --c-danger: #c42b3f;
+  --c-danger-text: #ffffff;
+  --c-focus: #2f6fed;
+  --c-overlay: rgb(17 20 32 / 0.45);
+  --shadow-pop: 0 8px 28px rgb(23 26 45 / 0.16), 0 1px 3px rgb(23 26 45 / 0.08);
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --c-bg: #151823;
+  --c-surface: #1e2230;
+  --c-surface-2: #272c3d;
+  --c-surface-3: #323849;
+  --c-border: #3a4054;
+  --c-text: #eceef5;
+  --c-text-muted: #a8aec2;
+  --c-primary: #8b7ff0;
+  --c-primary-hover: #a197f4;
+  --c-primary-text: #14121f;
+  --c-primary-soft: #262240;
+  --c-danger: #f06b7c;
+  --c-danger-text: #1b0f12;
+  --c-focus: #7fa7ff;
+  --c-overlay: rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-surface-3: var(--c-surface-3);
+  --color-border: var(--c-border);
+  --color-fg: var(--c-text);
+  --color-muted: var(--c-text-muted);
+  --color-primary: var(--c-primary);
+  --color-primary-hover: var(--c-primary-hover);
+  --color-on-primary: var(--c-primary-text);
+  --color-primary-soft: var(--c-primary-soft);
+  --color-danger: var(--c-danger);
+  --color-on-danger: var(--c-danger-text);
+  --color-focus: var(--c-focus);
+  --color-overlay: var(--c-overlay);
+  --shadow-pop: var(--shadow-pop);
+  /* System font stack: friendly rounded faces where available, zero font bytes over Hosting. */
+  --font-sans:
+    ui-rounded, 'SF Pro Rounded', 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --radius-pill: 999px;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-fg antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 2px;
+  }
+  dialog::backdrop {
+    background: var(--c-overlay);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

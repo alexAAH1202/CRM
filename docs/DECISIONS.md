@@ -1,0 +1,262 @@
+# Decisions log
+
+Format: **decision**, followed by alternatives considered and the reason.
+Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
+
+---
+
+### D1. Add a `/shared` workspace package (spec deviation: repo layout)
+
+- **Alternatives:** duplicate the types and constants in each package.
+- **Reason:** rules tests, the web app and Apps Script must agree on limits
+  (file size, dashboard cap, array caps) and on document shapes. One source of
+  truth prevents drift.
+
+### D2. Admins can see and manage every private board
+
+- **Decided by:** the product owner (2026-11-08).
+- **Alternatives:** only `memberIds` can see private boards, Admins included.
+- **Reason:** simpler rules, and a board can still be recovered when its
+  creator leaves.
+
+### D3. Workspace creation limited to an allowlist kept in Firestore
+
+- **Allowlist:** `alexwinch@gmail.com` and `aevans.osteo@gmail.com`, stored in
+  `appConfig/workspaceCreators` and edited only in the Firebase console.
+- **Alternatives:**
+  - Any signed-in user may create a workspace. Rejected: strangers could use
+    up the shared free quota.
+  - Hard-code the emails in `firestore.rules`. Rejected: puts personal emails
+    in git, and every change would need a rules deploy.
+- **Cost:** one extra rule read, only when a workspace is created.
+
+### D4. Firestore location `australia-southeast2` (Melbourne), Standard edition, `(default)` database
+
+- **Reason:** the team is in Melbourne. The location can't be changed later,
+  and the Spark quotas apply to the Standard edition and the default database.
+
+### D5. Delta sync for board items (soft deletes, mandatory `updatedAt`)
+
+- **Alternatives:**
+  - Plain `onSnapshot` on the open board.
+  - Keeping listeners alive after the user leaves a board.
+- **Reason:** Firestore re-bills a listener's whole result set after it's been
+  disconnected for more than 30 minutes, even with persistent cache. The
+  15-user estimate is 55% of daily reads with plain listeners and 31% with
+  delta sync (QUOTA_BUDGET §4). Keeping listeners alive makes every edit bill
+  more reads to idle users.
+- **Consequences:**
+  - Every item write sets `updatedAt = request.time` (enforced by rules).
+  - Deletes are tombstones (`deletedAt`), hard-purged after 30 days.
+
+### D6. Views, column widths and the item counter kept off the board doc (spec deviation: data model)
+
+- **Alternatives:** embed them in the board doc, as the spec proposed.
+- **Reason:** every user has a sidebar listener on `boards`, so any board-doc
+  write is billed once per connected user. View tweaks and item creation are
+  frequent, so they go in `boards/{bid}/views/*` and `boards/{bid}/meta/counter`.
+
+### D7. No collection-group queries over `items`
+
+- **Reason:** private-board rules need the parent board doc. A collection-group
+  query can't supply that per board, so it would be rejected or would leak.
+- **Consequence:** "My Work" and search run one small query per accessible
+  board (about 10 reads + matches).
+
+### D8. Workspace and invite discovery through collection-group queries on `members.uid` and `invites.email`
+
+- **Alternatives:** a `workspaceIds[]` array on `users/{uid}`. Rejected:
+  client-writable, and an admin removing someone couldn't update it, so it
+  would go stale.
+- **Reason:** membership docs are the source of truth, and the rules can
+  require the filter to match the caller.
+
+### D9. "At least one Admin" enforced in rules through `workspace.adminUids` + `getAfter()`
+
+- **Alternatives:** UI-only enforcement, which the spec allows.
+- **Reason:** cheap (the rules read docs already in the same batch) and closes
+  the "remove the last admin" hole.
+
+### D10. Apps Script web app access is "Anyone"; identity comes from the Firebase ID token
+
+- **Alternatives:** "Anyone with a Google account".
+- **Reason:** a cross-origin `fetch` from the Hosting domain can't carry the
+  user's Google session cookies to `script.google.com`, so Google-account
+  gating would break the calls. Security comes from verifying the ID token and
+  then checking membership on every request.
+
+### D11. clasp v3 + `tsc` into `apps-script/dist`
+
+- **Reason:** clasp v3 no longer transpiles TypeScript. Phase 7 may switch to
+  an esbuild bundle so Apps Script can import `/shared`.
+
+### D12. Tooling versions
+
+| Package         | Version | Note                                                 |
+| --------------- | ------- | ---------------------------------------------------- |
+| React           | 18.3    | Per the spec, although 19 is current                 |
+| Vite            | 8       |                                                      |
+| Tailwind        | 4       | CSS-first config, tokens via `@theme inline`         |
+| TypeScript      | 5.9     | 7.0 exists, but typescript-eslint supports < 6.1     |
+| ESLint          | 10      | Flat config                                          |
+| Vitest          | 5       |                                                      |
+| firebase JS SDK | 13      |                                                      |
+| firebase-tools  | 15      | Local dev dependency, so no global install is needed |
+
+### D13. System font stack
+
+- **Stack:** `ui-rounded`, SF Pro Rounded, Segoe UI and so on.
+- **Alternatives:** a self-hosted web font.
+- **Reason:** zero font bytes over metered Hosting bandwidth, and rounded
+  faces on Apple devices fit the "friendly" brief.
+
+### D14. Native `<dialog>` for Modal/SidePanel; `@floating-ui/react-dom` for popovers
+
+- **Reason:** `<dialog>` gives focus trapping, Escape handling and an inert
+  background for free. floating-ui is about 3 KB and handles collision-aware
+  positioning. Both are accessible without a heavy component library.
+
+### D15. All Firestore access goes through `web/src/lib/firestore` (metered), enforced by ESLint
+
+- **Reason:** keeps the dev usage meter accurate, and gives a single choke
+  point for delta sync and automations.
+
+### D16. Emulator-only test sign-in hook (`window.__emulatorSignIn`)
+
+- **Reason:** e2e tests need to sign in as specific verified emails (invite
+  flow) without driving the emulator's OAuth popup. It's only defined when
+  emulators are in use, and it doesn't exist in production builds that point
+  at a real project.
+
+### D17. Hosting emulator on port 5050
+
+- **Reason:** port 5000 is taken by AirPlay Receiver on macOS.
+
+### D18. Proposed for later: TTL policies for pruning
+
+- **Proposal:** use TTL policies on `activity.at`, `automationRuns.at` and read
+  notifications.
+- **Reason:** Firestore TTL deletes count as normal deletes. The quotas page
+  lists TTL configuration limits for projects without billing, which suggests
+  TTL works on Spark. That will be confirmed in the console before Phase 7. If
+  it works, it replaces part of the Apps Script housekeeping job. Count-based
+  caps (last 50 runs) still need housekeeping.
+
+### D19. Accepted dev-only `npm audit` findings
+
+- **What:** moderate and high advisories in transitive dependencies of
+  firebase-tools, @google/clasp and eslint.
+- **Reason:** these are local CLIs that never ship to the browser, and
+  `npm audit fix --force` would downgrade them to old major versions.
+  Re-check in Phase 9.
+
+### D20. Deploy from GitHub Actions with a narrowly-scoped service account
+
+- **Decided by:** the product owner (2026-11-08), who has no local copy of the
+  repo.
+- **Alternatives:**
+  - Deploy from a laptop with `firebase login`.
+  - Run `firebase login --no-localhost` inside the Claude cloud session. That
+    would leave a Google login token in the container and need a re-login
+    every session.
+- **How it works:** pushes to `main` (or a manual run) run `npm run check` and
+  then `firebase deploy`. The service-account key lives only in the GitHub
+  secret `FIREBASE_SERVICE_ACCOUNT`.
+- **Roles (least privilege):**
+  - Hosting Admin
+  - Rules Admin
+  - Datastore Index Admin
+  - API Keys Viewer
+  - Service Usage Consumer
+
+  No Cloud Functions, Auth or data access roles.
+
+- **Firebase web config:** stored as plain env values in the deploy workflow.
+  It's public by design, and this avoids four extra repository variables. This
+  is a small deviation from "keep it in env files".
+
+### D21. Later-phase collections stay deny-by-default (deviation from the Phase 1 plan)
+
+- **What:** Phase 1 ships full rules and tests for `users`, `appConfig`,
+  `workspaces`, `members`, `invites`, `folders`, `boards`, `items`, `views`,
+  `meta/counter`, `notifications` and `timers`. The remaining collections are
+  explicitly denied, and a test checks each one:
+  - `updates`
+  - `automations`
+  - `automationRuns`
+  - `activity`
+  - `scheduledEvents`
+  - `dashboards`
+  - `timeEntries`
+- **Alternatives:** permissive placeholder rules for those collections now.
+- **Reason:** their shapes aren't designed yet. Loose placeholder rules are a
+  security risk if forgotten, while deny-by-default is safe. Each collection
+  gets real rules and tests in the phase that builds it.
+
+### D22. Write "planners" in `/shared`, executed by both the app and the rules tests
+
+- **What:** functions such as `planAcceptInvite()` return SDK-free `WriteOp[]`
+  lists. The web app commits them through the metered batch. The rules tests
+  commit the exact same ops against the emulator, plus tampered variants.
+- **Reason:** the tests prove the app's real batches pass the rules, not
+  hand-written copies of them.
+
+### D23. Forms that write reset immediately (optimistic)
+
+- **What:** Firestore shows local writes instantly, but `commit()` resolves
+  only when the server acknowledges. Waiting for that before resetting a form
+  wiped input typed in the meantime. Forms now reset on submit, and a failure
+  shows a toast naming the item that failed.
+
+### D24. Rules mutation testing during development
+
+- **What:** each security property was checked by deliberately weakening the
+  rule and confirming a test fails:
+  - consumed invite
+  - last admin
+  - private-board visibility
+  - invite role equality
+  - `updatedAt` stamping
+  - viewer write
+  - `email_verified`
+
+  The invite role-equality check initially went uncaught, and a test was
+  added for it.
+
+### D25. Custom table renderer with TanStack Virtual, without TanStack Table (spec deviation)
+
+- **What:** the board table is a CSS-grid renderer with vertical
+  virtualisation (`@tanstack/react-virtual`). Each row is a flattened entry:
+  group header, column header, item, add-item row, or gap.
+- **Alternatives:** TanStack Table, as the spec suggests.
+- **Reason:** we would have overridden almost everything TanStack Table does:
+  - grouping is by our own groups
+  - filtering, sorting and summaries come from per-view config logic that
+    lives in `/shared`, so it can be tested and reused by the Kanban and
+    Calendar views
+  - there are per-group header rows
+
+  Skipping it saves ~15 KB gzip and a layer of indirection.
+
+### D26. Group collapse state stays on the device, not on the board doc
+
+- **Reason:** collapsing is a personal view preference. Writing it to the board
+  doc would bill a read to every connected user's sidebar listener (see D6).
+
+### D27. Board-content writes check the board's state _after_ the request (`getAfter`)
+
+- **Reason:** a board and its first items, view and counter are created in one
+  atomic batch when built from a template. The board doesn't exist before the
+  batch, so `get()` would deny. Reads still use `get()`.
+- **Cost:** none extra; the same one document is read.
+
+### D28. Date values are stored as `YYYY-MM-DD` strings
+
+- **Reason:** dates in household admin are all-day ("bill due 15 March"). Using
+  plain strings avoids timezone shifts between devices. Timeline values are
+  `{ start, end }` in the same format.
+
+### D29. Favourites and folders moved from 2a to 2b
+
+- **Reason:** keeps 2a focused on a working board. Both need per-user settings
+  sync, which fits better with the other 2b view-state work.

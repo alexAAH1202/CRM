@@ -1,0 +1,485 @@
+rules_version = '2';
+
+// =============================================================================
+// Security model: see docs/DATA_MODEL.md ("Security model summary").
+//
+// * Deny by default. Collections whose shapes belong to later phases (updates,
+//   automations, automationRuns, activity, scheduledEvents, dashboards,
+//   timeEntries) stay denied until that phase adds rules + tests.
+// * One membership get() per request; board content adds one board get().
+// * Numeric limits mirror shared/src/constants.ts (tests import those constants).
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------- helpers
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function verified() {
+      return signedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isString(v, min, max) {
+      return v is string && v.size() >= min && v.size() <= max;
+    }
+
+    function isNullableString(v, max) {
+      return v == null || (v is string && v.size() <= max);
+    }
+
+    function isList(v, maxItems) {
+      return v is list && v.size() <= maxItems;
+    }
+
+    function wsPath(wid) {
+      return /databases/$(database)/documents/workspaces/$(wid);
+    }
+
+    function memberPath(wid, uid) {
+      return /databases/$(database)/documents/workspaces/$(wid)/members/$(uid);
+    }
+
+    function invitePath(wid, email) {
+      return /databases/$(database)/documents/workspaces/$(wid)/invites/$(email);
+    }
+
+    function boardPath(wid, bid) {
+      return /databases/$(database)/documents/workspaces/$(wid)/boards/$(bid);
+    }
+
+    // The caller's role in a workspace, or null when not a member.
+    // exists() + get() on the same path are one billed read (cached per request).
+    function myRole(wid) {
+      return signedIn() && exists(memberPath(wid, request.auth.uid))
+        ? get(memberPath(wid, request.auth.uid)).data.role
+        : null;
+    }
+
+    function isMember(wid) {
+      return myRole(wid) != null;
+    }
+
+    function isAdmin(wid) {
+      return myRole(wid) == 'admin';
+    }
+
+    function canEdit(wid) {
+      return myRole(wid) in ['admin', 'member'];
+    }
+
+    function validRole(r) {
+      return r in ['admin', 'member', 'viewer'];
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Board visibility (decision D2: Admins see every private board).
+    function canSeeBoardData(wid, board) {
+      return isAdmin(wid)
+        || (isMember(wid)
+            && (board.visibility == 'main' || request.auth.uid in board.memberIds));
+    }
+
+    function canSeeBoard(wid, bid) {
+      return canSeeBoardData(wid, get(boardPath(wid, bid)).data);
+    }
+
+    // Writes check the board as it will be *after* the request, so a board and
+    // its first items/view/counter can be created in one batch (templates).
+    function canEditBoard(wid, bid) {
+      return canEdit(wid)
+        && existsAfter(boardPath(wid, bid))
+        && canSeeBoardData(wid, getAfter(boardPath(wid, bid)).data);
+    }
+
+    // ------------------------------------------------------------------ users
+
+    match /users/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(
+             ['displayName', 'email', 'photoURL', 'lastWorkspaceId', 'settings'])
+        && isString(request.resource.data.displayName, 0, 120)
+        && isString(request.resource.data.email, 0, 254)
+        && isNullableString(request.resource.data.photoURL, 2048)
+        && isNullableString(request.resource.data.lastWorkspaceId, 128)
+        && request.resource.data.settings is map;
+    }
+
+    // -------------------------------------------------------------- appConfig
+
+    // Allowlist of emails that may create workspaces (decision D3). Console-only writes.
+    match /appConfig/workspaceCreators {
+      allow get: if verified() && myEmail() in resource.data.emails;
+    }
+
+    // ------------------------------------------------- collection-group reads
+
+    // "My workspaces": collection-group query on members where uid == me.
+    match /{path=**}/members/{memberUid} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // "My invites": collection-group query on invites where email == my verified email.
+    match /{path=**}/invites/{inviteEmail} {
+      allow read: if verified() && resource.data.email == myEmail();
+    }
+
+    // ------------------------------------------------------------- workspaces
+
+    match /workspaces/{wid} {
+
+      function validSettings(s) {
+        return s is map
+          && s.keys().hasOnly(['capacityHoursPerWeek', 'weekStart', 'timezone'])
+          && s.capacityHoursPerWeek is number
+          && s.capacityHoursPerWeek >= 0 && s.capacityHoursPerWeek <= 168
+          && s.weekStart in [0, 1]
+          && isString(s.timezone, 1, 64);
+      }
+
+      // adminUids may change by at most one uid per write, and every change must
+      // match that member's role *after* the batch. Never empty.
+      function adminUidsConsistent() {
+        let before = resource.data.adminUids;
+        let after = request.resource.data.adminUids;
+        let added = after.removeAll(before);
+        let removed = before.removeAll(after);
+        return after is list
+          && after.size() >= 1
+          && after.size() <= 50
+          && added.size() + removed.size() <= 1
+          && (added.size() == 0
+              || getAfter(memberPath(wid, added[0])).data.role == 'admin')
+          && (removed.size() == 0
+              || !existsAfter(memberPath(wid, removed[0]))
+              || getAfter(memberPath(wid, removed[0])).data.role != 'admin');
+      }
+
+      allow read: if isMember(wid);
+
+      allow create: if verified()
+        && myEmail() in get(/databases/$(database)/documents/appConfig/workspaceCreators).data.emails
+        && request.resource.data.keys().hasOnly(
+             ['name', 'createdBy', 'createdAt', 'adminUids', 'driveFolderId', 'settings'])
+        && isString(request.resource.data.name, 1, 80)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.adminUids == [request.auth.uid]
+        && request.resource.data.driveFolderId == null
+        && validSettings(request.resource.data.settings)
+        && getAfter(memberPath(wid, request.auth.uid)).data.role == 'admin';
+
+      // Admin edits: name, settings, admin list (consistency-checked).
+      // driveFolderId is written only by the Apps Script helper (IAM, bypasses rules).
+      allow update: if (
+          isAdmin(wid)
+          && changedKeys().hasOnly(['name', 'settings', 'adminUids'])
+          && isString(request.resource.data.name, 1, 80)
+          && validSettings(request.resource.data.settings)
+          && adminUidsConsistent()
+        ) || (
+          // An invitee accepting an *admin* invite adds exactly themselves.
+          verified()
+          && changedKeys().hasOnly(['adminUids'])
+          && request.resource.data.adminUids.removeAll(resource.data.adminUids) == [request.auth.uid]
+          && resource.data.adminUids.removeAll(request.resource.data.adminUids).size() == 0
+          && get(invitePath(wid, myEmail())).data.role == 'admin'
+          && getAfter(memberPath(wid, request.auth.uid)).data.role == 'admin'
+        );
+
+      allow delete: if false;
+
+      // ---------------------------------------------------------- members
+
+      match /members/{memberUid} {
+
+        function validMemberDoc(d) {
+          return d.keys().hasOnly(['uid', 'role', 'email', 'displayName', 'photoURL', 'joinedAt'])
+            && d.uid == memberUid
+            && validRole(d.role)
+            && isString(d.email, 3, 254)
+            && isString(d.displayName, 0, 120)
+            && isNullableString(d.photoURL, 2048);
+        }
+
+        // Role and adminUids must agree after the batch.
+        function adminListMatches(role) {
+          return (role == 'admin') == (memberUid in getAfter(wsPath(wid)).data.adminUids);
+        }
+
+        allow read: if isMember(wid);
+
+        allow create: if signedIn()
+          && memberUid == request.auth.uid
+          && validMemberDoc(request.resource.data)
+          && request.resource.data.joinedAt == request.time
+          && (
+            // (a) Workspace creator bootstrapping themselves as the first Admin.
+            (
+              !exists(wsPath(wid))
+              && getAfter(wsPath(wid)).data.createdBy == request.auth.uid
+              && request.resource.data.role == 'admin'
+              && request.resource.data.email == request.auth.token.email.lower()
+            )
+            ||
+            // (b) Accepting an invite: verified email, same role, invite consumed.
+            (
+              verified()
+              && request.resource.data.email == myEmail()
+              && exists(invitePath(wid, myEmail()))
+              && get(invitePath(wid, myEmail())).data.role == request.resource.data.role
+              && !existsAfter(invitePath(wid, myEmail()))
+              && adminListMatches(request.resource.data.role)
+            )
+          );
+
+        allow update: if (
+            // Admin changes someone's role (adminUids kept in sync in the same batch).
+            isAdmin(wid)
+            && changedKeys().hasOnly(['role'])
+            && validRole(request.resource.data.role)
+            && adminListMatches(request.resource.data.role)
+          ) || (
+            // A member refreshes their own profile copy.
+            memberUid == request.auth.uid
+            && isMember(wid)
+            && changedKeys().hasOnly(['displayName', 'photoURL'])
+            && validMemberDoc(request.resource.data)
+          );
+
+        // Admin removes someone, or a member leaves. An admin leaving/removed must
+        // also leave adminUids (and the workspace rule forbids emptying it).
+        allow delete: if (isAdmin(wid) || (memberUid == request.auth.uid && isMember(wid)))
+          && !(memberUid in getAfter(wsPath(wid)).data.adminUids);
+      }
+
+      // ---------------------------------------------------------- invites
+
+      match /invites/{inviteEmail} {
+
+        allow read: if isAdmin(wid)
+          || (verified() && inviteEmail == myEmail());
+
+        allow create: if isAdmin(wid)
+          && request.resource.data.keys().hasOnly(
+               ['email', 'role', 'workspaceName', 'invitedBy', 'createdAt'])
+          && inviteEmail == inviteEmail.lower()
+          && isString(inviteEmail, 3, 254)
+          && inviteEmail.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+          && request.resource.data.email == inviteEmail
+          && validRole(request.resource.data.role)
+          && isString(request.resource.data.workspaceName, 1, 80)
+          && request.resource.data.invitedBy == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if isAdmin(wid)
+          && changedKeys().hasOnly(['role'])
+          && validRole(request.resource.data.role);
+
+        // Admin revokes; invitee declines or consumes it while accepting.
+        allow delete: if isAdmin(wid)
+          || (verified() && inviteEmail == myEmail());
+      }
+
+      // ---------------------------------------------------------- folders
+
+      match /folders/{fid} {
+        allow read: if isMember(wid);
+        allow create: if canEdit(wid)
+          && request.resource.data.keys().hasOnly(['name', 'order', 'createdBy', 'createdAt'])
+          && isString(request.resource.data.name, 1, 200)
+          && isString(request.resource.data.order, 1, 64)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow update: if canEdit(wid)
+          && changedKeys().hasOnly(['name', 'order'])
+          && isString(request.resource.data.name, 1, 200)
+          && isString(request.resource.data.order, 1, 64);
+        allow delete: if canEdit(wid);
+      }
+
+      // ----------------------------------------------------------- boards
+
+      match /boards/{bid} {
+
+        function validBoard(d) {
+          return d.keys().hasOnly([
+                'name', 'description', 'folderId', 'order', 'visibility', 'memberIds',
+                'columns', 'groups', 'schemaVersion', 'archived',
+                'createdBy', 'createdAt', 'updatedAt'])
+            && isString(d.name, 1, 200)
+            && isString(d.description, 0, 5000)
+            && isNullableString(d.folderId, 128)
+            && isString(d.order, 1, 64)
+            && d.visibility in ['main', 'private']
+            && isList(d.memberIds, 50)
+            && (d.visibility == 'main' || d.memberIds.size() >= 1)
+            && isList(d.columns, 100)
+            && isList(d.groups, 100)
+            && d.schemaVersion is int
+            && d.archived is bool
+            && d.updatedAt == request.time;
+        }
+
+        // Single-doc reads use the doc itself; list queries must constrain
+        // visibility == 'main' or memberIds array-contains me (admins: any).
+        allow read: if canSeeBoardData(wid, resource.data);
+
+        allow create: if canEdit(wid)
+          && validBoard(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && (request.resource.data.visibility == 'main'
+              || request.auth.uid in request.resource.data.memberIds);
+
+        allow update: if canEdit(wid)
+          && canSeeBoardData(wid, resource.data)
+          && validBoard(request.resource.data)
+          && !changedKeys().hasAny(['createdBy', 'createdAt'])
+          // Only the board's creator or an Admin may change who can see it.
+          && (!changedKeys().hasAny(['visibility', 'memberIds'])
+              || isAdmin(wid) || resource.data.createdBy == request.auth.uid);
+
+        allow delete: if isAdmin(wid)
+          || (canEdit(wid) && resource.data.createdBy == request.auth.uid);
+
+        // ------------------------------------------------------ items
+
+        match /items/{iid} {
+
+          function validItem(d) {
+            return d.keys().hasOnly([
+                  'name', 'groupId', 'order', 'parentId', 'itemNumber', 'values',
+                  'assigneeUids', 'reminderKeys', 'archived', 'deletedAt',
+                  'createdBy', 'createdAt', 'updatedBy', 'updatedAt'])
+              && isString(d.name, 0, 500)
+              && isString(d.groupId, 1, 64)
+              && isString(d.order, 1, 64)
+              && isNullableString(d.parentId, 128)
+              && d.itemNumber is int
+              && d.values is map
+              && isList(d.assigneeUids, 100)
+              && isList(d.reminderKeys, 50)
+              && d.archived is bool
+              && (d.deletedAt == null || d.deletedAt is timestamp)
+              && d.updatedBy == request.auth.uid
+              // Delta sync (decision D5) depends on this.
+              && d.updatedAt == request.time;
+          }
+
+          allow read: if canSeeBoard(wid, bid);
+
+          allow create: if canEditBoard(wid, bid)
+            && validItem(request.resource.data)
+            && request.resource.data.createdBy == request.auth.uid
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.deletedAt == null;
+
+          allow update: if canEditBoard(wid, bid)
+            && validItem(request.resource.data)
+            && !changedKeys().hasAny(['createdBy', 'createdAt', 'itemNumber'])
+            && (!changedKeys().hasAny(['deletedAt'])
+                || request.resource.data.deletedAt == null
+                || request.resource.data.deletedAt == request.time);
+
+          // Hard delete: Admins only (normal deletes are tombstones).
+          allow delete: if isAdmin(wid);
+        }
+
+        // ------------------------------------------------------ views
+
+        match /views/{vid} {
+          allow read: if canSeeBoard(wid, bid);
+          allow create, update: if canEditBoard(wid, bid)
+            && request.resource.data.keys().hasOnly(
+                 ['type', 'name', 'order', 'config', 'createdBy', 'updatedAt'])
+            && request.resource.data.type in
+                 ['table', 'kanban', 'calendar', 'gantt', 'workload', 'chart', 'form']
+            && isString(request.resource.data.name, 1, 80)
+            && isString(request.resource.data.order, 1, 64)
+            && request.resource.data.config is map
+            && request.resource.data.updatedAt == request.time
+            && (resource == null
+                ? request.resource.data.createdBy == request.auth.uid
+                : request.resource.data.createdBy == resource.data.createdBy);
+          allow delete: if isAdmin(wid) || canEditBoard(wid, bid);
+        }
+
+        // ------------------------------------------- item number counter
+
+        match /meta/counter {
+          allow read: if canEditBoard(wid, bid);
+          allow create: if canEditBoard(wid, bid)
+            && request.resource.data.keys().hasOnly(['next'])
+            && request.resource.data.next is int
+            && request.resource.data.next >= 1
+            && request.resource.data.next <= 501;
+          allow update: if canEditBoard(wid, bid)
+            && request.resource.data.keys().hasOnly(['next'])
+            && request.resource.data.next is int
+            && request.resource.data.next > resource.data.next
+            && request.resource.data.next <= resource.data.next + 500;
+          // Only when an admin deletes the whole board.
+          allow delete: if isAdmin(wid);
+        }
+      }
+
+      // ---------------------------------------------------- notifications
+
+      match /notifications/{recipient}/items/{nid} {
+        allow read, delete: if signedIn()
+          && request.auth.uid == recipient
+          && isMember(wid);
+
+        // Any editor may notify another member (mentions, assignments).
+        allow create: if canEdit(wid)
+          && exists(memberPath(wid, recipient))
+          && request.resource.data.keys().hasOnly(
+               ['type', 'title', 'body', 'link', 'actor', 'read', 'createdAt'])
+          && request.resource.data.type in
+               ['mention', 'assignment', 'automation', 'due', 'invite', 'system']
+          && isString(request.resource.data.title, 1, 200)
+          && isString(request.resource.data.body, 0, 1000)
+          && isString(request.resource.data.link, 0, 500)
+          && request.resource.data.actor == request.auth.uid
+          && request.resource.data.read == false
+          && request.resource.data.createdAt == request.time;
+
+        // Recipient may only toggle read state.
+        allow update: if signedIn()
+          && request.auth.uid == recipient
+          && isMember(wid)
+          && changedKeys().hasOnly(['read'])
+          && request.resource.data.read is bool;
+      }
+
+      // ------------------------------------------------------- timers
+
+      // One running timer per user per workspace (doc id = uid).
+      match /timers/{tuid} {
+        allow read, delete: if signedIn() && request.auth.uid == tuid && isMember(wid);
+        allow create, update: if signedIn()
+          && request.auth.uid == tuid
+          && canEdit(wid)
+          && request.resource.data.keys().hasOnly(['boardId', 'itemId', 'columnId', 'startedAt'])
+          && isString(request.resource.data.boardId, 1, 128)
+          && isString(request.resource.data.itemId, 1, 128)
+          && isString(request.resource.data.columnId, 1, 64)
+          && request.resource.data.startedAt == request.time;
+      }
+    }
+  }
+}

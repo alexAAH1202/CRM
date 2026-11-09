@@ -1,0 +1,7 @@
+node_modules
+dist
+firebase/public
+coverage
+package-lock.json
+firebase/emulator-data
+PROJECT_SPEC.md
