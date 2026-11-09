@@ -4,16 +4,16 @@ import { permissionErrors, signedInPage } from './helpers';
 
 const run = Date.now().toString(36);
 
-test('bulk “set value” fires the board’s automations for every selected item', async ({
+test('bulk “set value” fires the list’s automations for every selected item', async ({
   browser,
 }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Bulk ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`Bulk ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('button', { name: 'Choose a template' }).click();
   await ada.getByRole('radio', { name: /Household chores/ }).click();
-  await ada.getByRole('button', { name: 'Create board' }).click();
+  await ada.getByRole('button', { name: 'Create list' }).click();
   await expect(ada.getByRole('grid')).toBeVisible();
 
   // Recipe: stamp “Last done” when status becomes Done

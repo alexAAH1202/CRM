@@ -216,7 +216,7 @@ export function convertCell(
         if (m) uids.push(m.uid);
         else unknown.push(part);
       }
-      if (unknown.length) return bad(`nobody in this workspace called “${unknown.join('”, “')}”`);
+      if (unknown.length) return bad(`nobody in this household called “${unknown.join('”, “')}”`);
       return checked(uids, 'nobody matched');
     }
     case 'checkbox': {

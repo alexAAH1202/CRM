@@ -35,7 +35,7 @@ function WorkspaceSwitcher() {
 
   return (
     <Popover
-      label="Switch workspace"
+      label="Switch household"
       className="w-64"
       trigger={(p) => (
         <button
@@ -58,7 +58,7 @@ function WorkspaceSwitcher() {
       )}
     >
       {(close) => (
-        <nav aria-label="Workspaces" className="flex flex-col">
+        <nav aria-label="Households" className="flex flex-col">
           {workspaces.map((w) => (
             <Link
               key={w.id}
@@ -87,7 +87,7 @@ function WorkspaceSwitcher() {
               onClick={close}
               className="mt-1 flex items-center gap-2 rounded-lg border-t border-border px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-2"
             >
-              <Plus size={16} aria-hidden /> New workspace
+              <Plus size={16} aria-hidden /> New household
             </Link>
           )}
         </nav>
@@ -118,7 +118,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <NotificationBell />
       </div>
       <WorkspaceSwitcher />
-      <nav aria-label="Workspace" className="flex flex-col gap-1">
+      <nav aria-label="Household" className="flex flex-col gap-1">
         <button
           type="button"
           onClick={() => {

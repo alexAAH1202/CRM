@@ -55,7 +55,7 @@ export function BoardSettingsDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title="Board settings"
+      title="List settings"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -163,8 +163,8 @@ export function BoardSettingsDialog({
                 .then(() => {
                   toast.info(
                     board.archived
-                      ? 'Board restored'
-                      : 'Board archived — find it under “Archived” in the sidebar',
+                      ? 'List restored'
+                      : 'List archived — find it under “Archived” in the sidebar',
                   );
                   onClose();
                 })
@@ -176,7 +176,7 @@ export function BoardSettingsDialog({
             ) : (
               <Archive size={14} aria-hidden />
             )}
-            {board.archived ? 'Restore board' : 'Archive board'}
+            {board.archived ? 'Restore list' : 'Archive list'}
           </Button>
           <Button
             variant="secondary"
@@ -193,7 +193,7 @@ export function BoardSettingsDialog({
                   name: `${board.name} (copy)`,
                   lastOrder: all.at(-1)?.order ?? null,
                 });
-                toast.success('Board duplicated');
+                toast.success('List duplicated');
                 onClose();
                 navigate(`/w/${workspace.id}/b/${bid}`);
               } catch (err) {
@@ -203,7 +203,7 @@ export function BoardSettingsDialog({
               }
             }}
           >
-            <Copy size={14} aria-hidden /> {duplicating ? 'Duplicating…' : 'Duplicate board'}
+            <Copy size={14} aria-hidden /> {duplicating ? 'Duplicating…' : 'Duplicate list'}
           </Button>
           {role === 'admin' && (
             <Button

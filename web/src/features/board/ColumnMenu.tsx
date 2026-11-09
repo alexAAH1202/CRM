@@ -541,7 +541,7 @@ export function ColumnHeader({
         open={dialog === 'delete'}
         danger
         title={`Delete “${column.title}”?`}
-        body="The column is removed from the board. Values already stored on items are ignored."
+        body="The column is removed from the list. Values already stored on items are ignored."
         confirmLabel="Delete column"
         onClose={() => setDialog(null)}
         onConfirm={onDelete}

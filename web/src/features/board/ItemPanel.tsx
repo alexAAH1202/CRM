@@ -145,7 +145,7 @@ export function ItemPanel({
           {tab === 'files' &&
             (fileCols.length === 0 ? (
               <p className="text-sm text-muted">
-                This board has no Files column yet. Add one from the table’s “Add column” menu to
+                This list has no Files column yet. Add one from the table’s “Add column” menu to
                 attach links to files.
               </p>
             ) : (

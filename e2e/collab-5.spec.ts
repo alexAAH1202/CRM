@@ -8,8 +8,8 @@ test('updates with @mentions and replies, notifications inbox, assignments, muti
 }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`P5 ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`P5 ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('link', { name: 'Members' }).click();
   const bobEmail = `bob5-${run}@example.com`;
   await ada.getByLabel('Email').fill(bobEmail);
@@ -18,14 +18,14 @@ test('updates with @mentions and replies, notifications inbox, assignments, muti
   await expect(ada.getByText(bobEmail, { exact: true })).toBeVisible();
 
   const bob = await signedInPage(browser, bobEmail, 'Bob Builder');
-  await bob.getByRole('button', { name: 'Join workspace' }).click();
+  await bob.getByRole('button', { name: 'Join household' }).click();
   await expect(bob.getByRole('heading', { name: `P5 ${run}` })).toBeVisible();
 
   // Ada makes a chores board and opens "Dishes".
   await ada.getByRole('link', { name: 'Home' }).click();
   await ada.getByRole('button', { name: 'Choose a template' }).click();
   await ada.getByRole('radio', { name: /Household chores/ }).click();
-  await ada.getByRole('button', { name: 'Create board' }).click();
+  await ada.getByRole('button', { name: 'Create list' }).click();
   await expect(ada.getByRole('grid')).toBeVisible();
   await ada.getByRole('button', { name: 'Open Dishes' }).click({ force: true });
   const panel = ada.getByRole('dialog');

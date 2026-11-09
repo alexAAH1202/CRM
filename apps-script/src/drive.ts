@@ -77,11 +77,11 @@ export function ensureWorkspaceFolder(
     throw new HelperError('unavailable', 'The Drive folder hasn’t been set up for the helper.');
   const path = `workspaces/${wid}`;
   const ws = db.getDoc(path);
-  if (!ws) throw new HelperError('not_found', 'That workspace was not found.');
+  if (!ws) throw new HelperError('not_found', 'That household was not found.');
   const existing = ws.data['driveFolderId'];
   if (typeof existing === 'string' && existing) return existing;
 
-  const wsName = sanitizeFileName(ws.data['name'] ?? 'Workspace').slice(0, 80);
+  const wsName = sanitizeFileName(ws.data['name'] ?? 'Household').slice(0, 80);
   const made = driveJson<{ id: string }>(p, 'create folder', {
     url: `${DRIVE}/files?fields=id`,
     method: 'POST',

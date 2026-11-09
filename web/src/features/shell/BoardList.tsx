@@ -239,7 +239,7 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between px-3 pb-1">
-        <h2 className={cx(label, 'px-0')}>Boards</h2>
+        <h2 className={cx(label, 'px-0')}>Lists</h2>
         {canCreate && (
           <Popover
             label="Create"
@@ -249,8 +249,8 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
               <button
                 type="button"
                 {...p}
-                aria-label="New board or folder"
-                title="New board or folder"
+                aria-label="New list or folder"
+                title="New list or folder"
                 className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg"
               >
                 <Plus size={16} aria-hidden />
@@ -267,7 +267,7 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
                     setCreating(true);
                   }}
                 >
-                  <LayoutGrid size={14} aria-hidden /> New board
+                  <LayoutGrid size={14} aria-hidden /> New list
                 </button>
                 <button
                   type="button"
@@ -285,11 +285,11 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
         )}
       </div>
 
-      <nav aria-label="Boards" className="flex min-h-0 flex-col gap-0.5 overflow-y-auto pb-2">
+      <nav aria-label="Lists" className="flex min-h-0 flex-col gap-0.5 overflow-y-auto pb-2">
         {boards === null ? (
           <p className="px-3 py-2 text-sm text-muted">Loading…</p>
         ) : boards.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-muted">No boards yet.</p>
+          <p className="px-3 py-2 text-sm text-muted">No lists yet.</p>
         ) : (
           <>
             {favoriteBoards.length > 0 && (
@@ -335,7 +335,7 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
                     <div className="space-y-0.5 pl-3">
                       {inside.length === 0 ? (
                         <p className="px-3 py-1 text-xs text-muted">
-                          Empty — move boards here from Board settings.
+                          Empty — move lists here from List settings.
                         </p>
                       ) : (
                         inside.map((b) => (
@@ -349,7 +349,7 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
             })}
 
             {loose.length > 0 && folders.length > 0 && (
-              <h3 className={cx(label, 'pt-2 pb-1')}>Other boards</h3>
+              <h3 className={cx(label, 'pt-2 pb-1')}>Other lists</h3>
             )}
             {loose.map((b) => (
               <BoardRow key={b.id} board={b} base={base} onNavigate={onNavigate} />
@@ -406,7 +406,7 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
         open={deleting !== null}
         danger
         title={`Delete folder “${deleting?.name}”?`}
-        body="Boards inside move back to the main list. Nothing else is deleted."
+        body="Lists inside move out of the folder into the main sidebar. Nothing else is deleted."
         confirmLabel="Delete folder"
         onClose={() => setDeleting(null)}
         onConfirm={async () => {

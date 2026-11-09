@@ -560,7 +560,7 @@ export function AutomationBuilder({
                   setTrigger({ ...t, scope: e.target.value === 'items' ? 'items' : 'board' })
                 }
               >
-                <option value="board">once for the board (add items, send a notification)</option>
+                <option value="board">once for the list (add items, send a notification)</option>
                 <option value="items">for each item that matches the conditions</option>
               </SelectField>
               <SelectField

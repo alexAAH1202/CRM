@@ -6,11 +6,11 @@ const run = Date.now().toString(36);
 test('activity log, My work and search', async ({ browser }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`P5b ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`P5b ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('button', { name: 'Choose a template' }).click();
   await ada.getByRole('radio', { name: /Household chores/ }).click();
-  await ada.getByRole('button', { name: 'Create board' }).click();
+  await ada.getByRole('button', { name: 'Create list' }).click();
   await expect(ada.getByRole('grid')).toBeVisible();
 
   // ---- Activity: a status change, a new item
@@ -27,7 +27,7 @@ test('activity log, My work and search', async ({ browser }) => {
   await expect(ada.getByRole('list', { name: 'Activity' })).toContainText('“Done”');
   await ada.keyboard.press('Escape');
 
-  await ada.getByRole('button', { name: 'Board activity' }).click();
+  await ada.getByRole('button', { name: 'List activity' }).click();
   const board = ada.getByRole('dialog', { name: /Activity on/ });
   await expect(board).toContainText('Water the plants');
   await expect(board).toContainText('created this item');
@@ -67,7 +67,7 @@ test('activity log, My work and search', async ({ browser }) => {
 
   // ---- Search (Ctrl+K): items from boards opened on this device, and boards
   await ada.keyboard.press('Control+k');
-  const search = ada.getByRole('combobox', { name: 'Search boards and items' });
+  const search = ada.getByRole('combobox', { name: 'Search lists and items' });
   await expect(search).toBeFocused();
   await search.fill('vacuum');
   await expect(ada.getByRole('option', { name: /Vacuum and mop/ })).toBeVisible();

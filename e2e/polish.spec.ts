@@ -3,23 +3,23 @@ import { permissionErrors, signedInPage } from './helpers';
 
 const run = Date.now().toString(36);
 
-test('empty-board guidance, inline status labels, recently deleted, due-toggle note, installable app', async ({
+test('empty-list guidance, inline status labels, recently deleted, due-toggle note, installable app', async ({
   browser,
 }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Polish ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`Polish ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('button', { name: 'Choose a template' }).click();
   await ada.getByRole('radio', { name: /Blank/ }).click();
-  await ada.getByRole('button', { name: 'Create board' }).click();
+  await ada.getByRole('button', { name: 'Create list' }).click();
   await expect(ada.getByRole('grid')).toBeVisible();
 
   // ---- A brand-new board explains how to add the first item
-  const hint = ada.getByRole('status').filter({ hasText: 'This board is empty' });
+  const hint = ada.getByRole('status').filter({ hasText: 'This list is empty' });
   await expect(hint).toBeVisible();
   await ada.getByLabel('Add item to To do').fill('Pay rates');
-  await ada.getByRole('heading', { name: 'Blank board' }).click(); // click away saves it
+  await ada.getByRole('heading', { name: 'Blank list' }).click(); // click away saves it
   await expect(ada.getByRole('button', { name: 'Rename Pay rates' })).toBeVisible();
   await expect(hint).toHaveCount(0);
 

@@ -123,7 +123,7 @@ function loadBoard(db: FirestoreClient, wid: string, bid: string): BoardState | 
     wid,
     bid,
     tz: typeof settings['timezone'] === 'string' ? settings['timezone'] : DEFAULT_TIMEZONE,
-    boardName: String(board.data['name'] ?? 'Board'),
+    boardName: String(board.data['name'] ?? 'List'),
     columns: (Array.isArray(board.data['columns']) ? board.data['columns'] : []) as Column[],
     groups: (Array.isArray(board.data['groups']) ? board.data['groups'] : []) as Group[],
     automations,
@@ -448,7 +448,7 @@ function processEvent(p: Platform, db: FirestoreClient, b: BoardState, ev: Parse
     b.items = new Map(state);
     return failedRun ? 'failed' : nothingRan ? 'skipped' : 'fired';
   }
-  throw new HelperError('unavailable', 'The board was busy; will retry.');
+  throw new HelperError('unavailable', 'The list was busy; will retry.');
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -473,7 +473,7 @@ export function rebuildSchedule(
   workspaceId: string,
 ): RebuildSummary {
   const ws = db.getDoc(`workspaces/${workspaceId}`);
-  if (!ws) throw new HelperError('not_found', 'Workspace not found.');
+  if (!ws) throw new HelperError('not_found', 'Household not found.');
   const tz =
     typeof (ws.data['settings'] as Record<string, unknown> | undefined)?.['timezone'] === 'string'
       ? ((ws.data['settings'] as Record<string, unknown>)['timezone'] as string)

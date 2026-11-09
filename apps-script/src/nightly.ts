@@ -70,7 +70,7 @@ const parse = <T>(s: string | null): T | null => {
 
 /** What the admin card shows: did the tidy-up, backup and digest run, and did anything go wrong. */
 export function maintenanceStatus(p: Platform, workspaceId: string): MaintenanceStatus {
-  if (!workspaceId) throw new HelperError('bad_request', 'A workspace is required.');
+  if (!workspaceId) throw new HelperError('bad_request', 'A household is required.');
   const n = parse<{ at: string } & NightlyReport>(p.prop(NIGHTLY_PROP));
   const d = parse<{ at: string } & DigestSummary>(p.prop(DIGEST_PROP));
   const last = lastBackups(p)[workspaceId];

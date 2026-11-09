@@ -436,7 +436,7 @@ export function BoardToolbar({
             {(close) => (
               <div role="radiogroup" aria-label="Group by" className="flex flex-col">
                 {[
-                  { id: null as string | null, title: 'Board groups (default)' },
+                  { id: null as string | null, title: 'List groups (default)' },
                   ...groupable.map((c) => ({ id: c.id as string | null, title: c.title })),
                 ].map((o) => (
                   <button
@@ -521,14 +521,14 @@ export function BoardToolbar({
         <span className="text-xs text-muted">View-only: your changes stay on this device.</span>
       )}
 
-      <label className="ml-auto flex h-9 items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm focus-within:border-primary">
+      <label className="flex h-9 w-full items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm focus-within:border-primary sm:ml-auto sm:w-auto">
         <Search size={14} aria-hidden className="text-muted" />
         <span className="sr-only">Search items</span>
         <input
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           placeholder="Search"
-          className="w-32 bg-transparent outline-none sm:w-48"
+          className="min-w-0 flex-1 bg-transparent outline-none sm:w-48 sm:flex-none"
         />
       </label>
     </div>

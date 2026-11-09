@@ -65,7 +65,7 @@ function Chip({
         else listeners?.['onKeyDown']?.(e);
       }}
       className={cx(
-        'cursor-grab truncate rounded-md bg-primary-soft px-1.5 py-0.5 text-xs font-semibold text-primary hover:ring-1 hover:ring-primary',
+        'cursor-grab truncate rounded-md bg-primary-soft px-1 py-0.5 text-[10px] font-semibold text-primary hover:ring-1 hover:ring-primary sm:px-1.5 sm:text-xs',
         isDragging && 'opacity-50',
       )}
     >
@@ -100,8 +100,8 @@ function DayCell({
       role="gridcell"
       aria-label={format(d, 'EEEE d MMMM')}
       className={cx(
-        'group flex flex-col gap-1 border-t border-l border-border p-1',
-        tall ? 'min-h-64' : 'min-h-24',
+        'group flex min-w-0 flex-col gap-1 border-t border-l border-border p-0.5 sm:p-1',
+        tall ? 'min-h-64' : 'min-h-16 sm:min-h-24',
         !inMonth && 'bg-surface-2',
         isOver && 'bg-primary-soft',
       )}
@@ -120,7 +120,7 @@ function DayCell({
             type="button"
             aria-label={`Add item on ${format(d, 'd MMMM')}`}
             onClick={() => setAdding(true)}
-            className="ml-auto rounded p-0.5 text-muted opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-surface-3"
+            className="ml-auto rounded p-0.5 text-muted opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-surface-3 pointer-coarse:opacity-100 max-sm:hidden"
           >
             <Plus size={14} aria-hidden />
           </button>
@@ -251,10 +251,10 @@ export function CalendarView(p: ViewProps) {
         <Button variant="secondary" size="sm" onClick={() => setAnchor(today)}>
           Today
         </Button>
-        <h2 className="mx-2 pb-1 text-lg font-bold" aria-live="polite">
+        <h2 className="mx-1 pb-1 text-base font-bold sm:mx-2 sm:text-lg" aria-live="polite">
           {title}
         </h2>
-        <div className="ml-auto flex items-end gap-2">
+        <div className="flex w-full items-end gap-2 sm:ml-auto sm:w-auto">
           <SelectField
             label="Show by"
             value={col.id}
@@ -296,14 +296,14 @@ export function CalendarView(p: ViewProps) {
           <div
             role="grid"
             aria-label={title}
-            className="min-w-[44rem] flex-1 border-r border-b border-border"
+            className="min-w-0 flex-1 border-r border-b border-border sm:min-w-[44rem]"
           >
             <div role="row" className="grid grid-cols-7">
               {WEEKDAYS.map((d) => (
                 <div
                   key={d}
                   role="columnheader"
-                  className="border-t border-l border-border bg-surface-2 px-2 py-1 text-xs font-bold text-muted"
+                  className="border-t border-l border-border bg-surface-2 px-1 py-1 text-[10px] font-bold text-muted sm:px-2 sm:text-xs"
                 >
                   {d}
                 </div>

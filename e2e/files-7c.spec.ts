@@ -74,12 +74,12 @@ async function mockHelper(page: Page, opts: { failFirstChunk?: boolean } = {}) {
 async function boardWithFiles(page: Page) {
   await page.goto('/new');
   await page
-    .getByLabel('Workspace name')
+    .getByLabel('Household name')
     .fill(`Files ${run} ${Math.random().toString(36).slice(2, 5)}`);
-  await page.getByRole('button', { name: 'Create workspace' }).click();
+  await page.getByRole('button', { name: 'Create household' }).click();
   await page.getByRole('button', { name: 'Choose a template' }).click();
   await page.getByRole('radio', { name: /Bills & subscriptions/ }).click();
-  await page.getByRole('button', { name: 'Create board' }).click();
+  await page.getByRole('button', { name: 'Create list' }).click();
   await expect(page.getByRole('grid')).toBeVisible();
   await page.getByRole('button', { name: 'Add column' }).first().click();
   await page
@@ -160,8 +160,8 @@ test('a new member’s join asks the helper to share the Drive folder; admins ca
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   const log = await mockHelper(ada);
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Share ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`Share ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('link', { name: 'Members' }).click();
   const card = ada.getByRole('region', { name: 'Sorted helper' });
   await card.getByRole('button', { name: 'Sync Drive access now' }).click();

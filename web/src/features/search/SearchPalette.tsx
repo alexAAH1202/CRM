@@ -87,7 +87,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
       key: `b:${b.id}`,
       kind: 'board',
       title: b.name,
-      sub: b.archived ? 'Archived board' : 'Board',
+      sub: b.archived ? 'Archived list' : 'List',
       to: `/w/${workspace.id}/b/${b.id}`,
     }));
     return [
@@ -109,11 +109,11 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
           ref={input}
           autoFocus
           role="combobox"
-          aria-label="Search boards and items"
+          aria-label="Search lists and items"
           aria-expanded={hits.length > 0}
           aria-controls={listId}
           aria-activedescendant={hits.length ? `${listId}-${active}` : undefined}
-          placeholder="Search boards and items…"
+          placeholder="Search lists and items…"
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
@@ -159,8 +159,8 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
       )}
       <p className="mt-3 text-xs text-muted">
         {searched === null
-          ? 'Looking through this device’s boards…'
-          : `Items are searched in the ${searched} board${searched === 1 ? '' : 's'} you’ve opened on this device.`}
+          ? 'Looking through this device’s lists…'
+          : `Items are searched in the ${searched} list${searched === 1 ? '' : 's'} you’ve opened on this device.`}
       </p>
     </Modal>
   );

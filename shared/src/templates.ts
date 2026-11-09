@@ -400,7 +400,7 @@ const SPECS: TemplateSpec[] = [
   },
   {
     id: 'blank',
-    name: 'Blank board',
+    name: 'Blank list',
     emoji: '⬜',
     description: 'Start from scratch.',
     groups: [{ key: 'todo', name: 'To do', color: 'blue' }],

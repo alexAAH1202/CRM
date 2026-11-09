@@ -12,7 +12,7 @@ export const emailSchema = z
 export const workspaceNameSchema = z
   .string()
   .trim()
-  .min(1, 'Give your workspace a name')
+  .min(1, 'Give your household a name')
   .max(
     LIMITS.MAX_WORKSPACE_NAME_LENGTH,
     `Keep it under ${LIMITS.MAX_WORKSPACE_NAME_LENGTH} characters`,

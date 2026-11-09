@@ -65,14 +65,14 @@ export default function InvitesPage() {
               <li key={inv.workspaceId} className="space-y-4 rounded-3xl bg-surface p-5 shadow-sm">
                 <div className="space-y-1">
                   <p className="text-sm text-muted">You've been invited to join</p>
-                  <p className="text-lg font-bold">{inv.workspaceName || 'a workspace'}</p>
+                  <p className="text-lg font-bold">{inv.workspaceName || 'a household'}</p>
                   <div className="flex items-center gap-2 text-sm text-muted">
                     as <RoleBadge role={inv.role} /> <span>· {ROLE_DESCRIPTIONS[inv.role]}</span>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <Button disabled={busy !== null} onClick={() => void run(inv, 'accept')}>
-                    Join workspace
+                    Join household
                   </Button>
                   <Button
                     variant="ghost"

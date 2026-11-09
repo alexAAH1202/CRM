@@ -9,9 +9,9 @@ const cors = { 'access-control-allow-origin': '*', 'content-type': 'application/
 async function adminWorkspace(page: Page) {
   await page.goto('/new');
   await page
-    .getByLabel('Workspace name')
+    .getByLabel('Household name')
     .fill(`Helper ${run} ${Math.random().toString(36).slice(2, 5)}`);
-  await page.getByRole('button', { name: 'Create workspace' }).click();
+  await page.getByRole('button', { name: 'Create household' }).click();
   await page.getByRole('link', { name: 'Members' }).click();
 }
 
@@ -39,7 +39,7 @@ test('Helper status card: connected, out of date, refused, unreachable (with the
       return route.fulfill({ status: 204, headers: cors });
     if (mode === 'down') return route.abort('failed');
     if (mode === 'forbidden')
-      return route.fulfill(failure('forbidden', 'You are not a member of this workspace.'));
+      return route.fulfill(failure('forbidden', 'You are not a member of this household.'));
     return route.fulfill(
       reply({
         uid: 'u1',
@@ -74,7 +74,7 @@ test('Helper status card: connected, out of date, refused, unreachable (with the
   mode = 'forbidden';
   const before = seen.length;
   await card.getByRole('button', { name: 'Check again' }).click();
-  await expect(card.getByRole('alert')).toContainText('You are not a member of this workspace.');
+  await expect(card.getByRole('alert')).toContainText('You are not a member of this household.');
   await expect(card.getByRole('alert')).toContainText('forbidden');
   expect(seen.length - before).toBe(1);
 
@@ -109,11 +109,11 @@ test('Helper status card is for admins only: a viewer does not see it, and the h
     if (action !== 'syncFolderSharing') calls++;
     return route.fulfill(failure('forbidden', 'no'));
   });
-  await vi.getByRole('button', { name: 'Join workspace' }).click();
+  await vi.getByRole('button', { name: 'Join household' }).click();
   await vi.getByRole('link', { name: 'Members' }).click();
   await expect(
     vi
-      .getByRole('heading', { name: 'Workspace members' })
+      .getByRole('heading', { name: 'Household members' })
       .or(vi.getByText('Ada Lovelace', { exact: true })),
   ).toBeVisible();
   await expect(vi.getByRole('region', { name: 'Sorted helper' })).toHaveCount(0);

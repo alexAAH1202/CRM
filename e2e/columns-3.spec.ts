@@ -6,12 +6,12 @@ const run = Date.now().toString(36);
 async function freshBoard(page: Page, template: RegExp, title: string) {
   await page.goto('/new');
   await page
-    .getByLabel('Workspace name')
+    .getByLabel('Household name')
     .fill(`P3 ${run} ${Math.random().toString(36).slice(2, 6)}`);
-  await page.getByRole('button', { name: 'Create workspace' }).click();
+  await page.getByRole('button', { name: 'Create household' }).click();
   await page.getByRole('button', { name: 'Choose a template' }).click();
   await page.getByRole('radio', { name: template }).click();
-  await page.getByRole('button', { name: 'Create board' }).click();
+  await page.getByRole('button', { name: 'Create list' }).click();
   await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
   await expect(page.getByRole('grid')).toBeVisible();
 }

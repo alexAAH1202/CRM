@@ -764,3 +764,29 @@ me` query per board I can see (only matching items are billed, plus one read per
   created items). Undo and redo themselves never trigger automations and are not new history.
 - The keyboard shortcuts stand aside while you are typing in a field (it has its own undo) or have a
   dialog open, and viewers don't get the buttons.
+
+### D88. Everyday words: "household" and "list", not "workspace" and "board"
+
+- What people see: a **household** (was workspace) holds **lists** (was boards): "Create your
+  household", "Join household", "Household members", "New list", "List settings", "Search lists and
+  items", "Lists" in the sidebar. Items, folders, views, columns and groups keep their names.
+- Only the words on screen changed (labels, messages, notifications from the helper, template and
+  default names). Code, database paths (`workspaces/…/boards/…`), URLs (`/w/…/b/…`), types and
+  function names are unchanged, so nothing stored or linked needs migrating. Unit-test titles and
+  code comments still say board/workspace.
+- The change was made with a script that only touches string literals and on-screen text (never
+  paths, identifiers or comments); changing the words again is the same exercise. The end-to-end
+  tests were updated to the new labels.
+
+### D89. Phone layout
+
+- Board header: the title has its own row; the action buttons are one swipeable row beneath it (from
+  tablet width up they sit beside the title as before). View tabs are one swipeable row. The search
+  box is full width.
+- Table: the item-name column takes about 60% of the screen (190–260px) and is stripped of what
+  needs a mouse: the drag grip, the empty expand arrow, the pencil and the open-panel button. A
+  **tap on a name opens the item** (rename it there); on a mouse, a click still renames in place.
+  The row's ⋯ menu (add subitem, duplicate, move, archive, delete) and the checkbox are always
+  visible on touch screens.
+- Calendar fits the screen (no sideways scrolling); compact day cells and event chips, and the
+  month's "+" buttons are left to larger screens.

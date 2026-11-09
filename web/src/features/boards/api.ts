@@ -334,7 +334,7 @@ async function writeCellReversal(
   changes: CellChange[],
 ) {
   const rt = runtimeFor(bid);
-  if (!rt) throw new UndoConflict('open the board to do that.');
+  if (!rt) throw new UndoConflict('open the list to do that.');
   const column = rt.board.columns.find((c) => c.id === columnId);
   if (!column) throw new UndoConflict('that column no longer exists.');
   const r = planCellReversal({
@@ -607,7 +607,7 @@ function reposition(
   moves: Array<{ id: string; from: Position; to: Position; childIds: string[] }>,
 ) {
   const rt = runtimeFor(bid);
-  if (!rt) throw new UndoConflict('open the board to do that.');
+  if (!rt) throw new UndoConflict('open the list to do that.');
   const ops: WriteOp[] = [];
   for (const m of moves) {
     const cur = rt.items.get(m.id);

@@ -28,7 +28,7 @@ export default function WorkspaceHomePage() {
           )}
           {canCreate && (
             <Button onClick={() => setCreating(true)}>
-              <Plus size={16} aria-hidden /> New board
+              <Plus size={16} aria-hidden /> New list
             </Button>
           )}
         </div>
@@ -43,7 +43,7 @@ export default function WorkspaceHomePage() {
       ) : boards.length === 0 ? (
         <EmptyState
           icon={<LayoutGrid size={28} />}
-          title="Create your first board"
+          title="Create your first list"
           body={
             <>
               Start from a template like{' '}

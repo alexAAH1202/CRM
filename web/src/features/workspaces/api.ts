@@ -54,7 +54,7 @@ export async function loadMyWorkspaces(uid: string): Promise<MyWorkspace[]> {
       if (!wsRef || !isRole(role)) return null;
       try {
         const ws = await readDoc('workspace:name', doc(db, wsRef.path));
-        return { id: wsRef.id, name: String(ws.data()?.['name'] ?? 'Workspace'), role };
+        return { id: wsRef.id, name: String(ws.data()?.['name'] ?? 'Household'), role };
       } catch {
         return null;
       }
