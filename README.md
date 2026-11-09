@@ -20,6 +20,7 @@ on free tiers: the Firebase Spark plan plus a Google Apps Script helper.
 - Data model: [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)
 - Quota budget: [`docs/QUOTA_BUDGET.md`](docs/QUOTA_BUDGET.md)
 - Decisions log: [`docs/DECISIONS.md`](docs/DECISIONS.md)
+- Backlog: [`docs/BACKLOG.md`](docs/BACKLOG.md)
 
 ## Status
 
