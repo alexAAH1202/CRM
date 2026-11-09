@@ -10,6 +10,10 @@ import {
   normalizeValue,
   isComputedType,
   cleanValues,
+  type AutoEvent,
+  type CellChange,
+  planCellReversal,
+  UndoConflict,
   type EngineItem,
   cellActivity,
   type ActivityData,
@@ -47,7 +51,9 @@ import { collection, doc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import {
   addAutomationOps,
+  addAutomationOpsMany,
   enabledAutomations,
+  MAX_BULK_AUTOMATION_ITEMS,
   runtimeFor,
   scheduleOpsFor,
   usesNumbering,
@@ -59,6 +65,8 @@ import {
   readQuery,
   runOpsTransaction,
 } from '../../lib/firestore';
+import { toast } from '../../stores/toast';
+import { saveWithUndo, type UndoEntry } from './undoStack';
 import type { Board, BoardItem } from './types';
 
 const newId = (path: string) => doc(collection(db, path)).id;
@@ -237,68 +245,170 @@ export function createItem(input: {
       .at(-1) ?? null;
   const order = keyBetween(base, null);
   lastIssuedOrder.set(slot, order);
-  return serialized(() =>
-    runOpsTransaction('item:create', async (get) => {
-      const counter = await get(doc(db, boardPaths.counter(input.wid, input.board.id)));
-      const next = (counter.data()?.['next'] as number | undefined) ?? input.fallbackNumber;
-      const ops = planCreateItem({
-        wid: input.wid,
-        bid: input.board.id,
-        iid,
-        uid: input.uid,
-        columns: input.board.columns,
-        counterExists: counter.exists(),
-        item: {
-          name: input.name,
+  // Undo removes it (a tombstone, like any delete); redo brings it back.
+  const entry: UndoEntry = {
+    label: `add “${clip(input.name.trim() || 'item')}”`,
+    undo: () =>
+      deleteItems(input.wid, input.board.id, input.uid, [iid], undefined, { quiet: true }),
+    redo: () => restoreItems(input.wid, input.board.id, input.uid, [iid]),
+  };
+  return saveWithUndo(
+    input.board.id,
+    entry,
+    serialized(() =>
+      runOpsTransaction('item:create', async (get) => {
+        const counter = await get(doc(db, boardPaths.counter(input.wid, input.board.id)));
+        const next = (counter.data()?.['next'] as number | undefined) ?? input.fallbackNumber;
+        const ops = planCreateItem({
+          wid: input.wid,
+          bid: input.board.id,
+          iid,
+          uid: input.uid,
+          columns: input.board.columns,
+          counterExists: counter.exists(),
+          item: {
+            name: input.name,
+            groupId: input.groupId,
+            order,
+            itemNumber: next,
+            parentId: input.parentId ?? null,
+            values: { ...defaultItemValues(input.board.columns), ...(input.values ?? {}) },
+          },
+        });
+        ops.push(activity(input.wid, input.board.id, input.uid, 'create', iid, input.name.trim()));
+        ops.push(
+          ...scheduleOpsFor(input.board.id, [
+            {
+              id: iid,
+              values: cleanValues(input.board.columns, {
+                ...defaultItemValues(input.board.columns),
+                ...(input.values ?? {}),
+              }),
+              archived: false,
+              deleted: false,
+            },
+          ]),
+        );
+        const rt = runtimeFor(input.board.id);
+        if (!rt || enabledAutomations(input.board.id).length === 0) return ops;
+        const itemsAfter = new Map<string, EngineItem>(rt.items);
+        itemsAfter.set(iid, {
+          id: iid,
+          name: input.name.trim(),
           groupId: input.groupId,
           order,
-          itemNumber: next,
           parentId: input.parentId ?? null,
-          values: { ...defaultItemValues(input.board.columns), ...(input.values ?? {}) },
-        },
-      });
-      ops.push(activity(input.wid, input.board.id, input.uid, 'create', iid, input.name.trim()));
-      ops.push(
-        ...scheduleOpsFor(input.board.id, [
-          {
-            id: iid,
-            values: cleanValues(input.board.columns, {
-              ...defaultItemValues(input.board.columns),
-              ...(input.values ?? {}),
-            }),
-            archived: false,
-            deleted: false,
-          },
-        ]),
-      );
-      const rt = runtimeFor(input.board.id);
-      if (!rt || enabledAutomations(input.board.id).length === 0) return ops;
-      const itemsAfter = new Map<string, EngineItem>(rt.items);
-      itemsAfter.set(iid, {
-        id: iid,
-        name: input.name.trim(),
-        groupId: input.groupId,
-        order,
-        parentId: input.parentId ?? null,
-        itemNumber: next,
-        values: cleanValues(input.board.columns, {
-          ...defaultItemValues(input.board.columns),
-          ...(input.values ?? {}),
-        }),
-        archived: false,
-        deleted: false,
-      });
-      return addAutomationOps({
-        bid: input.board.id,
-        actor: input.uid,
-        baseOps: ops,
-        event: { kind: 'created', itemId: iid },
-        itemsAfter,
-        startNumber: next + 1,
-        counterExists: counter.exists(),
-      });
-    }),
+          itemNumber: next,
+          values: cleanValues(input.board.columns, {
+            ...defaultItemValues(input.board.columns),
+            ...(input.values ?? {}),
+          }),
+          archived: false,
+          deleted: false,
+        });
+        return addAutomationOps({
+          bid: input.board.id,
+          actor: input.uid,
+          baseOps: ops,
+          event: { kind: 'created', itemId: iid },
+          itemsAfter,
+          startNumber: next + 1,
+          counterExists: counter.exists(),
+        });
+      }),
+    ),
   );
+}
+
+const clip = (s: string, n = 40) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * Reverses or re-applies cell edits for undo/redo, only where each cell is still exactly as the
+ * edit left it (see planCellReversal). Quiet by design: no automations, no new history.
+ */
+async function writeCellReversal(
+  bid: string,
+  uid: string,
+  columnId: string,
+  changes: CellChange[],
+) {
+  const rt = runtimeFor(bid);
+  if (!rt) throw new UndoConflict('open the board to do that.');
+  const column = rt.board.columns.find((c) => c.id === columnId);
+  if (!column) throw new UndoConflict('that column no longer exists.');
+  const r = planCellReversal({
+    wid: rt.wid,
+    bid,
+    uid,
+    columns: rt.board.columns,
+    column,
+    changes,
+    items: new Map([...rt.items].map(([id, i]) => [id, { values: i.values, deleted: i.deleted }])),
+  });
+  if (r.applied.length === 0)
+    throw new UndoConflict(
+      r.skipped.some((x) => x.reason === 'changed')
+        ? 'it has been changed again since.'
+        : 'the item is gone.',
+    );
+  const ops = [...r.ops];
+  if (column.type === 'date' || column.type === 'timeline') {
+    const to = new Map(changes.map((c) => [c.id, c.to]));
+    ops.push(
+      ...scheduleOpsFor(
+        bid,
+        r.applied.map((id) => {
+          const it = rt.items.get(id) as BoardItem;
+          const v = normalizeValue(column, to.get(id));
+          const values = { ...it.values };
+          if (v === null) delete values[column.id];
+          else values[column.id] = v;
+          return { id, values, archived: it.archived, deleted: false };
+        }),
+      ),
+    );
+  }
+  await commitOpsChunked('undo:cells', ops);
+  if (r.skipped.length > 0)
+    toast.info(
+      `${plural(r.skipped.length, 'item')} had changed since and ${r.skipped.length === 1 ? 'was' : 'were'} left as they are.`,
+    );
+}
+
+function cellUndoEntry(
+  bid: string,
+  uid: string,
+  label: string,
+  column: Column,
+  edits: Array<{ id: string; before: unknown; after: unknown }>,
+): UndoEntry | null {
+  if (isComputedType(column.type)) return null;
+  const changes = edits
+    .map((e) => ({
+      id: e.id,
+      before: normalizeValue(column, e.before),
+      after: normalizeValue(column, e.after),
+    }))
+    .filter((e) => JSON.stringify(e.before ?? null) !== JSON.stringify(e.after ?? null));
+  if (changes.length === 0) return null;
+  return {
+    label,
+    undo: () =>
+      writeCellReversal(
+        bid,
+        uid,
+        column.id,
+        changes.map((c) => ({ id: c.id, from: c.after, to: c.before })),
+      ),
+    redo: () =>
+      writeCellReversal(
+        bid,
+        uid,
+        column.id,
+        changes.map((c) => ({ id: c.id, from: c.before, to: c.after })),
+      ),
+  };
 }
 
 export function setCell(input: {
@@ -369,28 +479,39 @@ export function setCell(input: {
       ]),
     );
   }
-  return commitWithAutomations(`cell:${input.column.type}`, input.board.id, ops, (base, ctl) => {
-    if (isComputedType(input.column.type)) return base;
-    const before = normalizeValue(input.column, input.item.values[input.column.id]);
-    const after = normalizeValue(input.column, input.value);
-    if (JSON.stringify(before ?? null) === JSON.stringify(after ?? null)) return base;
-    const rt = runtimeFor(input.board.id);
-    if (!rt) return base;
-    const values = { ...input.item.values };
-    if (after === null) delete values[input.column.id];
-    else values[input.column.id] = after;
-    const itemsAfter = new Map<string, EngineItem>(rt.items);
-    itemsAfter.set(input.item.id, { ...input.item, values });
-    return addAutomationOps({
-      bid: input.board.id,
-      actor: input.uid,
-      baseOps: base,
-      event: { kind: 'cell', itemId: input.item.id, columnId: input.column.id, before, after },
-      itemsAfter,
-      startNumber: ctl.startNumber,
-      counterExists: ctl.counterExists,
-    });
-  });
+  const entry = cellUndoEntry(
+    input.board.id,
+    input.uid,
+    `edit ${input.column.title} on “${clip(input.item.name || 'item')}”`,
+    input.column,
+    [{ id: input.item.id, before: input.item.values[input.column.id], after: input.value }],
+  );
+  return saveWithUndo(
+    input.board.id,
+    entry,
+    commitWithAutomations(`cell:${input.column.type}`, input.board.id, ops, (base, ctl) => {
+      if (isComputedType(input.column.type)) return base;
+      const before = normalizeValue(input.column, input.item.values[input.column.id]);
+      const after = normalizeValue(input.column, input.value);
+      if (JSON.stringify(before ?? null) === JSON.stringify(after ?? null)) return base;
+      const rt = runtimeFor(input.board.id);
+      if (!rt) return base;
+      const values = { ...input.item.values };
+      if (after === null) delete values[input.column.id];
+      else values[input.column.id] = after;
+      const itemsAfter = new Map<string, EngineItem>(rt.items);
+      itemsAfter.set(input.item.id, { ...input.item, values });
+      return addAutomationOps({
+        bid: input.board.id,
+        actor: input.uid,
+        baseOps: base,
+        event: { kind: 'cell', itemId: input.item.id, columnId: input.column.id, before, after },
+        itemsAfter,
+        startNumber: ctl.startNumber,
+        counterExists: ctl.counterExists,
+      });
+    }),
+  );
 }
 
 /**
@@ -419,7 +540,27 @@ function commitWithAutomations(
 }
 
 export function renameItem(wid: string, bid: string, iid: string, uid: string, name: string) {
-  return commitOps('item:rename', planUpdateItem(wid, bid, iid, uid, { name }));
+  const before = runtimeFor(bid)?.items.get(iid)?.name;
+  const after = name.trim();
+  const set = (from: string, to: string) => {
+    const cur = runtimeFor(bid)?.items.get(iid);
+    if (!cur || cur.deleted) throw new UndoConflict('the item is gone.');
+    if (cur.name !== from) throw new UndoConflict('it has been renamed again since.');
+    return commitOps('undo:rename', planUpdateItem(wid, bid, iid, uid, { name: to }));
+  };
+  const entry: UndoEntry | null =
+    before === undefined || before === after
+      ? null
+      : {
+          label: `rename “${clip(before)}”`,
+          undo: () => set(after, before),
+          redo: () => set(before, after),
+        };
+  return saveWithUndo(
+    bid,
+    entry,
+    commitOps('item:rename', planUpdateItem(wid, bid, iid, uid, { name })),
+  );
 }
 
 export function moveItem(
@@ -430,7 +571,54 @@ export function moveItem(
   groupId: string,
   order: string,
 ) {
-  return commitOps('item:move', planUpdateItem(wid, bid, iid, uid, { groupId, order }));
+  const was = runtimeFor(bid)?.items.get(iid);
+  const prior = was ? { groupId: was.groupId, order: was.order } : null;
+  const entry: UndoEntry | null =
+    !prior || (prior.groupId === groupId && prior.order === order)
+      ? null
+      : {
+          label: `move “${clip(was?.name ?? 'item')}”`,
+          undo: () =>
+            reposition(wid, bid, uid, [
+              { id: iid, from: { groupId, order }, to: prior, childIds: [] },
+            ]),
+          redo: () =>
+            reposition(wid, bid, uid, [
+              { id: iid, from: prior, to: { groupId, order }, childIds: [] },
+            ]),
+        };
+  return saveWithUndo(
+    bid,
+    entry,
+    commitOps('item:move', planUpdateItem(wid, bid, iid, uid, { groupId, order })),
+  );
+}
+
+interface Position {
+  groupId: string;
+  order: string;
+}
+
+/** Puts items back in a position (undo/redo of moves), unless they were moved again since. */
+function reposition(
+  wid: string,
+  bid: string,
+  uid: string,
+  moves: Array<{ id: string; from: Position; to: Position; childIds: string[] }>,
+) {
+  const rt = runtimeFor(bid);
+  if (!rt) throw new UndoConflict('open the board to do that.');
+  const ops: WriteOp[] = [];
+  for (const m of moves) {
+    const cur = rt.items.get(m.id);
+    if (!cur || cur.deleted) throw new UndoConflict('an item is gone.');
+    if (cur.groupId !== m.from.groupId || cur.order !== m.from.order)
+      throw new UndoConflict('it has been moved again since.');
+    ops.push(...planUpdateItem(wid, bid, m.id, uid, { groupId: m.to.groupId, order: m.to.order }));
+    for (const c of m.childIds)
+      ops.push(...planUpdateItem(wid, bid, c, uid, { groupId: m.to.groupId }));
+  }
+  return commitOpsChunked('undo:move', ops);
 }
 
 export function archiveItem(wid: string, bid: string, iid: string, uid: string, archived: boolean) {
@@ -546,6 +734,17 @@ export function bulkSetCell(input: {
   items: BoardItem[];
   value: unknown;
 }) {
+  const entry = cellUndoEntry(
+    input.board.id,
+    input.uid,
+    `set ${input.column.title} on ${plural(input.items.length, 'item')}`,
+    input.column,
+    input.items.map((it) => ({
+      id: it.id,
+      before: it.values[input.column.id],
+      after: input.value,
+    })),
+  );
   const ops = planBulkSetCell({
     wid: input.wid,
     bid: input.board.id,
@@ -576,7 +775,46 @@ export function bulkSetCell(input: {
         count: input.items.length,
       }),
     );
-  return commitOpsChunked('bulk:set', ops);
+  const rt = runtimeFor(input.board.id);
+  const eligible =
+    rt !== null &&
+    enabledAutomations(input.board.id).length > 0 &&
+    !isComputedType(input.column.type);
+  if (eligible && input.items.length > MAX_BULK_AUTOMATION_ITEMS) {
+    toast.info(
+      `Automations didn’t run: they only run for up to ${MAX_BULK_AUTOMATION_ITEMS} items at a time.`,
+    );
+  } else if (eligible) {
+    const after = normalizeValue(input.column, input.value);
+    const events: AutoEvent[] = [];
+    const itemsAfter = new Map<string, EngineItem>(rt.items);
+    for (const it of input.items) {
+      const before = normalizeValue(input.column, it.values[input.column.id]);
+      if (JSON.stringify(before ?? null) === JSON.stringify(after ?? null)) continue;
+      const values = { ...it.values };
+      if (after === null) delete values[input.column.id];
+      else values[input.column.id] = after;
+      itemsAfter.set(it.id, { ...it, values });
+      events.push({ kind: 'cell', itemId: it.id, columnId: input.column.id, before, after });
+    }
+    if (events.length > 0)
+      return saveWithUndo(
+        input.board.id,
+        entry,
+        commitWithAutomations('bulk:set', input.board.id, ops, (base, ctl) =>
+          addAutomationOpsMany({
+            bid: input.board.id,
+            actor: input.uid,
+            baseOps: base,
+            events,
+            itemsAfter,
+            startNumber: ctl.startNumber,
+            counterExists: ctl.counterExists,
+          }),
+        ),
+      );
+  }
+  return saveWithUndo(input.board.id, entry, commitOpsChunked('bulk:set', ops));
 }
 
 export function moveItemsToGroup(input: {
@@ -588,6 +826,39 @@ export function moveItemsToGroup(input: {
   /** For the activity log: the moved items' names and the target group's name. */
   log?: { items: Array<{ id: string; name: string }>; groupName: string };
 }) {
+  const wid = input.wid;
+  const priors = input.moves.flatMap((m) => {
+    const was = runtimeFor(input.bid)?.items.get(m.id);
+    return was ? [{ m, was }] : [];
+  });
+  const moveEntry = (): UndoEntry | null => {
+    const moves = priors.filter(
+      ({ m, was }) => was.groupId !== input.groupId || was.order !== m.order,
+    );
+    if (moves.length === 0) return null;
+    const label =
+      moves.length === 1
+        ? `move “${clip(moves[0]!.was.name)}”`
+        : `move ${plural(moves.length, 'item')}`;
+    const forward = moves.map(({ m, was }) => ({
+      id: m.id,
+      from: { groupId: was.groupId, order: was.order },
+      to: { groupId: input.groupId, order: m.order },
+      childIds: [...m.childIds],
+    }));
+    return {
+      label,
+      undo: () =>
+        reposition(
+          wid,
+          input.bid,
+          input.uid,
+          forward.map((f) => ({ ...f, from: f.to, to: f.from })),
+        ),
+      redo: () => reposition(wid, input.bid, input.uid, forward),
+    };
+  };
+  const entry = moveEntry();
   const ops = planMoveItems({
     wid: input.wid,
     bid: input.bid,
@@ -606,41 +877,54 @@ export function moveItemsToGroup(input: {
         input.log.groupName,
       ),
     );
-  // A single card/row moved to another group can fire "moved to group" automations.
-  const only = input.moves.length === 1 ? input.moves[0] : undefined;
+  // Items moved to another group can fire "moved to group" automations (a bounded number at once).
   const rt = runtimeFor(input.bid);
-  const before = only ? rt?.items.get(only.id) : undefined;
-  if (
-    only &&
-    rt &&
-    before &&
-    before.groupId !== input.groupId &&
-    enabledAutomations(input.bid).length > 0
-  ) {
-    return commitWithAutomations('item:move', input.bid, ops, (base, ctl) => {
+  const movers = input.moves.filter((m) => {
+    const was = rt?.items.get(m.id);
+    return was !== undefined && was.groupId !== input.groupId;
+  });
+  if (rt && movers.length > 0 && enabledAutomations(input.bid).length > 0) {
+    if (movers.length > MAX_BULK_AUTOMATION_ITEMS) {
+      toast.info(
+        `Automations didn’t run: they only run for up to ${MAX_BULK_AUTOMATION_ITEMS} items at a time.`,
+      );
+    } else {
       const itemsAfter = new Map<string, EngineItem>(rt.items);
-      itemsAfter.set(only.id, { ...before, groupId: input.groupId, order: only.order });
-      for (const c of only.childIds) {
-        const child = rt.items.get(c);
-        if (child) itemsAfter.set(c, { ...child, groupId: input.groupId });
+      const events: AutoEvent[] = [];
+      for (const m of input.moves) {
+        const was = rt.items.get(m.id);
+        if (!was) continue;
+        itemsAfter.set(m.id, { ...was, groupId: input.groupId, order: m.order });
+        for (const c of m.childIds) {
+          const child = rt.items.get(c);
+          if (child) itemsAfter.set(c, { ...child, groupId: input.groupId });
+        }
       }
-      return addAutomationOps({
-        bid: input.bid,
-        actor: input.uid,
-        baseOps: base,
-        event: {
+      for (const m of movers)
+        events.push({
           kind: 'moved',
-          itemId: only.id,
-          fromGroupId: before.groupId,
+          itemId: m.id,
+          fromGroupId: (rt.items.get(m.id) as BoardItem).groupId,
           toGroupId: input.groupId,
-        },
-        itemsAfter,
-        startNumber: ctl.startNumber,
-        counterExists: ctl.counterExists,
-      });
-    });
+        });
+      return saveWithUndo(
+        input.bid,
+        entry,
+        commitWithAutomations('item:move', input.bid, ops, (base, ctl) =>
+          addAutomationOpsMany({
+            bid: input.bid,
+            actor: input.uid,
+            baseOps: base,
+            events,
+            itemsAfter,
+            startNumber: ctl.startNumber,
+            counterExists: ctl.counterExists,
+          }),
+        ),
+      );
+    }
   }
-  return commitOpsChunked('item:move', ops);
+  return saveWithUndo(input.bid, entry, commitOpsChunked('item:move', ops));
 }
 
 /** `ids` must already include subitems of any parent being archived/deleted. */
@@ -650,10 +934,27 @@ export function archiveItems(
   uid: string,
   ids: string[],
   archived: boolean,
-) {
+  opts: { quiet?: boolean } = {},
+): Promise<void> {
   const ops = planArchiveItems(wid, bid, uid, ids, archived);
   ops.push(...scheduleForIds(bid, ids, { archived, deleted: false }));
-  return commitOpsChunked('item:archive', ops);
+  const entry: UndoEntry | null = opts.quiet
+    ? null
+    : {
+        label: `${archived ? 'archive' : 'restore'} ${topNames(bid, ids)}`,
+        undo: () => archiveItems(wid, bid, uid, ids, !archived, { quiet: true }),
+        redo: () => archiveItems(wid, bid, uid, ids, archived, { quiet: true }),
+      };
+  return saveWithUndo(bid, entry, commitOpsChunked('item:archive', ops));
+}
+
+/** "“Dishes”" or "3 items" for a history label (ids include subitems, so only count top-level). */
+function topNames(bid: string, ids: readonly string[]): string {
+  const items = runtimeFor(bid)?.items;
+  const top = ids.filter((id) => !items?.get(id)?.parentId);
+  const n = top.length || ids.length;
+  const only = n === 1 ? items?.get(top[0] ?? ids[0]!)?.name : undefined;
+  return only ? `“${clip(only)}”` : plural(n, 'item');
 }
 
 export function deleteItems(
@@ -663,11 +964,19 @@ export function deleteItems(
   ids: string[],
   /** For the activity log: the top-level items being deleted. */
   logged?: Array<{ id: string; name: string }>,
-) {
+  opts: { quiet?: boolean } = {},
+): Promise<void> {
   const ops = planDeleteItems(wid, bid, uid, ids);
   ops.push(...scheduleForIds(bid, ids, { archived: false, deleted: true }));
   if (logged) ops.push(...activityForMany(wid, bid, uid, 'deleted', logged));
-  return commitOpsChunked('item:delete', ops);
+  const entry: UndoEntry | null = opts.quiet
+    ? null
+    : {
+        label: `delete ${topNames(bid, ids)}`,
+        undo: () => restoreItems(wid, bid, uid, ids),
+        redo: () => deleteItems(wid, bid, uid, ids, undefined, { quiet: true }),
+      };
+  return saveWithUndo(bid, entry, commitOpsChunked('item:delete', ops));
 }
 
 /** Undo for deletes: clears the tombstone (and archive flag). */

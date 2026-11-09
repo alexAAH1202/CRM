@@ -66,7 +66,12 @@ test('typical flows stay within their read/write budgets', async ({ browser }) =
   // ~10 when run alone. Under CPU load the cache may not have flushed to disk before the
   // reload, so allow a full cold read of this small board; a regression that re-reads big boards
   // on every open would still blow well past this.
-  expect(warm.reads).toBeLessThanOrEqual(80);
+  // Opening the app also reads the list of workspaces the person belongs to (and each one's name),
+  // and the shared test user belongs to more of them with every test run. That is not what this
+  // asserts, so leave those two out and measure what the board itself costs.
+  const perWorkspace =
+    (warm.byLabel['members:mine']?.reads ?? 0) + (warm.byLabel['workspace:name']?.reads ?? 0);
+  expect(warm.reads - perWorkspace).toBeLessThanOrEqual(80);
 
   // Bob opens it cold, then someone else's single edit costs ~1 read for him.
   const cold = await measure(bob, 'open board (cold cache)', async () => {

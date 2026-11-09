@@ -73,6 +73,78 @@ export function laneKeysOf(column: Column, raw: unknown): Array<string | null> {
   return [null];
 }
 
+/** Storage key for a lane in a view's hand-picked card order (the "no value" lane has no key). */
+export const NO_LANE_KEY = '__none';
+export const laneStorageKey = (laneKey: string | null): string => laneKey ?? NO_LANE_KEY;
+
+/**
+ * Puts cards in their hand-picked order: those listed first (in the list's order), the rest after
+ * in their existing order. Cards the list doesn't know about (new ones) never jump to the top.
+ */
+export function applyLaneOrder<T extends { id: string }>(
+  cards: readonly T[],
+  manual: readonly string[] | undefined,
+): T[] {
+  if (!manual || manual.length === 0) return [...cards];
+  const rank = new Map(manual.map((id, i) => [id, i]));
+  const listed = cards
+    .filter((c) => rank.has(c.id))
+    .sort((a, b) => rank.get(a.id)! - rank.get(b.id)!);
+  return [...listed, ...cards.filter((c) => !rank.has(c.id))];
+}
+
+/**
+ * The lane's new order after dropping `movingId` before `beforeId` (null = at the end).
+ * `current` is the lane as shown now. Dropping on itself changes nothing.
+ */
+export function placeInLane(
+  current: readonly string[],
+  movingId: string,
+  beforeId: string | null,
+): string[] {
+  if (beforeId === movingId) return [...current];
+  const rest = current.filter((id) => id !== movingId);
+  const at = beforeId === null ? -1 : rest.indexOf(beforeId);
+  if (at < 0) return [...rest, movingId];
+  return [...rest.slice(0, at), movingId, ...rest.slice(at)];
+}
+
+/**
+ * Where a dropped card should go: onto another card means "next to it" (below it if the card was
+ * above it in the same lane, otherwise above it); onto the lane's empty space means the end.
+ * Returns the id to insert before (null = end).
+ */
+export function dropTarget(
+  laneIds: readonly string[],
+  movingId: string,
+  overCardId: string | null,
+  sameLane: boolean,
+): string | null {
+  if (overCardId === null) return null;
+  const from = laneIds.indexOf(movingId);
+  const to = laneIds.indexOf(overCardId);
+  if (sameLane && from >= 0 && to >= 0 && from < to) return laneIds[to + 1] ?? null;
+  return overCardId;
+}
+
+/** The new `cardOrder` map after one lane's order changes (bounded, no empty lanes). */
+export function withLaneOrder(
+  cardOrder: Readonly<Record<string, string[]>>,
+  laneKey: string | null,
+  ids: readonly string[],
+): Record<string, string[]> {
+  const key = laneStorageKey(laneKey);
+  const next: Record<string, string[]> = { ...cardOrder };
+  const bounded = ids.slice(0, 300);
+  if (bounded.length === 0) delete next[key];
+  else next[key] = bounded;
+  const keys = Object.keys(next);
+  // Keep the lane we just set; forget the oldest others if there are too many.
+  for (const k of keys.filter((k) => k !== key).slice(0, Math.max(0, keys.length - 40)))
+    delete next[k];
+  return next;
+}
+
 /**
  * The new cell value after a card moves from one lane to another. For multi-value columns
  * only the lane it came from is swapped, so other values on the card are kept.

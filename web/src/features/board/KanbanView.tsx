@@ -5,7 +5,12 @@ import {
   laneKeysOf,
   LABEL_COLORS,
   LABEL_COLOR_NAMES,
+  applyLaneOrder,
+  dropTarget,
+  laneStorageKey,
   moveBetweenLanes,
+  placeInLane,
+  withLaneOrder,
   type LabelColor,
 } from '@app/shared';
 import {
@@ -13,10 +18,13 @@ import {
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
+  pointerWithin,
+  rectIntersection,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { Plus } from 'lucide-react';
@@ -53,9 +61,17 @@ function Card({
     id: `${item.id}|${laneKey ?? ''}`,
     data: { itemId: item.id, laneKey },
   });
+  // Cards are also drop targets: dropping on one puts the dragged card next to it.
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `card|${item.id}|${laneKey ?? ''}`,
+    data: { laneKey, overCardId: item.id },
+  });
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el);
+        setDropRef(el);
+      }}
       {...attributes}
       {...listeners}
       role="button"
@@ -70,6 +86,7 @@ function Card({
       className={cx(
         'cursor-grab touch-manipulation rounded-xl border border-border bg-surface p-3 text-left shadow-sm hover:border-primary',
         (isDragging || dragging) && 'opacity-60',
+        isOver && !isDragging && 'ring-2 ring-primary',
       )}
     >
       <p className="text-sm font-semibold break-words">{item.name || 'Untitled'}</p>
@@ -85,6 +102,14 @@ function Card({
     </div>
   );
 }
+
+/** Prefer the card under the pointer over the lane around it (keyboard drags use rectangles). */
+const kanbanCollisions: CollisionDetection = (args) => {
+  const hits = pointerWithin(args);
+  const all = hits.length > 0 ? hits : rectIntersection(args);
+  const card = all.find((c) => String(c.id).startsWith('card|'));
+  return card ? [card] : all;
+};
 
 function Lane({
   laneKey,
@@ -184,8 +209,12 @@ export function KanbanView(p: ViewProps) {
         m.set(k, list);
       }
     }
+    // A view that is sorted keeps its sort; otherwise hand-picked orders apply.
+    if (config.sort.length === 0)
+      for (const [k, list] of m)
+        m.set(k, applyLaneOrder(list, config.options.cardOrder[laneStorageKey(k)]));
     return m;
-  }, [visible, laneCol]);
+  }, [visible, laneCol, config.sort.length, config.options.cardOrder]);
 
   if (!laneCol) {
     return (
@@ -199,14 +228,43 @@ export function KanbanView(p: ViewProps) {
   const onDragEnd = (e: DragEndEvent) => {
     setDragId(null);
     const from = e.active.data.current as { itemId: string; laneKey: string | null } | undefined;
-    const to = e.over?.data.current as { laneKey: string | null } | undefined;
-    if (!from || !to || !canEdit || from.laneKey === to.laneKey) return;
+    const to = e.over?.data.current as { laneKey: string | null; overCardId?: string } | undefined;
+    if (!from || !to || !canEdit) return;
     const item = byId.get(from.itemId);
     if (!item) return;
+    const fail = (err: unknown) => toast.error(friendlyError(err));
+    const sameLane = from.laneKey === to.laneKey;
+    const sorted = config.sort.length > 0;
+
+    // Where it lands in the target lane (unless the view's sort decides the order).
+    const placeIt = () => {
+      if (sorted) return;
+      const laneIds = (cards.get(to.laneKey) ?? []).map((c) => c.id);
+      const before = dropTarget(laneIds, from.itemId, to.overCardId ?? null, sameLane);
+      const next = placeInLane(laneIds, from.itemId, before);
+      if (next.join() === laneIds.join()) return;
+      onConfig({
+        options: {
+          ...config.options,
+          cardOrder: withLaneOrder(config.options.cardOrder, to.laneKey, next),
+        },
+      });
+    };
+
+    if (sameLane) {
+      if (sorted) {
+        if (to.overCardId && to.overCardId !== from.itemId)
+          toast.info(
+            'This view is sorted, so cards can’t be reordered by hand. Clear the sort to do that.',
+          );
+        return;
+      }
+      placeIt();
+      return;
+    }
     const value = moveBetweenLanes(laneCol, item.values[laneCol.id], from.laneKey, to.laneKey);
-    setCell({ wid, board, item, uid: user.uid, column: laneCol, value }).catch((err: unknown) =>
-      toast.error(friendlyError(err)),
-    );
+    placeIt();
+    setCell({ wid, board, item, uid: user.uid, column: laneCol, value }).catch(fail);
   };
 
   const dragging = dragId ? byId.get(dragId.split('|')[0] as string) : undefined;
@@ -231,6 +289,7 @@ export function KanbanView(p: ViewProps) {
       </div>
       <DndContext
         sensors={sensors}
+        collisionDetection={kanbanCollisions}
         onDragStart={(e) => setDragId(String(e.active.id))}
         onDragCancel={() => setDragId(null)}
         onDragEnd={onDragEnd}

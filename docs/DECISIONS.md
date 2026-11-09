@@ -473,8 +473,8 @@ me` query per board I can see (only matching items are billed, plus one read per
   edits don't happen, so neither do their automations. "Owner" is whose name is on it and who
   gets "notify the owner" messages.
 - Only the board that is open is registered with the engine, so only that board's automations
-  can fire. Edits made through other boards' pages, bulk actions (set many / delete many /
-  move many) and undo do not trigger automations; a single drag or cell edit does.
+  can fire. Edits made through other boards' pages and undo/redo do not trigger automations; a
+  single drag or cell edit does, and (since D85) so do bulk set-value and move for up to 25 items.
 
 ### D58. Loop guard: once per chain, three levels deep
 
@@ -725,3 +725,42 @@ me` query per board I can see (only matching items are billed, plus one read per
 - Automations: the trigger and each of the (up to 5) conditions and actions must be a map of at most
   12 keys.
 - `users/{uid}.settings.emailDigest` must be a boolean.
+
+### D85. Bulk edits fire automations, for up to 25 items
+
+- "Set value" on many items, and moving many items to a group, now run the board's instant
+  automations once per changed item, in one atomic batch. Each item's event sees the board as the
+  earlier items and their automations left it; items created along the way are numbered in order and
+  the counter is written once.
+- Over 25 items the edit still happens but automations don't run, and a message says so (a 500-item
+  edit would otherwise mean hundreds of notifications and writes in one batch). Delete, archive and
+  undo never trigger automations (there is no trigger for them / undo reverses only your own edit).
+
+### D86. Kanban cards can be put in order within a lane
+
+- Drag a card onto another card to place it next to it (below it if you dragged down within the lane,
+  above it otherwise); onto empty space in a lane to put it last. Across lanes it also changes the
+  value (as before) and lands where you dropped it.
+- The order is saved in the view (`config.options.cardOrder`: lane key → item ids, at most 40 lanes
+  and 300 cards each), not on the items, because an item's `order` only means something inside its
+  table group. So Kanban ordering never disturbs the table, two Kanban views can order differently,
+  and cards not in the list (new ones) sit after the listed ones in their normal order.
+- A view with a sort keeps following its sort; dropping within a lane then says so instead of
+  silently doing nothing. Changes to a view's settings now also save when the page is closed or
+  reloaded within the half-second before they would have saved.
+
+### D87. Undo and redo (Ctrl/Cmd+Z, Ctrl+Shift+Z or Ctrl+Y, and two buttons)
+
+- Per board, per tab, in memory (a reload starts a fresh history; at most 50 steps). Covers: cell
+  edits, bulk set-value, adding an item, renaming, moving (including Kanban/table drags), archiving
+  and deleting. Not covered: view settings, columns and groups, imports, duplicates, comments.
+- An entry is recorded the moment you act (so Ctrl+Z straight after an edit undoes that edit, before
+  the server has even replied) and forgotten if saving fails. Steps run one at a time, in order.
+- It never overwrites newer work. An undo changes a cell only if it still holds exactly what your
+  edit left there; if someone else has changed it, or the item was deleted, that step is refused with
+  a message (and dropped), and in a bulk edit the items that changed are left alone and counted.
+  A move is refused if the item was moved again since.
+- Undo reverses your edit, not what automations did because of it (they could have notified people or
+  created items). Undo and redo themselves never trigger automations and are not new history.
+- The keyboard shortcuts stand aside while you are typing in a field (it has its own undo) or have a
+  dialog open, and viewers don't get the buttons.

@@ -398,7 +398,7 @@ export function BoardTable({
       .then(() => {
         if (archived)
           withUndo(`Archived ${ids.length} item${ids.length === 1 ? '' : 's'}`, () =>
-            archiveItems(wid, board.id, uid, all, false),
+            archiveItems(wid, board.id, uid, all, false, { quiet: true }),
           );
       })
       .catch(fail);
