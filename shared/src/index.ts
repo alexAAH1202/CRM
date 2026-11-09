@@ -31,3 +31,5 @@ export * from './updates';
 export * from './activity';
 export * from './myWork';
 export * from './search';
+export * from './automations';
+export * from './automationEngine';
