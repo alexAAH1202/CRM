@@ -128,8 +128,16 @@ authorization.**
   sort: [{ columnId, dir: 'asc'|'desc' }],                    // max 3
   groupBy: columnId | null,                                   // status | dropdown | people
   hiddenCols: columnId[], colWidths: { [columnId]: px },      // 80–600
-  showArchived: boolean }
+  showArchived: boolean,
+  options: { laneColumnId: columnId|null,                    // Kanban lanes (status|dropdown|people)
+             dateColumnId: columnId|null,                     // Calendar (date|timeline)
+             calendarMode: 'month'|'week' } }
 ```
+
+A board has up to 12 views (tabs). Each keeps its own filters/sort/options. The table
+view created with the board has id `main`; others get random ids. Viewers can change a
+view for themselves, but nothing is saved. One listener on the `views` collection
+(a handful of tiny docs) feeds the tabs.
 
 ```ts
 { type: 'table'|'kanban'|'calendar'|'gantt'|'workload'|'chart'|'form',

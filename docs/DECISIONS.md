@@ -361,3 +361,20 @@ Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
 ### D44. Tags and files are not offered in bulk-set or column defaults
 
 - **Reason:** list values with per-column ids/metadata; bulk overwrite would surprise.
+
+### D45. Several saved views per board; type-specific settings live in `config.options`
+
+- Rules already allowed any `config` map, so no rules change was needed. Kanban lanes
+  and Calendar date column are saved per view, so two Kanban views can use different
+  columns.
+- Views are tabs; the selected one is in the URL (`?view=`) so links and reloads keep it.
+- Only the table, Kanban and Calendar exist so far; Gantt, Workload and Chart follow.
+
+### D46. Kanban / Calendar write the same cell values the table does
+
+- Dragging a card to a lane calls the normal `setCell`. For people/dropdown columns only
+  the lane it came from is swapped, so other values on the card stay.
+- Dragging on the calendar keeps a timeline's length, and keeps the grabbed day under the
+  pointer. Items with no date sit in a "No date yet" list that can be dragged in.
+- Cards open the same editors the table uses (one dialog), so there is no second set of
+  editors to keep in step. A full item page with comments arrives in Phase 5.

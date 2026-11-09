@@ -1,21 +1,11 @@
-import {
-  boardPaths,
-  EMPTY_VIEW_CONFIG,
-  parseViewConfig,
-  pruneViewConfig,
-  type Column,
-  type ViewConfig,
-} from '@app/shared';
-import { doc } from 'firebase/firestore';
+import { pruneViewConfig, type Column, type ViewConfig } from '@app/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { db } from '../../lib/firebase';
-import { listenDoc } from '../../lib/firestore';
 import { friendlyError } from '../../lib/firestore/errors';
 import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { saveViewConfig } from './api';
+import type { BoardView } from './useViews';
 
-const VIEW_ID = 'main';
 const SAVE_DELAY_MS = 600;
 
 export interface ViewConfigState {
@@ -26,68 +16,62 @@ export interface ViewConfigState {
   shared: boolean;
 }
 
+interface Pending {
+  vid: string;
+  config: ViewConfig;
+  exists: boolean;
+}
+
 /**
- * Per-view settings. One small listener on views/main; changes apply instantly
- * and are written once after a short pause, so dragging a column edge or typing
- * a filter value is never one write per event.
+ * Per-view settings. Changes apply instantly and are written once after a short pause,
+ * so dragging a column edge or typing a filter value is never one write per event.
+ * `exists` is false only for the implicit "main" table of a board that has no view doc yet.
  */
 export function useViewConfig(
   wid: string,
   bid: string,
+  view: BoardView,
+  exists: boolean,
   canEdit: boolean,
   columns: readonly Column[],
 ): ViewConfigState {
   const user = useCurrentUser();
-  const [saved, setSaved] = useState<ViewConfig>(EMPTY_VIEW_CONFIG);
-  const [exists, setExists] = useState(true);
-  const [local, setLocal] = useState<ViewConfig | null>(null);
+  const [local, setLocal] = useState<{ vid: string; config: ViewConfig } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pending = useRef<ViewConfig | null>(null);
-  const existsRef = useRef(true);
-  existsRef.current = exists;
+  const pending = useRef<Pending | null>(null);
 
   const flush = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    const next = pending.current;
+    const p = pending.current;
     pending.current = null;
-    if (!next) return;
-    saveViewConfig(wid, bid, VIEW_ID, user.uid, next, existsRef.current).catch((err: unknown) =>
+    if (!p) return;
+    saveViewConfig(wid, bid, p.vid, user.uid, p.config, p.exists).catch((err: unknown) =>
       toast.error(`Couldn't save view settings: ${friendlyError(err)}`),
     );
   }, [wid, bid, user.uid]);
 
+  // Switching views saves the old one's pending change first.
+  useEffect(() => () => flush(), [view.id, flush]);
+
+  // Once the server copy changes and nothing is waiting to be saved, drop the optimistic copy.
   useEffect(() => {
-    setLocal(null);
-    pending.current = null;
-    return listenDoc(
-      'view',
-      doc(db, boardPaths.view(wid, bid, VIEW_ID)),
-      (snap) => {
-        setExists(snap.exists());
-        setSaved(parseViewConfig(snap.data()?.['config']));
-        // Drop the optimistic copy once the server has caught up (and nothing is pending).
-        if (!snap.metadata.hasPendingWrites && !pending.current) setLocal(null);
-      },
-      () => undefined,
-    );
-  }, [wid, bid]);
+    if (!pending.current) setLocal(null);
+  }, [view.config]);
 
-  // Save anything pending when leaving the board.
-  useEffect(() => () => flush(), [flush]);
-
-  const config = useMemo(() => pruneViewConfig(local ?? saved, columns), [local, saved, columns]);
+  const base = local && local.vid === view.id ? local.config : view.config;
+  const config = useMemo(() => pruneViewConfig(base, columns), [base, columns]);
 
   const update = useCallback(
     (patch: Partial<ViewConfig>) => {
       const next = { ...config, ...patch };
-      setLocal(next);
+      setLocal({ vid: view.id, config: next });
       if (!canEdit) return;
-      pending.current = next;
+      pending.current = { vid: view.id, config: next, exists };
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(flush, SAVE_DELAY_MS);
     },
-    [config, canEdit, flush],
+    [config, canEdit, flush, view.id, exists],
   );
 
   return { config, update, shared: canEdit };
