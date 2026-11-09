@@ -1,3 +1,4 @@
+import { TimerChip } from '../time/TimerChip';
 import {
   Check,
   ChevronsUpDown,
@@ -9,6 +10,7 @@ import {
   Plus,
   Search,
   Users,
+  Clock,
 } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
@@ -138,10 +140,14 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <NavLink to={`${base}/my-work`} className={navItem} onClick={onNavigate}>
           <ListChecks size={18} aria-hidden /> My work
         </NavLink>
+        <NavLink to={`${base}/timesheet`} className={navItem} onClick={onNavigate}>
+          <Clock size={18} aria-hidden /> Timesheet
+        </NavLink>
         <NavLink to={`${base}/members`} className={navItem} onClick={onNavigate}>
           <Users size={18} aria-hidden /> Members
         </NavLink>
       </nav>
+      <TimerChip {...(onNavigate ? { onNavigate } : {})} />
       <BoardList {...(onNavigate ? { onNavigate } : {})} />
       <div className="space-y-3 border-t border-border pt-3">
         <div className="flex items-center gap-2 px-1">

@@ -1,3 +1,4 @@
+import { totalMs, type TimeValue } from './timeTracking';
 import {
   isComputedType,
   normalizeValue,
@@ -147,6 +148,8 @@ export function applyComputed<T extends ItemLike>(
         case 'numbers':
         case 'rating':
           return num(v as number);
+        case 'time':
+          return num(totalMs(v as TimeValue) / 3_600_000); // hours
         case 'date':
           return date(v as string);
         case 'timeline':

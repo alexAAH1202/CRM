@@ -201,6 +201,43 @@ var Sorted = (() => {
     return ia + midpoint(fa, null);
   }
 
+  // ../shared/src/timeTracking.ts
+  var MAX_TIME_SESSIONS = 200;
+  var ROLLUP_BATCH = 100;
+  var MAX_SESSION_MS = 24 * 36e5;
+  var MIN_START = Date.UTC(2e3, 0, 1);
+  var MAX_NOTE = 200;
+  var isSession = (s) => {
+    const t = s;
+    return !!t && typeof t.id === "string" && t.id.length > 0 && t.id.length <= 64 && typeof t.uid === "string" && t.uid.length > 0 && t.uid.length <= 128 && typeof t.start === "number" && typeof t.end === "number" && Number.isFinite(t.start) && Number.isFinite(t.end) && t.start >= MIN_START && t.end > t.start;
+  };
+  function normalizeTimeValue(v) {
+    const raw = v?.sessions;
+    if (!Array.isArray(raw)) return null;
+    const seen = /* @__PURE__ */ new Set();
+    const out = [];
+    for (const s of raw) {
+      if (!isSession(s) || seen.has(s.id)) continue;
+      if (!s.rolled && s.end - s.start > MAX_SESSION_MS) continue;
+      seen.add(s.id);
+      const clean = {
+        id: s.id,
+        uid: s.uid,
+        start: Math.trunc(s.start),
+        end: Math.trunc(s.end)
+      };
+      if (typeof s.note === "string" && s.note.trim()) clean.note = s.note.trim().slice(0, MAX_NOTE);
+      if (s.rolled === true) clean.rolled = true;
+      out.push(clean);
+      if (out.length >= MAX_TIME_SESSIONS + ROLLUP_BATCH) break;
+    }
+    return out.length ? { sessions: out.sort((a, b) => a.start - b.start) } : null;
+  }
+  var durationOf = (s) => s.end - s.start;
+  function totalMs(v) {
+    return (v?.sessions ?? []).reduce((n, s) => n + durationOf(s), 0);
+  }
+
   // ../shared/src/dates.ts
   var ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
   var MS_PER_DAY = 864e5;
@@ -246,6 +283,7 @@ var Sorted = (() => {
     "email",
     "phone",
     "files",
+    "time",
     "dependency",
     "progress",
     "formula",
@@ -354,6 +392,12 @@ var Sorted = (() => {
       label: "Created by",
       width: 130,
       description: "Who created the item",
+      group: "Calculated"
+    },
+    time: {
+      label: "Time tracking",
+      width: 150,
+      description: "Start a timer or log hours; see totals",
       group: "Calculated"
     },
     dependency: {
@@ -487,6 +531,8 @@ var Sorted = (() => {
         }
         return out.length ? out : null;
       }
+      case "time":
+        return normalizeTimeValue(v);
       case "dependency": {
         if (!Array.isArray(v)) return null;
         const seen = /* @__PURE__ */ new Set();
@@ -741,6 +787,12 @@ var Sorted = (() => {
         return matchText((v ?? []).map((x) => x.name).join(" "), f);
       case "dependency":
         return true;
+      case "time": {
+        const n = typeof f.value === "number" ? f.value : Number(f.value);
+        if (!v || Number.isNaN(n)) return false;
+        const hours = totalMs(v) / 36e5;
+        return f.op === "eq" ? Math.abs(hours - n) < 5e-3 : f.op === "gt" ? hours > n : hours < n;
+      }
       case "rating":
       case "progress":
       case "itemId": {

@@ -1,5 +1,6 @@
 import type { LabelColor } from './palette';
 import { shortId } from './ids';
+import { normalizeTimeValue, totalMs, formatDuration, type TimeValue } from './timeTracking';
 
 /**
  * Column model. Definitions live on the board doc (`columns[]`); values live on
@@ -22,6 +23,7 @@ export const COLUMN_TYPES = [
   'email',
   'phone',
   'files',
+  'time',
   'dependency',
   'progress',
   'formula',
@@ -137,6 +139,7 @@ export type CellValue =
   | TimelineValue
   | LinkValue
   | FileValue[]
+  | TimeValue
   | DependencyValue[]
   | null;
 
@@ -236,6 +239,12 @@ export const COLUMN_META: Record<
     label: 'Created by',
     width: 130,
     description: 'Who created the item',
+    group: 'Calculated',
+  },
+  time: {
+    label: 'Time tracking',
+    width: 150,
+    description: 'Start a timer or log hours; see totals',
     group: 'Calculated',
   },
   dependency: {
@@ -395,6 +404,8 @@ export function normalizeValue(col: Column, v: unknown): CellValue {
       }
       return out.length ? out : null;
     }
+    case 'time':
+      return normalizeTimeValue(v);
     case 'dependency': {
       if (!Array.isArray(v)) return null;
       const seen = new Set<string>();
@@ -530,6 +541,8 @@ export function valueToText(
       return (v as LinkValue).text || (v as LinkValue).url;
     case 'files':
       return (v as FileValue[]).map((f) => f.name).join(', ');
+    case 'time':
+      return formatDuration(totalMs(v as TimeValue));
     case 'dependency':
       return (v as DependencyValue[])
         .map((d) => ctx.itemName?.(d.id) ?? '')

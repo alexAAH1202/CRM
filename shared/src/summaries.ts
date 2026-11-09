@@ -1,3 +1,4 @@
+import { formatDuration, totalMs, type TimeValue } from './timeTracking';
 import {
   formatComputedNumber,
   formatNumber,
@@ -24,6 +25,8 @@ export function summaryOptions(type: ColumnType): SummaryKind[] {
       return ['none', 'sum', 'avg', 'min', 'max', 'count'];
     case 'formula':
       return ['none', 'sum', 'avg', 'min', 'max', 'count'];
+    case 'time':
+      return ['none', 'sum', 'count'];
     case 'rating':
     case 'progress':
       return ['none', 'avg', 'count'];
@@ -42,7 +45,11 @@ export function summaryOptions(type: ColumnType): SummaryKind[] {
 }
 
 export function defaultSummary(type: ColumnType): SummaryKind {
-  return type === 'numbers' ? 'sum' : type === 'status' ? 'distribution' : 'none';
+  return type === 'numbers' || type === 'time'
+    ? 'sum'
+    : type === 'status'
+      ? 'distribution'
+      : 'none';
 }
 
 export function summaryKindOf(col: Column): SummaryKind {
@@ -82,7 +89,10 @@ export function summarize(col: Column, rawValues: readonly unknown[]): Summary {
     return { kind: 'distribution', parts, total: parts.reduce((s, p) => s + p.count, 0) };
   }
 
-  const nums = values.filter((v): v is number => typeof v === 'number');
+  const nums =
+    col.type === 'time'
+      ? values.map((v) => totalMs(v as TimeValue))
+      : values.filter((v): v is number => typeof v === 'number');
   if (nums.length === 0) return { kind: 'number', op: kind as 'sum', text: null };
   const sum = nums.reduce((a, b) => a + b, 0);
   const result =
@@ -97,12 +107,14 @@ export function summarize(col: Column, rawValues: readonly unknown[]): Summary {
     kind: 'number',
     op: kind as 'sum' | 'avg' | 'min' | 'max',
     text:
-      col.type === 'numbers'
-        ? formatNumber(result, col.settings)
-        : col.type === 'progress'
-          ? `${Math.round(result)}%`
-          : col.type === 'rating'
-            ? `${Math.round(result * 10) / 10} / 5`
-            : formatComputedNumber(result, col.settings),
+      col.type === 'time'
+        ? formatDuration(result)
+        : col.type === 'numbers'
+          ? formatNumber(result, col.settings)
+          : col.type === 'progress'
+            ? `${Math.round(result)}%`
+            : col.type === 'rating'
+              ? `${Math.round(result * 10) / 10} / 5`
+              : formatComputedNumber(result, col.settings),
   };
 }

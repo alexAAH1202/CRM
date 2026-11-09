@@ -113,7 +113,10 @@ test.describe('phone-sized screens', () => {
     await expect(nav).toBeVisible();
     await expect(nav.getByRole('link', { name: 'My work' })).toBeVisible();
     await within(p, nav, 'navigation drawer');
-    await p.getByRole('button', { name: 'Close navigation' }).click({ force: true });
+    // (the backdrop's centre is behind the drawer: press its visible right-hand edge)
+    await p
+      .getByRole('button', { name: 'Close navigation' })
+      .click({ position: { x: 385, y: 400 }, force: true });
 
     // Item panel fits the screen and is usable.
     // (on a phone the item's name itself opens it)

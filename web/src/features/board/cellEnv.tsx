@@ -10,6 +10,7 @@ export interface CellEnv {
   /** For uploads and attribution. */
   wid: string;
   uid: string;
+  boardId: string;
   /** Every item on the board (for dependency pickers and names). */
   items: ReadonlyMap<string, BoardItem>;
   /**
@@ -39,6 +40,7 @@ export function useBoardCellEnv(
     () => ({
       wid,
       uid,
+      boardId: board.id,
       items,
       // A new tag must exist on the column before an item can refer to it.
       saveColumnAndSet: (column: Column, item: BoardItem, value: unknown) => {
