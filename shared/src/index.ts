@@ -3,3 +3,7 @@ export * from './roles';
 export * from './types';
 export * from './contrast';
 export * from './palette';
+export * from './paths';
+export * from './ops';
+export * from './validation';
+export * from './workspaceOps';

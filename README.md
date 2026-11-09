@@ -23,7 +23,8 @@ on free tiers: the Firebase Spark plan plus a Google Apps Script helper.
 
 ## Status
 
-| Phase                              | State                         |
-| ---------------------------------- | ----------------------------- |
-| 0. Foundations                     | ✅ done, docs awaiting review |
-| 1. Auth, workspace, invites, rules | next                          |
+| Phase                              | State   |
+| ---------------------------------- | ------- |
+| 0. Foundations                     | ✅ done |
+| 1. Auth, workspace, invites, rules | ✅ done |
+| 2. Boards & table view             | next    |

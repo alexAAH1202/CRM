@@ -12,7 +12,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "concurrently -k -n emu,web -c magenta,cyan \"npm run emulators\" \"npm -w web run dev\"",
+    "dev": "concurrently --kill-others-on-fail -n emu,web,seed -c magenta,cyan,gray \"npm run emulators\" \"npm -w web run dev\" \"node firebase/scripts/seed-emulator.mjs\"",
     "emulators": "npm -w firebase run emulators",
     "build": "npm -w web run build && npm -w apps-script run build",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -24,10 +24,12 @@
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:rules && npm -w web run build:emulator && npm -w apps-script run build",
     "deploy:rules": "npm -w firebase run deploy:rules",
     "deploy:hosting": "npm -w firebase run deploy:hosting",
-    "firebase": "npm -w firebase exec -- firebase"
+    "firebase": "npm -w firebase exec -- firebase",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "concurrently": "^10.0.7",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",

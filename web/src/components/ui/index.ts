@@ -6,3 +6,4 @@ export { Pill } from './Pill';
 export { Popover } from './Popover';
 export { Skeleton, Spinner } from './Skeleton';
 export { Toaster } from './Toaster';
+export { SelectField, TextField } from './Field';

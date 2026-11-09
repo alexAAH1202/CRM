@@ -38,6 +38,8 @@ export interface WorkspaceSettings {
 }
 
 export interface MemberDoc {
+  /** Equals the document id; duplicated for the 'my workspaces' collection-group query. */
+  uid: string;
   role: Role;
   email: string;
   displayName: string;

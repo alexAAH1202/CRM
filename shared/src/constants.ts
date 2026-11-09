@@ -20,6 +20,13 @@ export const LIMITS = {
   MAX_DIGEST_EMAILS_PER_DAY: 80,
   /** String length caps enforced in rules. */
   MAX_NAME_LENGTH: 200,
+  MAX_WORKSPACE_NAME_LENGTH: 80,
+  MAX_DISPLAY_NAME_LENGTH: 120,
+  MAX_URL_LENGTH: 2048,
+  MAX_BOARD_MEMBERS: 50,
+  MAX_BOARD_COLUMNS: 100,
+  MAX_BOARD_GROUPS: 100,
+  MAX_ITEM_NAME_LENGTH: 500,
   MAX_DESCRIPTION_LENGTH: 5000,
   MAX_EMAIL_LENGTH: 254,
   /** Members per workspace (small-team product; keeps rule arrays bounded). */

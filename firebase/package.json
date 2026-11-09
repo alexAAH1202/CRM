@@ -11,6 +11,7 @@
     "deploy:hosting": "npm --prefix ../web run build && firebase deploy --only hosting"
   },
   "devDependencies": {
+    "@app/shared": "^0.0.0",
     "@firebase/rules-unit-testing": "^6.0.0",
     "@types/node": "^22.20.5",
     "firebase": "^13.2.0",

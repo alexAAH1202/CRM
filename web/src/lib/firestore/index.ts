@@ -3,10 +3,15 @@
  * (enforced by ESLint no-restricted-imports). Every call is metered so the dev
  * usage overlay reflects real traffic.
  */
+import { resolveSentinels, type DocData, type WriteOp } from '@app/shared';
 import {
+  arrayRemove,
+  arrayUnion,
+  doc,
   getDoc,
   getDocs,
   onSnapshot,
+  serverTimestamp,
   writeBatch,
   type DocumentData,
   type DocumentReference,
@@ -125,4 +130,26 @@ export function createBatch(label: string): MeteredBatch {
     },
   };
   return api;
+}
+
+const sdkSentinels = {
+  serverTime: () => serverTimestamp(),
+  arrayUnion: (...v: unknown[]) => arrayUnion(...v),
+  arrayRemove: (...v: unknown[]) => arrayRemove(...v),
+};
+
+/**
+ * Executes a planner's WriteOp[] (from @app/shared) as one atomic, metered batch.
+ * The rules tests run the same planners, so what ships is what's tested.
+ */
+export async function commitOps(label: string, ops: WriteOp[]): Promise<void> {
+  if (ops.length === 0) return;
+  const b = createBatch(label);
+  for (const op of ops) {
+    const ref = doc(db, op.path);
+    if (op.kind === 'delete') b.delete(ref);
+    else if (op.kind === 'set') b.set(ref, resolveSentinels(op.data, sdkSentinels) as DocData);
+    else b.update(ref, resolveSentinels(op.data, sdkSentinels) as DocData);
+  }
+  await b.commit();
 }

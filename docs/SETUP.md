@@ -28,6 +28,9 @@ npm run dev
 
 - App: http://localhost:5173. It shows a purple "Emulators" badge in the header.
 - Emulator UI: http://localhost:4000. Browse Firestore data and Auth users here.
+- On start, the emulator is seeded so **`ada@example.com`** and
+  **`grace@example.com`** may create workspaces. Sign in as either to create
+  one. Any other email lands on "ask for an invite".
 - "Continue with Google" opens the **emulator's** fake sign-in popup. Choose
   "Add new account" and enter any name and email. No real Google account is
   involved.
@@ -41,6 +44,7 @@ Other scripts:
 | Command              | What it does                                                                                            |
 | -------------------- | ------------------------------------------------------------------------------------------------------- |
 | `npm run check`      | Everything CI runs: format check, lint, typecheck, unit tests, rules tests, build                       |
+| `npm run test:e2e`   | Playwright browser test of the invite flow (starts `npm run dev` if it isn't running)                   |
 | `npm test`           | Unit tests (Vitest)                                                                                     |
 | `npm run test:rules` | Starts a throwaway Firestore emulator and runs the security-rules tests                                 |
 | `npm run build`      | Production build into `firebase/public` (what Hosting serves), plus Apps Script into `apps-script/dist` |

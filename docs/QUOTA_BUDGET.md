@@ -168,3 +168,37 @@ against the Firebase console's usage tab.
 | Board open: cold / warm (<30 min) / delta after a day | 2     | _to measure_ |
 | Dashboard load (5 boards, 8 widgets)                  | 8     | _to measure_ |
 | Full 15-user scenario vs this budget                  | 9     | _to measure_ |
+
+## 6. Phase 1: rule lookups and sign-in cost (from the rules)
+
+The emulator doesn't report billing, so these counts come from the rules
+themselves: the distinct documents each rule `get()`s. The Firebase console's
+usage tab will confirm them in Phase 9.
+
+| Request                                         | Extra reads billed by rules                                       |
+| ----------------------------------------------- | ----------------------------------------------------------------- |
+| Read workspace, members or invites (member)     | 1: `members/{me}`                                                 |
+| Read a board, or list boards for the sidebar    | 1: `members/{me}`                                                 |
+| Item, view or counter query, or listener update | 2: `members/{me}` + board doc                                     |
+| Create a notification                           | 2: `members/{me}` + recipient's member doc                        |
+| Accept an invite (once per person)              | about 2: the invite, plus workspace/member docs in the same batch |
+| Create a workspace (rare)                       | 1: `appConfig/workspaceCreators`                                  |
+| Collection-group "my workspaces" / "my invites" | 0 (rules check only the doc's own fields)                         |
+
+**Cost of one app start (cold):**
+
+| Read                                    | Count                |
+| --------------------------------------- | -------------------- |
+| `users/{me}` (profile sync)             | 1                    |
+| `users/{me}` again (last workspace)     | 1                    |
+| Memberships query                       | 1 + N workspaces     |
+| Workspace names                         | N                    |
+| Invites query                           | 1                    |
+| Workspace-creator check                 | 1                    |
+| Workspace doc + my member doc listeners | 2, plus 2 rule reads |
+
+For N = 1 that's about **11 reads per cold start**. The estimate in §4
+assumed 18, so it holds. Writes per start: 0–1 (the profile sync writes only
+when something changed, and the last-workspace write only happens when you
+switch workspace). The members page adds one live listener (N members + 1
+rule read), and admins get one more for pending invites.

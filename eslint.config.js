@@ -26,6 +26,7 @@ export default tseslint.config(
       '**/coverage/**',
       'firebase/emulator-data/**',
       'apps-script/scripts/**',
+      'firebase/scripts/**',
     ],
   },
   js.configs.recommended,

@@ -174,3 +174,51 @@ Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
 - **Firebase web config:** stored as plain env values in the deploy workflow.
   It's public by design, and this avoids four extra repository variables. This
   is a small deviation from "keep it in env files".
+
+### D21. Later-phase collections stay deny-by-default (deviation from the Phase 1 plan)
+
+- **What:** Phase 1 ships full rules and tests for `users`, `appConfig`,
+  `workspaces`, `members`, `invites`, `folders`, `boards`, `items`, `views`,
+  `meta/counter`, `notifications` and `timers`. The remaining collections are
+  explicitly denied, and a test checks each one:
+  - `updates`
+  - `automations`
+  - `automationRuns`
+  - `activity`
+  - `scheduledEvents`
+  - `dashboards`
+  - `timeEntries`
+- **Alternatives:** permissive placeholder rules for those collections now.
+- **Reason:** their shapes aren't designed yet. Loose placeholder rules are a
+  security risk if forgotten, while deny-by-default is safe. Each collection
+  gets real rules and tests in the phase that builds it.
+
+### D22. Write "planners" in `/shared`, executed by both the app and the rules tests
+
+- **What:** functions such as `planAcceptInvite()` return SDK-free `WriteOp[]`
+  lists. The web app commits them through the metered batch. The rules tests
+  commit the exact same ops against the emulator, plus tampered variants.
+- **Reason:** the tests prove the app's real batches pass the rules, not
+  hand-written copies of them.
+
+### D23. Forms that write reset immediately (optimistic)
+
+- **What:** Firestore shows local writes instantly, but `commit()` resolves
+  only when the server acknowledges. Waiting for that before resetting a form
+  wiped input typed in the meantime. Forms now reset on submit, and a failure
+  shows a toast naming the item that failed.
+
+### D24. Rules mutation testing during development
+
+- **What:** each security property was checked by deliberately weakening the
+  rule and confirming a test fails:
+  - consumed invite
+  - last admin
+  - private-board visibility
+  - invite role equality
+  - `updatedAt` stamping
+  - viewer write
+  - `email_verified`
+
+  The invite role-equality check initially went uncaught, and a test was
+  added for it.
