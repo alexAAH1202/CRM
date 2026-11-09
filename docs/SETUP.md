@@ -243,7 +243,7 @@ Steps B4.1–B4.3 can be done any time. B4.4–B4.6 need the Phase 7 code.
 1. Open https://console.cloud.google.com/auth/overview?project=life-management-de315
    and click **Get started**. If the menu still says "OAuth consent screen",
    it's the same thing.
-2. **App information:** name `[APP_NAME] helper`; user support email: your
+2. **App information:** name `Sorted helper`; user support email: your
    email. Click **Next**.
 3. **Audience:** choose **External**. Click **Next**.
 4. **Contact information:** your email. Click **Next**, tick the agreement,
@@ -259,7 +259,7 @@ Steps B4.1–B4.3 can be done any time. B4.4–B4.6 need the Phase 7 code.
 #### B4.3. Drive folder for workspace files
 
 1. In https://drive.google.com click **New → New folder** and name it, for
-   example, `[APP_NAME] files`.
+   example, `Sorted files`.
 2. Open the folder. The address bar shows
    `https://drive.google.com/drive/folders/<FOLDER_ID>`. Copy the long
    `<FOLDER_ID>` and send it to me. It isn't a secret.
@@ -274,7 +274,7 @@ Steps B4.1–B4.3 can be done any time. B4.4–B4.6 need the Phase 7 code.
 #### B4.4. Create the script project (Phase 7)
 
 1. Open https://script.google.com and click **New project**. Click "Untitled
-   project" (top-left) and rename it `[APP_NAME] helper`.
+   project" (top-left) and rename it `Sorted helper`.
 2. **⚙ Project Settings** (left sidebar):
    - Tick **Show "appsscript.json" manifest file in editor**.
    - Under **Google Cloud Platform (GCP) Project**, click **Change project**.
@@ -288,7 +288,7 @@ Steps B4.1–B4.3 can be done any time. B4.4–B4.6 need the Phase 7 code.
 4. **Authorize:** pick `setup` from the function dropdown in the toolbar, then
    click **Run**.
    - Choose your account. At "Google hasn't verified this app" click
-     **Advanced → Go to [APP_NAME] helper (unsafe)**, then **Allow**.
+     **Advanced → Go to Sorted helper (unsafe)**, then **Allow**.
    - The scopes are Firestore, Drive, sending email, external requests and
      triggers. `setup` also creates the scheduled triggers.
 

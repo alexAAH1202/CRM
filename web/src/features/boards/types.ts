@@ -31,6 +31,8 @@ export interface BoardItem {
   assigneeUids: string[];
   archived: boolean;
   deleted: boolean;
+  /** When it was deleted (null if it isn't). Deleted items stay recoverable until they're purged. */
+  deletedAtMs: number | null;
   createdBy: string;
   createdAtMs: number | null;
   updatedAtMs: number | null;

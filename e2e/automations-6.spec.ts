@@ -99,7 +99,11 @@ test('recipes, a custom automation, the on/off switch, run history and the loop 
   // ---- Reload: automations and history are real, not just local
   await ada.reload();
   await openAutomations(ada);
-  await expect(panel.getByText('Ping', { exact: true })).toBeVisible();
-  await expect(panel.getByText('Pong', { exact: true })).toBeVisible();
+  await expect(
+    panel.getByRole('list', { name: 'Automations' }).getByText('Ping', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    panel.getByRole('list', { name: 'Automations' }).getByText('Pong', { exact: true }),
+  ).toBeVisible();
   expect(permissionErrors(ada)).toEqual([]);
 });

@@ -48,4 +48,4 @@ scheduled automations, Drive uploads and email digests:
 
 Still open from the review, for later phases: general undo/redo; Kanban reordering within a
 lane; running automations for bulk edits; the app name (currently the placeholder
-`[APP_NAME]`).
+`Sorted`).

@@ -146,6 +146,7 @@ export function DefaultValueDialog({
     assigneeUids: [],
     archived: false,
     deleted: false,
+    deletedAtMs: null,
     createdBy: '',
     createdAtMs: null,
     updatedAtMs: null,

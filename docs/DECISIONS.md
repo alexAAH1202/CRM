@@ -532,3 +532,30 @@ me` query per board I can see (only matching items are billed, plus one read per
 
 - The browser's online/offline events show a banner; Firestore keeps working from its cache and
   queues writes. The banner says the exceptions (item-creating automations need a connection).
+
+### D65. "Recently deleted" for items, from data already loaded
+
+- Deleting an item is a tombstone (`deletedAt`), and tombstones are already in the board's
+  delta-synced data, so the panel lists them with **no extra reads**. Restore brings back the
+  item with the subitems deleted alongside it. Items deleted over 30 days ago are hidden here
+  (and purged for good by the Phase 7 helper). Before this, the only way back was the 10-second
+  Undo toast. Viewers can't see the button.
+
+### D66. Status labels can be created from the cell, like dropdown options and tags
+
+- The same "type a name, press Add" form; the label is saved on the column and applied in one
+  step. Existing names are reused rather than duplicated.
+
+### D67. Honest empty states and switches
+
+- An empty board shows how to add the first item (type, press Enter or click away). The
+  "something I own is due" notification switch is disabled and labelled "coming soon:
+  reminders", because nothing sends those until the Phase 7 helper exists.
+
+### D68. The app is called **Sorted**, and installs to a phone home screen
+
+- Name chosen by the product owner (2026-11-09). A web app manifest plus icons (192, 512,
+  maskable, Apple touch) make it installable ("Add to Home Screen") and open full screen.
+- Deliberately **no service worker**: it would cache old app code and can serve a stale
+  version after a deploy. Offline use is already handled by Firestore's own cache for data;
+  the app shell needs a connection to load the first time each session.

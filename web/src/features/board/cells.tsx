@@ -1,9 +1,12 @@
 import {
   formatNumber,
+  LABEL_COLOR_NAMES,
   LABEL_COLORS,
   normalizeUrl,
   normalizeValue,
+  shortId,
   type Column,
+  type Label,
   type LinkValue,
   type TimelineValue,
 } from '@app/shared';
@@ -11,6 +14,7 @@ import { Check, ExternalLink } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Avatar, Button, Popover } from '../../components/ui';
 import { cx } from '../../lib/cx';
+import { useCellEnv } from './cellEnv';
 import {
   ContactCell,
   CreatedByCell,
@@ -355,6 +359,8 @@ function LinkCell({ column, item, itemName, canEdit, onChange }: CellProps) {
 // ----------------------------------------------------------------- choosers
 
 function StatusCell({ column, item, itemName, canEdit, onChange }: CellProps) {
+  const env = useCellEnv();
+  const [newLabel, setNewLabel] = useState('');
   const v = normalizeValue(column, item.values[column.id]) as string | null;
   const labels = column.settings.labels ?? [];
   const current = labels.find((l) => l.id === v);
@@ -410,6 +416,43 @@ function StatusCell({ column, item, itemName, canEdit, onChange }: CellProps) {
               Clear
             </button>
           )}
+          <form
+            className="mt-1 flex gap-1.5 border-t border-border pt-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const text = newLabel.trim().slice(0, 40);
+              if (!text) return;
+              const existing = labels.find((l) => l.name.toLowerCase() === text.toLowerCase());
+              if (existing) onChange(existing.id);
+              else {
+                const lab: Label = {
+                  id: shortId(),
+                  name: text,
+                  color: LABEL_COLOR_NAMES[labels.length % LABEL_COLOR_NAMES.length] ?? 'blue',
+                };
+                // The label must exist on the column before an item can use it.
+                env.saveColumnAndSet(
+                  { ...column, settings: { ...column.settings, labels: [...labels, lab] } },
+                  item,
+                  lab.id,
+                );
+              }
+              setNewLabel('');
+              close();
+            }}
+          >
+            <input
+              aria-label="New label"
+              placeholder="New label…"
+              maxLength={40}
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              className="h-8 min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 text-sm focus:border-primary focus:outline-none"
+            />
+            <Button size="sm" type="submit" disabled={!newLabel.trim()}>
+              Add
+            </Button>
+          </form>
         </div>
       )}
     </Popover>

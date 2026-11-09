@@ -55,6 +55,7 @@ function toItem(d: QueryDocumentSnapshot<DocumentData>): BoardItem {
     assigneeUids: Array.isArray(x['assigneeUids']) ? (x['assigneeUids'] as string[]) : [],
     archived: x['archived'] === true,
     deleted: x['deletedAt'] != null,
+    deletedAtMs: x['deletedAt'] instanceof Timestamp ? x['deletedAt'].toMillis() : null,
     createdBy: String(x['createdBy'] ?? ''),
     createdAtMs: x['createdAt'] instanceof Timestamp ? x['createdAt'].toMillis() : null,
     updatedAtMs: ts instanceof Timestamp ? ts.toMillis() : null,

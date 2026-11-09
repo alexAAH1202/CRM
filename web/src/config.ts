@@ -1,5 +1,5 @@
-/** Product name placeholder — change here once a name is chosen. */
-export const APP_NAME = '[APP_NAME]';
+/** The product name (shown in the sidebar, sign-in page and browser tab). */
+export const APP_NAME = 'Sorted';
 
 const env = import.meta.env;
 
