@@ -6,6 +6,9 @@ export type Zoom = 'day' | 'week' | 'month';
 /** Pixels per day at each zoom. */
 export const ZOOM_PX: Record<Zoom, number> = { day: 36, week: 14, month: 5 };
 
+/** Wide enough to fill a screen at any zoom, so there's always room to drag bars later. */
+export const MIN_DAYS = 120;
+
 export interface GanttRange {
   start: string;
   days: number;
@@ -13,7 +16,7 @@ export interface GanttRange {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** The visible date range: every bar and today, padded, and at least ~4 weeks wide. */
+/** The visible date range: every bar and today, padded, and at least 120 days wide. */
 export function ganttRange(spans: readonly DateSpan[], today: string): GanttRange {
   let min = today;
   let max = today;
@@ -23,7 +26,7 @@ export function ganttRange(spans: readonly DateSpan[], today: string): GanttRang
   }
   const start = addDays(min, -3) as string;
   const end = addDays(max, 14) as string;
-  const days = Math.max(28, (diffDays(end, start) ?? 0) + 1);
+  const days = Math.max(MIN_DAYS, (diffDays(end, start) ?? 0) + 1);
   return { start, days };
 }
 

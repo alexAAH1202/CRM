@@ -52,18 +52,23 @@ export function useVisibleItems(p: ViewProps) {
     [items, board.columns, env],
   );
   const byId = useMemo(() => new Map(computed.map((i) => [i.id, i])), [computed]);
-  const visible = useMemo(() => {
-    const layout = buildLayout<BoardItem>({
-      items: computed,
-      columns: board.columns,
-      groups: board.groups,
-      config,
-      search,
-      ctx,
-    });
-    return layout.flatMap((g) => g.rows.flatMap((r) => [r.item, ...r.subitems]));
-  }, [computed, board.columns, board.groups, config, search, ctx]);
-  return { visible, byId, today, ctx };
+  const layout = useMemo(
+    () =>
+      buildLayout<BoardItem>({
+        items: computed,
+        columns: board.columns,
+        groups: board.groups,
+        config,
+        search,
+        ctx,
+      }),
+    [computed, board.columns, board.groups, config, search, ctx],
+  );
+  const visible = useMemo(
+    () => layout.flatMap((g) => g.rows.flatMap((r) => [r.item, ...r.subitems])),
+    [layout],
+  );
+  return { visible, layout, byId, today, ctx };
 }
 
 /** Adds an item to the board's first group (optionally with starting values). */

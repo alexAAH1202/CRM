@@ -131,7 +131,12 @@ authorization.**
   showArchived: boolean,
   options: { laneColumnId: columnId|null,                    // Kanban lanes (status|dropdown|people)
              dateColumnId: columnId|null,                     // Calendar (date|timeline)
-             calendarMode: 'month'|'week' } }
+             calendarMode: 'month'|'week',
+             ganttColumnId: columnId|null, zoom: 'day'|'week'|'month',     // Gantt (timeline column)
+             effortColumnId, peopleColumnId: columnId|null,                // Workload
+             capacity: number, capacityByUid: { [uid]: hours },            // hours/week, 1–168
+             chartType: 'bar'|'stacked'|'pie'|'line', groupColumnId, stackColumnId,
+             measure: 'count'|'sum'|'avg', valueColumnId } }                // Chart
 ```
 
 A board has up to 12 views (tabs). Each keeps its own filters/sort/options. The table

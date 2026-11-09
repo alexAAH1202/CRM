@@ -378,3 +378,29 @@ Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
   pointer. Items with no date sit in a "No date yet" list that can be dragged in.
 - Cards open the same editors the table uses (one dialog), so there is no second set of
   editors to keep in step. A full item page with comments arrives in Phase 5.
+
+### D47. Gantt, Workload and Chart are our own components (Chart uses Recharts)
+
+- Gantt is DOM + one SVG overlay for arrows, written by us as the spec asks (no Gantt
+  library). Bars drag with pointer events (move, resize either end, whole-day snapping) and
+  with the keyboard (arrows move, Shift+arrows resize the end). Group headers are the lanes.
+- Dependency arrows are finish-to-start with lag. An arrow turns red when the dependent
+  starts too early. After a bar moves, dependents that now start too early are offered a
+  **Shift** (not moved automatically); it cascades through dependents of dependents, keeps
+  each item's length, and only ever pushes later (`shiftPlan`).
+- Recharts is ~100 KB gzipped, so the chart is a lazy-loaded chunk: boards that don't use
+  the Chart view never download it. A plain data table sits under every chart so the data is
+  readable without sight or pointer.
+
+### D48. Workload maths
+
+- An item's hours are spread evenly over its working days (Mon–Fri; all days if it has
+  none) and split equally between its assignees. Hours come from a Numbers column, or from
+  the dates at 8h per working day. Unassigned work is its own row and is never "over".
+- Capacity is hours per person per week (default 40; per-person overrides). Over capacity
+  is flagged with an icon and text, not colour alone.
+
+### D49. Chart groups by status, dropdown, people, date (by month) or checkbox
+
+- An item with several people/options counts once for each. Sum/average need a Numbers (or
+  formula) column and fall back to counting without one.

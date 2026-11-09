@@ -22,6 +22,7 @@
   --c-primary-soft: #ebe8fc;
   --c-danger: #c42b3f;
   --c-danger-text: #ffffff;
+  --c-danger-soft: #fdecee;
   --c-focus: #2f6fed;
   --c-overlay: rgb(17 20 32 / 0.45);
   --shadow-pop: 0 8px 28px rgb(23 26 45 / 0.16), 0 1px 3px rgb(23 26 45 / 0.08);
@@ -42,6 +43,7 @@
   --c-primary-soft: #262240;
   --c-danger: #f06b7c;
   --c-danger-text: #1b0f12;
+  --c-danger-soft: #3a1f26;
   --c-focus: #7fa7ff;
   --c-overlay: rgb(0 0 0 / 0.6);
   --shadow-pop: 0 8px 28px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.4);
@@ -60,6 +62,7 @@
   --color-primary-hover: var(--c-primary-hover);
   --color-on-primary: var(--c-primary-text);
   --color-primary-soft: var(--c-primary-soft);
+  --color-danger-soft: var(--c-danger-soft);
   --color-danger: var(--c-danger);
   --color-on-danger: var(--c-danger-text);
   --color-focus: var(--c-focus);

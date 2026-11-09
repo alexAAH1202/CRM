@@ -15,10 +15,10 @@ import type { DateSpan } from './views';
 const sp = (start: string, end: string): DateSpan => ({ start, end });
 
 describe('gantt geometry', () => {
-  it('range covers bars and today, padded, at least 28 days', () => {
+  it('range covers bars and today, padded, at least 120 days', () => {
     const r = ganttRange([sp('2026-03-10', '2026-03-12')], '2026-03-11');
     expect(r.start).toBe('2026-03-07');
-    expect(r.days).toBe(28);
+    expect(r.days).toBe(120);
     const wide = ganttRange([sp('2026-01-01', '2026-06-30')], '2026-03-01');
     expect(wide.start).toBe('2025-12-29');
     expect(wide.days).toBe(
