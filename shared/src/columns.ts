@@ -39,7 +39,18 @@ export interface NumbersSettings {
   decimals: number;
 }
 
-export type ColumnSettings = Partial<StatusSettings & DropdownSettings & NumbersSettings>;
+export type SummaryKind = 'none' | 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distribution';
+
+export interface CommonSettings {
+  /** Footer summary shown under each group. */
+  summary: SummaryKind;
+  /** Value given to new items (status uses `defaultLabelId` instead). */
+  defaultValue: unknown;
+}
+
+export type ColumnSettings = Partial<
+  StatusSettings & DropdownSettings & NumbersSettings & CommonSettings
+>;
 
 export interface Column {
   id: string;
@@ -233,4 +244,16 @@ export function valueToText(
     default:
       return String(v);
   }
+}
+
+/** Values a brand-new item starts with: status default label + each column's default value. */
+export function defaultItemValues(columns: readonly Column[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const col of columns) {
+    const raw = col.type === 'status' ? col.settings.defaultLabelId : col.settings.defaultValue;
+    if (raw === undefined || raw === null) continue;
+    const v = normalizeValue(col, raw);
+    if (v !== null) out[col.id] = v;
+  }
+  return out;
 }

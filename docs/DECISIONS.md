@@ -260,3 +260,71 @@ Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
 
 - **Reason:** keeps 2a focused on a working board. Both need per-user settings
   sync, which fits better with the other 2b view-state work.
+
+### D30. Column reordering uses Move left / Move right, not drag-and-drop (spec deviation)
+
+- **Spec:** "column drag-reorder".
+- **Reason:** the table header repeats in every group, so a drag handle would need
+  one sortable context per header row and horizontal auto-scroll over a virtualized
+  grid. Move left/right is reliable, keyboard-accessible and one write. Row and
+  group reordering _is_ drag-and-drop (dnd-kit, with keyboard support).
+- **Revisit:** if it bothers you in daily use, a header drag can be added on the
+  first group's header only.
+
+### D31. Virtual rows are positioned with `top`, not `transform`
+
+- **Reason:** dnd-kit measures elements ignoring CSS transforms. With
+  `translateY` positioning every drop target was measured at the wrong place
+  (items landed at the end of the group). Found by driving the real UI.
+
+### D32. Per-view settings: one `views/main` doc, debounced writes, viewers stay local
+
+- **What:** filters, sort, group-by, hidden columns, column widths and "show
+  archived" are saved on the view doc and apply for everyone (the spec's "saved
+  per board"). Changes apply instantly and are written once ~600 ms after the
+  last change, so dragging a column edge or typing a filter value is one write.
+  Viewers can't write, so their changes stay on their device.
+- **Alternative:** per-user personal views (listed as a stretch goal in the spec).
+- **Cost:** one small listener on `views/main` per open board.
+
+### D33. Incomplete filters are ignored
+
+- **Reason:** a filter row with no value yet (e.g. "Amount =" with nothing typed) would
+  otherwise hide every item while the person is mid-edit.
+
+### D34. Favourites are stored as a whole list; array-union is not used in nested maps
+
+- **Found by a rules test:** `arrayUnion` inside `settings.favoriteBoardIds` was rejected
+  by the rules (they can't see through the transform in a nested map), while the UI
+  looked fine because Firestore applies writes locally first.
+- **Fix:** write the whole list (cap 200, shape validated in rules).
+- **Safeguard:** the browser tests now fail if the page logs a permission error, and
+  the favourites test reloads to prove the write reached the server.
+
+### D35. Group-by shows an item under its _first_ value
+
+- **Applies to:** Dropdown and People columns with several values.
+- **Reason:** showing one item in several groups would duplicate row keys and make
+  drag/edit ambiguous. Drag-reorder is off while grouped by a column (the order is
+  meaningless across virtual groups); adding an item in a virtual group sets that value.
+
+### D36. Changing a column's type rewrites the affected cells (a bounded fan-out)
+
+- **Reason:** converting "text → status" must create labels and map every cell. A
+  preview shows how many values carry over and how many are cleared before applying.
+- **Bound:** boards are budgeted at ~150 items; writes go in batches of 100.
+
+### D37. Batches are capped at 100 writes
+
+- **Measured:** the rules accept 450-write batches in the emulator (repeat lookups of
+  the member/board docs are cached per request). A regression test guards 200.
+- **Chosen cap:** 100, to limit the damage if a batch ever fails part-way.
+
+### D38. Toasts moved to the bottom-right
+
+- **Reason:** centred toasts covered the left half of the bulk-actions bar.
+
+### D39. Group names use the normal text colour; the label colour is a dot
+
+- **Reason:** light label colours (grey, yellow, sky) as text on the page background
+  failed WCAG AA contrast (found by looking at a "grey" group).

@@ -28,5 +28,5 @@ on free tiers: the Firebase Spark plan plus a Google Apps Script helper.
 | ---------------------------------- | ------- |
 | 0. Foundations                     | ✅ done |
 | 1. Auth, workspace, invites, rules | ✅ done |
-| 2a. Boards & table (core)          | ✅ done |
-| 2b. Table power features           | next    |
+| 2. Boards & table view (2a + 2b)   | ✅ done |
+| 3. Columns, formulas, dependencies | next    |

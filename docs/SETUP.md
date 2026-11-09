@@ -50,6 +50,13 @@ Other scripts:
 | `npm run build`      | Production build into `firebase/public` (what Hosting serves), plus Apps Script into `apps-script/dist` |
 | `npm run format`     | Prettier write                                                                                          |
 
+**"Port taken" / emulators won't start:** a previous run left an emulator behind (this
+happens after a test run is killed). Stop it, then try again:
+
+```bash
+pkill -f "firebase emulators"; pkill java
+```
+
 Dev usage meter: set `VITE_USAGE_METER=true` in `web/.env.local`, or run
 `localStorage.setItem('usageMeter','1')` in the browser console and reload. A
 small R/W/D/L counter then appears bottom-right.

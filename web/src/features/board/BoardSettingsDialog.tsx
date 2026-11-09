@@ -1,13 +1,13 @@
-import { Archive, ArchiveRestore, Globe, Lock, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Copy, Globe, Lock, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { Avatar, Button, Modal, TextField } from '../../components/ui';
+import { Avatar, Button, Modal, SelectField, TextField } from '../../components/ui';
 import { cx } from '../../lib/cx';
 import { friendlyError } from '../../lib/firestore/errors';
 import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
-import { deleteBoardCompletely, updateBoard } from '../boards/api';
+import { deleteBoardCompletely, duplicateBoard, updateBoard } from '../boards/api';
 import { useBoards } from '../boards/BoardsProvider';
 import type { Board } from '../boards/types';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
@@ -24,7 +24,9 @@ export function BoardSettingsDialog({
   const user = useCurrentUser();
   const navigate = useNavigate();
   const { workspace, role } = useWorkspace();
-  const { members } = useBoards();
+  const { members, folders, boards, archived } = useBoards();
+  const [folderId, setFolderId] = useState<string | null>(board.folderId ?? null);
+  const [duplicating, setDuplicating] = useState(false);
   const [name, setName] = useState(board.name);
   const [description, setDescription] = useState(board.description);
   const [visibility, setVisibility] = useState(board.visibility);
@@ -37,6 +39,7 @@ export function BoardSettingsDialog({
     const patch: Parameters<typeof updateBoard>[2] = {};
     if (name.trim() && name.trim() !== board.name) patch.name = name.trim();
     if (description !== board.description) patch.description = description.slice(0, 5000);
+    if (folderId !== (board.folderId ?? null)) patch.folderId = folderId;
     if (canManageAccess) {
       const ids = visibility === 'private' ? [...new Set([user.uid, ...memberIds])] : [];
       if (visibility !== board.visibility || ids.join() !== board.memberIds.join()) {
@@ -82,6 +85,20 @@ export function BoardSettingsDialog({
             className="rounded-xl border border-border bg-surface p-3 text-sm focus:border-primary focus:outline-none"
           />
         </div>
+        {folders.length > 0 && (
+          <SelectField
+            label="Folder"
+            value={folderId ?? ''}
+            onChange={(e) => setFolderId(e.target.value || null)}
+          >
+            <option value="">(none)</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </SelectField>
+        )}
         {canManageAccess && (
           <fieldset className="space-y-2">
             <legend className="mb-2 text-sm font-semibold">Who can see it</legend>
@@ -160,6 +177,33 @@ export function BoardSettingsDialog({
               <Archive size={14} aria-hidden />
             )}
             {board.archived ? 'Restore board' : 'Archive board'}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={duplicating}
+            onClick={async () => {
+              setDuplicating(true);
+              try {
+                const all = [...(boards ?? []), ...archived];
+                const bid = await duplicateBoard({
+                  wid: workspace.id,
+                  source: board,
+                  uid: user.uid,
+                  name: `${board.name} (copy)`,
+                  lastOrder: all.at(-1)?.order ?? null,
+                });
+                toast.success('Board duplicated');
+                onClose();
+                navigate(`/w/${workspace.id}/b/${bid}`);
+              } catch (err) {
+                fail(err);
+              } finally {
+                setDuplicating(false);
+              }
+            }}
+          >
+            <Copy size={14} aria-hidden /> {duplicating ? 'Duplicating…' : 'Duplicate board'}
           </Button>
           {role === 'admin' && (
             <Button

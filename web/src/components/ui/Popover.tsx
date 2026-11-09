@@ -39,6 +39,7 @@ export function Popover({
   const { refs, floatingStyles } = useFloating({
     open,
     placement,
+    strategy: 'fixed',
     middleware: [offset(6), flip(), shift({ padding: 8 })],
     whileElementsMounted: autoUpdate,
   });
@@ -103,7 +104,9 @@ export function Popover({
           >
             {typeof children === 'function' ? children(close) : children}
           </div>,
-          document.body,
+          // Inside a modal <dialog> (top layer) the panel must live in the dialog,
+          // otherwise it renders behind it and can't be clicked.
+          (triggerEl.current?.closest('dialog') as HTMLElement | null) ?? document.body,
         )}
     </>
   );

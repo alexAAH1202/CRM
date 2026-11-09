@@ -1,45 +1,25 @@
-import { Archive, Lock, Search, Settings, ShieldAlert } from 'lucide-react';
+import { Archive, Lock, Settings, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FullPageSpinner } from '../../components/FullPageSpinner';
 import { Button, EmptyState, Skeleton } from '../../components/ui';
 import { useBoards } from '../boards/BoardsProvider';
+import type { Board } from '../boards/types';
 import { useBoardDoc, useBoardItems } from '../boards/useBoardData';
+import { useViewConfig } from '../boards/useViewConfig';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
 import { BoardSettingsDialog } from './BoardSettingsDialog';
 import { BoardTable } from './BoardTable';
+import { BoardToolbar } from './BoardToolbar';
 
-export default function BoardPage() {
-  const { bid = '' } = useParams();
+function BoardView({ board: b }: { board: Board }) {
   const { workspace, role } = useWorkspace();
   const { members, memberName } = useBoards();
-  const board = useBoardDoc(workspace.id, bid);
-  const items = useBoardItems(workspace.id, bid);
+  const items = useBoardItems(workspace.id, b.id);
   const [search, setSearch] = useState('');
   const [settings, setSettings] = useState(false);
-
-  if (board.status === 'loading') return <FullPageSpinner label="Opening board" />;
-  if (board.status !== 'ready') {
-    return (
-      <EmptyState
-        icon={<ShieldAlert size={28} />}
-        title={board.status === 'missing' ? 'Board not found' : 'Could not open this board'}
-        body={
-          board.status === 'error' ? board.message : "It may have been deleted, or it's private."
-        }
-        action={
-          <Link
-            to={`/w/${workspace.id}`}
-            className="font-semibold text-primary underline underline-offset-2"
-          >
-            Back to home
-          </Link>
-        }
-      />
-    );
-  }
-  const b = board.data;
-  const canEdit = role !== 'viewer';
+  const canEdit = role !== 'viewer' && !b.archived;
+  const view = useViewConfig(workspace.id, b.id, canEdit, b.columns);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -61,7 +41,7 @@ export default function BoardPage() {
               <p className="mt-1 line-clamp-2 text-sm text-muted">{b.description}</p>
             )}
           </div>
-          {canEdit && (
+          {role !== 'viewer' && (
             <Button
               variant="secondary"
               size="sm"
@@ -73,20 +53,21 @@ export default function BoardPage() {
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-bold text-primary">
             Main table
           </span>
-          <label className="ml-auto flex h-9 items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm focus-within:border-primary">
-            <Search size={14} aria-hidden className="text-muted" />
-            <span className="sr-only">Search items</span>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search"
-              className="w-36 bg-transparent outline-none sm:w-56"
+          <div className="min-w-0 flex-1">
+            <BoardToolbar
+              columns={b.columns}
+              members={members ?? []}
+              config={view.config}
+              onChange={view.update}
+              search={search}
+              onSearch={setSearch}
+              shared={view.shared}
             />
-          </label>
+          </div>
         </div>
       </header>
       {items.status === 'ready' && members ? (
@@ -95,8 +76,10 @@ export default function BoardPage() {
           board={b}
           items={items.data}
           members={members}
-          canEdit={canEdit && !b.archived}
+          canEdit={canEdit}
           search={search}
+          config={view.config}
+          onConfig={view.update}
           memberName={memberName}
         />
       ) : items.status === 'error' ? (
@@ -111,4 +94,32 @@ export default function BoardPage() {
       {settings && <BoardSettingsDialog board={b} open onClose={() => setSettings(false)} />}
     </div>
   );
+}
+
+export default function BoardPage() {
+  const { bid = '' } = useParams();
+  const { workspace } = useWorkspace();
+  const board = useBoardDoc(workspace.id, bid);
+
+  if (board.status === 'loading') return <FullPageSpinner label="Opening board" />;
+  if (board.status !== 'ready') {
+    return (
+      <EmptyState
+        icon={<ShieldAlert size={28} />}
+        title={board.status === 'missing' ? 'Board not found' : 'Could not open this board'}
+        body={
+          board.status === 'error' ? board.message : "It may have been deleted, or it's private."
+        }
+        action={
+          <Link
+            to={`/w/${workspace.id}`}
+            className="font-semibold text-primary underline underline-offset-2"
+          >
+            Back to home
+          </Link>
+        }
+      />
+    );
+  }
+  return <BoardView key={board.data.id} board={board.data} />;
 }

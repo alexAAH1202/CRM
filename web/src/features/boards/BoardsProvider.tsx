@@ -1,16 +1,20 @@
 import { byOrder, isRole, paths } from '@app/shared';
+import { doc } from 'firebase/firestore';
 import { collection, query, where } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { db } from '../../lib/firebase';
 import { listenQuery } from '../../lib/firestore';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
-import type { BoardSummary, WorkspaceMember } from './types';
+import { listenDoc } from '../../lib/firestore';
+import type { BoardSummary, Folder, WorkspaceMember } from './types';
 
 interface BoardsState {
   boards: BoardSummary[] | null; // non-archived, sorted
   archived: BoardSummary[];
   members: WorkspaceMember[] | null;
+  folders: Folder[];
+  favorites: ReadonlySet<string>;
   memberName: (uid: string) => string;
 }
 
@@ -24,6 +28,7 @@ function toSummary(id: string, d: Record<string, unknown>): BoardSummary {
     archived: d['archived'] === true,
     order: String(d['order'] ?? 'a0'),
     createdBy: String(d['createdBy'] ?? ''),
+    folderId: typeof d['folderId'] === 'string' ? d['folderId'] : null,
   };
 }
 
@@ -39,6 +44,8 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
   const [main, setMain] = useState<Map<string, BoardSummary> | null>(null);
   const [mine, setMine] = useState<Map<string, BoardSummary> | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[] | null>(null);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [favorites, setFavorites] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     const col = collection(db, paths.boards(workspace.id));
@@ -84,6 +91,35 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
     [workspace.id],
   );
 
+  useEffect(
+    () =>
+      listenQuery('folders', collection(db, paths.folders(workspace.id)), (s) =>
+        setFolders(
+          s.docs
+            .map((d) => ({
+              id: d.id,
+              name: String(d.data()['name'] ?? 'Folder'),
+              order: String(d.data()['order'] ?? 'a0'),
+            }))
+            .sort(byOrder),
+        ),
+      ),
+    [workspace.id],
+  );
+
+  // My favourite boards live on my user doc (one small listener).
+  useEffect(
+    () =>
+      listenDoc('user:favorites', doc(db, paths.user(user.uid)), (snap) => {
+        const ids = (snap.data()?.['settings'] as { favoriteBoardIds?: unknown } | undefined)
+          ?.favoriteBoardIds;
+        setFavorites(
+          new Set(Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : []),
+        );
+      }),
+    [user.uid],
+  );
+
   const value = useMemo<BoardsState>(() => {
     let all: BoardSummary[] | null = null;
     if (main && mine) all = [...new Map([...main, ...mine]).values()].sort(byOrder);
@@ -92,9 +128,11 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
       boards: all?.filter((b) => !b.archived) ?? null,
       archived: all?.filter((b) => b.archived) ?? [],
       members,
+      folders,
+      favorites,
       memberName: (uid) => byUid.get(uid) ?? 'Former member',
     };
-  }, [main, mine, members]);
+  }, [main, mine, members, folders, favorites]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

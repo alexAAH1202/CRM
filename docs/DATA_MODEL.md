@@ -34,7 +34,7 @@ allowlist out of git and editable without a rules deploy.
 
 ```ts
 { displayName, email, photoURL, lastWorkspaceId: string | null,
-  settings: { theme?: 'light'|'dark'|'system', notify?: {...} } }
+  settings: { theme?: 'light'|'dark'|'system', favoriteBoardIds?: string[] /* <= 200, the whole list is written */ } }
 ```
 
 Owner read/write only. Holds per-user preferences only. **It is never used for
@@ -121,6 +121,16 @@ authorization.**
 
 ### `boards/{bid}/views/{vid}` **[changed: was embedded]**
 
+`config` (Phase 2b) holds the view's saved state:
+
+```ts
+{ filters: [{ id, columnId /* or 'name' */, op, value? }],   // max 12; incomplete filters are ignored
+  sort: [{ columnId, dir: 'asc'|'desc' }],                    // max 3
+  groupBy: columnId | null,                                   // status | dropdown | people
+  hiddenCols: columnId[], colWidths: { [columnId]: px },      // 80–600
+  showArchived: boolean }
+```
+
 ```ts
 { type: 'table'|'kanban'|'calendar'|'gantt'|'workload'|'chart'|'form',
   name, order, config: { filters, sort, groupBy, hiddenCols, colWidths, ... },
@@ -176,6 +186,14 @@ listens to, so creating an item doesn't fan out a board-doc update.
   | link           | `{ url, text }` (http(s)/mailto only; `javascript:` refused) |
 
   An empty cell removes its key from `values`.
+
+  Column `settings` also carry (2b): `summary` (footer: none/count/sum/avg/min/max/
+  distribution) and `defaultValue` (what new items start with; status uses
+  `defaultLabelId`).
+
+- **Subitems** are items with `parentId` set. They share the parent's columns and
+  `groupId`, and use the same board counter. Archiving, deleting or moving a parent
+  applies to its subitems in the same batches.
 
 ### `items/{iid}/updates/{updId}` (comments)
 
