@@ -120,12 +120,7 @@ describe('folders', () => {
 });
 
 describe('collections reserved for later phases are denied to everyone', () => {
-  const paths = [
-    `${W}/scheduledEvents/e1`,
-    `${W}/dashboards/d1`,
-    `${W}/timeEntries/t1`,
-    `${W}/somethingElse/x`,
-  ];
+  const paths = [`${W}/scheduledEvents/e1`, `${W}/timeEntries/t1`, `${W}/somethingElse/x`];
   it.each(paths)('%s', async (p) => {
     await assertFails(getDoc(doc(db(env, 'alice'), p)));
     await assertFails(setDoc(doc(db(env, 'alice'), p), { a: 1 }));

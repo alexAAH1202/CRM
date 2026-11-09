@@ -820,3 +820,34 @@ me` query per board I can see (only matching items are billed, plus one read per
 - For each list with a Time tracking column it runs one query ordered by that cell, which returns
   only items that have the cell set, so a visit costs about one read per tracked item plus one per
   list (to learn its columns). Results are kept for a minute (Refresh to force).
+
+### D92. Dashboards: up to five lists, nine widgets, nothing live
+
+- Sidebar → Dashboards. A dashboard has a name, **up to 5 lists** (`LIMITS.MAX_DASHBOARD_BOARDS`), up
+  to 24 widgets on a 12-column drag-and-resize grid (react-grid-layout), and is either for the whole
+  household or just for its creator (admins can see every dashboard, as with private lists). Editors
+  press **Edit** to add, move, resize, configure and remove widgets; viewers can look. Phones show one
+  column and don't drag.
+- Widgets: **Number** (count / total / average, optionally "only items whose status is …"),
+  **Progress** (share done), **Chart** (bar, stacked, pie, line: the Chart view's engine), **Items**
+  (a short table), **Overdue**, **Tasks by person**, **Workload** (hours per person per week from a
+  Timeline column), **Timeline**, **Time tracked** (hours per person this week/month/all time).
+- Data strategy, per widget: **Number** uses a Firestore _aggregation query_ (`count()` / `sum()` /
+  `average()` with equality filters on deleted/archived/subitem and optionally the status), billed
+  roughly one read per thousand items instead of one per item. Every other widget needs the items, so
+  they share **one read of each list's items** (and board document), kept for a minute: ten widgets
+  over one list read it once. **Time tracked** reads only items that have time logged. There are **no
+  live listeners** on a dashboard; Refresh drops the cache and reloads.
+- Deleted items are left out by the query itself; archived items and subitems are ignored when
+  counting ("the work" = top-level, not archived, not deleted).
+
+### D93. Dashboard rules and their limit
+
+- Read: any member for a household dashboard; the named members and admins for a private one. Create
+  and edit: editors (viewers can't); the creator and creation time can't change; delete: the creator or
+  an admin. At most 5 list ids, 24 widgets, and a private dashboard must name its creator.
+- Firestore rules may evaluate at most 1,000 expressions per request. Checking each of 24 widgets'
+  fields (type, config keys, layout keys) exceeded that, so the rules only check that every widget is
+  an object with a text `type` (and the count). Everything else about a widget is sanitised when the
+  dashboard is read (`parseDashboard`: unknown types and fields vanish, layouts are clamped, a widget
+  can only point at a list the dashboard has), so a tampered client can't make a dashboard misbehave.

@@ -17,6 +17,8 @@ const FIRESTORE_PRIMITIVES = [
   'getDocsFromServer',
   'getDocsFromCache',
   'getDocFromCache',
+  'getAggregateFromServer',
+  'getCountFromServer',
 ];
 
 export default tseslint.config(
