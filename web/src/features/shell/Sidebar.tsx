@@ -1,5 +1,19 @@
-import { Check, ChevronsUpDown, Home, LogOut, Mail, Menu, Plus, Users } from 'lucide-react';
-import { useEffect } from 'react';
+import {
+  Archive,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronsUpDown,
+  Home,
+  LayoutGrid,
+  Lock,
+  LogOut,
+  Mail,
+  Menu,
+  Plus,
+  Users,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Logo } from '../../components/Logo';
 import { RoleBadge } from '../../components/RoleBadge';
@@ -7,6 +21,8 @@ import { ThemeToggle } from '../../components/ThemeToggle';
 import { Avatar, Popover } from '../../components/ui';
 import { cx } from '../../lib/cx';
 import { signOutUser, useCurrentUser } from '../auth/AuthProvider';
+import { useBoards } from '../boards/BoardsProvider';
+import { CreateBoardDialog } from '../boards/CreateBoardDialog';
 import { useSessionStore } from '../workspaces/sessionStore';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
 
@@ -108,7 +124,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <Users size={18} aria-hidden /> Members
         </NavLink>
       </nav>
-      <div className="flex-1" />
+      <BoardList onNavigate={onNavigate} />
       <div className="space-y-3 border-t border-border pt-3">
         <div className="flex items-center gap-2 px-1">
           <Avatar name={name} photoURL={user.photoURL} />
@@ -147,6 +163,78 @@ export function MobileTopBar({ onMenu }: { onMenu: () => void }) {
         <Menu size={20} aria-hidden />
       </button>
       <span className="truncate font-bold">{workspace.name}</span>
+    </div>
+  );
+}
+
+function BoardList({ onNavigate }: { onNavigate?: (() => void) | undefined }) {
+  const { workspace, role } = useWorkspace();
+  const { boards, archived } = useBoards();
+  const [creating, setCreating] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const base = `/w/${workspace.id}/b`;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center justify-between px-3 pb-1">
+        <h2 className="text-xs font-bold tracking-wide text-muted uppercase">Boards</h2>
+        {role !== 'viewer' && (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            aria-label="New board"
+            title="New board"
+            className="rounded-lg p-1 text-muted hover:bg-surface-2 hover:text-fg"
+          >
+            <Plus size={16} aria-hidden />
+          </button>
+        )}
+      </div>
+      <nav aria-label="Boards" className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
+        {boards === null ? (
+          <p className="px-3 py-2 text-sm text-muted">Loading…</p>
+        ) : boards.length === 0 ? (
+          <p className="px-3 py-2 text-sm text-muted">No boards yet.</p>
+        ) : (
+          boards.map((b) => (
+            <NavLink key={b.id} to={`${base}/${b.id}`} className={navItem} onClick={onNavigate}>
+              <LayoutGrid size={16} aria-hidden className="shrink-0" />
+              <span className="truncate">{b.name}</span>
+              {b.visibility === 'private' && (
+                <Lock size={12} aria-label="Private" className="ml-auto shrink-0 text-muted" />
+              )}
+            </NavLink>
+          ))
+        )}
+        {archived.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              aria-expanded={showArchived}
+              className="mt-2 flex items-center gap-2 px-3 py-1 text-xs font-semibold text-muted hover:text-fg"
+            >
+              {showArchived ? (
+                <ChevronDown size={14} aria-hidden />
+              ) : (
+                <ChevronRight size={14} aria-hidden />
+              )}
+              <Archive size={12} aria-hidden /> Archived ({archived.length})
+            </button>
+            {showArchived &&
+              archived.map((b) => (
+                <NavLink
+                  key={b.id}
+                  to={`${base}/${b.id}`}
+                  className={(s) => cx(navItem(s), 'opacity-70')}
+                  onClick={onNavigate}
+                >
+                  <span className="truncate">{b.name}</span>
+                </NavLink>
+              ))}
+          </>
+        )}
+      </nav>
+      <CreateBoardDialog open={creating} onClose={() => setCreating(false)} />
     </div>
   );
 }

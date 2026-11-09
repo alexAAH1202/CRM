@@ -40,7 +40,9 @@ export function WorkspaceProvider({ wid, children }: { wid: string; children: Re
       doc(db, paths.member(wid, user.uid)),
       (snap) => {
         const r = snap.data()?.['role'];
-        setRole(snap.exists() && isRole(r) ? r : null);
+        if (snap.exists() && isRole(r)) setRole(r);
+        // "Not a member" is only trusted from the server, not an empty local cache.
+        else if (!snap.metadata.fromCache) setRole(null);
       },
       () => setRole(null),
     );

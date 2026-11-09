@@ -15,6 +15,8 @@ const FIRESTORE_PRIMITIVES = [
   'runTransaction',
   'getDocFromServer',
   'getDocsFromServer',
+  'getDocsFromCache',
+  'getDocFromCache',
 ];
 
 export default tseslint.config(

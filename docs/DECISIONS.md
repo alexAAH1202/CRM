@@ -222,3 +222,41 @@ Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
 
   The invite role-equality check initially went uncaught, and a test was
   added for it.
+
+### D25. Custom table renderer with TanStack Virtual, without TanStack Table (spec deviation)
+
+- **What:** the board table is a CSS-grid renderer with vertical
+  virtualisation (`@tanstack/react-virtual`). Each row is a flattened entry:
+  group header, column header, item, add-item row, or gap.
+- **Alternatives:** TanStack Table, as the spec suggests.
+- **Reason:** we would have overridden almost everything TanStack Table does:
+  - grouping is by our own groups
+  - filtering, sorting and summaries come from per-view config logic that
+    lives in `/shared`, so it can be tested and reused by the Kanban and
+    Calendar views
+  - there are per-group header rows
+
+  Skipping it saves ~15 KB gzip and a layer of indirection.
+
+### D26. Group collapse state stays on the device, not on the board doc
+
+- **Reason:** collapsing is a personal view preference. Writing it to the board
+  doc would bill a read to every connected user's sidebar listener (see D6).
+
+### D27. Board-content writes check the board's state _after_ the request (`getAfter`)
+
+- **Reason:** a board and its first items, view and counter are created in one
+  atomic batch when built from a template. The board doesn't exist before the
+  batch, so `get()` would deny. Reads still use `get()`.
+- **Cost:** none extra; the same one document is read.
+
+### D28. Date values are stored as `YYYY-MM-DD` strings
+
+- **Reason:** dates in household admin are all-day ("bill due 15 March"). Using
+  plain strings avoids timezone shifts between devices. Timeline values are
+  `{ start, end }` in the same format.
+
+### D29. Favourites and folders moved from 2a to 2b
+
+- **Reason:** keeps 2a focused on a working board. Both need per-user settings
+  sync, which fits better with the other 2b view-state work.

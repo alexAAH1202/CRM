@@ -104,7 +104,7 @@ authorization.**
   visibility: 'main'|'private',
   memberIds: string[],                       // private boards only (cap 50)
   columns: Column[],                         // [{ id, type, title, settings, defaultValue? }]
-  groups: Group[],                           // [{ id, name, color, order, collapsed }]
+  groups: Group[],                           // [{ id, name, color }]; array order = display order
   schemaVersion: number,
   archived: boolean, createdBy, createdAt, updatedAt }
 ```
@@ -160,8 +160,22 @@ listens to, so creating an item doesn't fan out a board-doc update.
   client whose last sync is older than that does a full resync.
 - Lean doc: updates, activity, files beyond metadata, and time sessions over the
   inline cap are kept elsewhere.
-- `TypedValue` shapes per column type are defined in
-  `shared/src/columns.ts` (Phase 2) and versioned by `board.schemaVersion`.
+- `values` shapes per column type are defined in `shared/src/columns.ts` and
+  versioned by `board.schemaVersion`. Phase 2a types:
+
+  | Column type    | Stored value                                                 |
+  | -------------- | ------------------------------------------------------------ |
+  | text, longText | `string`                                                     |
+  | status         | label id (`string`)                                          |
+  | dropdown       | option ids (`string[]`)                                      |
+  | people         | uids (`string[]`)                                            |
+  | date           | `"YYYY-MM-DD"`                                               |
+  | timeline       | `{ start, end }` (dates)                                     |
+  | numbers        | `number`                                                     |
+  | checkbox       | `true` (cleared = field removed)                             |
+  | link           | `{ url, text }` (http(s)/mailto only; `javascript:` refused) |
+
+  An empty cell removes its key from `values`.
 
 ### `items/{iid}/updates/{updId}` (comments)
 
