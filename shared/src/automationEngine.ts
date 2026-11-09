@@ -1,9 +1,12 @@
 import {
+  isScheduledAutomation,
+  isDateToken,
+  resolveDateToken,
+  scheduledActionProblem,
   MAX_CREATED,
   MAX_DEPTH,
   MAX_NOTIFY,
   TOKEN_ME,
-  TOKEN_TODAY,
   type Action,
   type Automation,
 } from './automations';
@@ -30,7 +33,12 @@ export interface EngineItem extends ItemLike {
 export type AutoEvent =
   | { kind: 'created'; itemId: string }
   | { kind: 'cell'; itemId: string; columnId: string; before: unknown; after: unknown }
-  | { kind: 'moved'; itemId: string; fromGroupId: string; toGroupId: string };
+  | { kind: 'moved'; itemId: string; fromGroupId: string; toGroupId: string }
+  /** The helper's clock reached a scheduled automation. `itemId` is null for a board-wide schedule. */
+  | { kind: 'scheduled'; automationId: string; itemId: string | null };
+
+/** Target id used when a schedule acts on the board as a whole rather than on one item. */
+export const BOARD_TARGET = '';
 
 export interface RunRecord {
   automationId: string;
@@ -70,6 +78,8 @@ export interface EngineResult {
   created: number;
   /** The counter value to store afterwards (null if nothing was numbered). */
   counterNext: number | null;
+  /** Every item after the automations ran (so a caller handling several events needn't re-read). */
+  items: ReadonlyMap<string, EngineItem>;
 }
 
 interface Work extends EngineItem {
@@ -110,6 +120,20 @@ export function runAutomations(input: EngineInput): EngineResult {
   const runs: RunRecord[] = [];
   const skippedOnce = new Set<string>();
   let counter = input.startNumber;
+  if (input.event.kind === 'scheduled' && input.event.itemId === null) {
+    // Stand-in for "the board" so board-wide schedules can create items and notify (never written).
+    working.set(BOARD_TARGET, {
+      id: BOARD_TARGET,
+      name: '',
+      groupId: groups[0]?.id ?? '',
+      order: 'a0',
+      parentId: null,
+      itemNumber: 0,
+      values: {},
+      archived: false,
+      deleted: false,
+    });
+  }
 
   const editable = (id: string): Work => {
     const it = working.get(id) as Work;
@@ -142,6 +166,12 @@ export function runAutomations(input: EngineInput): EngineResult {
   /** The item the automation should act on, or null if it doesn't fire for this event. */
   const targetOf = (a: Automation, ev: AutoEvent): string | null => {
     const t = a.trigger;
+    if (ev.kind === 'scheduled') {
+      // Only the automation the clock fired; no other automation reacts to a scheduled event directly.
+      return isScheduledAutomation(a) && ev.automationId === a.id
+        ? (ev.itemId ?? BOARD_TARGET)
+        : null;
+    }
     switch (t.type) {
       case 'itemCreated':
         return ev.kind === 'created' ? ev.itemId : null;
@@ -167,6 +197,10 @@ export function runAutomations(input: EngineInput): EngineResult {
       }
       case 'movedToGroup':
         return ev.kind === 'moved' && ev.toGroupId === t.groupId ? ev.itemId : null;
+      case 'dateArrives':
+      case 'overdue':
+      case 'recurring':
+        return null; // these only fire from the clock (handled above)
       case 'subitemsAllDone': {
         if (ev.kind !== 'cell' || ev.columnId !== t.columnId) return null;
         const sub = working.get(ev.itemId);
@@ -188,6 +222,8 @@ export function runAutomations(input: EngineInput): EngineResult {
 
   /** Static problems that would make an automation fail; nothing is applied if any. */
   const problem = (a: Automation, target: Work): string | null => {
+    const sched = scheduledActionProblem(a);
+    if (sched) return sched;
     let creates = 0;
     for (const act of a.actions) {
       switch (act.type) {
@@ -197,7 +233,7 @@ export function runAutomations(input: EngineInput): EngineResult {
           if (isComputedType(c.type)) return `${c.title} is calculated, so it can’t be set.`;
           if (act.value === TOKEN_ME && c.type !== 'people')
             return `“The person who made the change” only fits a People column.`;
-          if (act.value === TOKEN_TODAY && c.type !== 'date')
+          if (isDateToken(act.value) && c.type !== 'date')
             return `“Today” only fits a Date column.`;
           break;
         }
@@ -239,7 +275,11 @@ export function runAutomations(input: EngineInput): EngineResult {
       case 'setValue': {
         const c = col(act.columnId) as Column;
         const raw =
-          act.value === TOKEN_ME ? [actor] : act.value === TOKEN_TODAY ? input.today : act.value;
+          act.value === TOKEN_ME
+            ? [actor]
+            : isDateToken(act.value)
+              ? resolveDateToken(act.value, input.today)
+              : act.value;
         const next = normalizeValue(c, raw);
         const before = normalizeValue(c, target.values[c.id]);
         if (same(before, next)) return;
@@ -345,9 +385,14 @@ export function runAutomations(input: EngineInput): EngineResult {
               nid: input.newId('notification'),
               actor,
               type: 'automation',
-              title: act.message.replaceAll('{item}', target.name || 'an item'),
+              title: act.message
+                .replaceAll('{item}', targetId === BOARD_TARGET ? '' : target.name || 'an item')
+                .trim(),
               body: `${input.boardName} · ${a.name}`,
-              link: itemLink(input.wid, input.bid, targetId),
+              link:
+                targetId === BOARD_TARGET
+                  ? `/w/${input.wid}/b/${input.bid}`
+                  : itemLink(input.wid, input.bid, targetId),
             }),
           );
         return;
@@ -362,10 +407,15 @@ export function runAutomations(input: EngineInput): EngineResult {
     for (const a of input.automations) {
       if (!a.enabled) continue;
       const targetId = targetOf(a, q.event);
-      if (!targetId) continue;
+      if (targetId === null) continue;
       const target = working.get(targetId);
       if (!target || !live(target)) continue;
-      if (!a.conditions.every((f) => matchesFilter(target, columns, f, ctx))) continue;
+      // A board-wide schedule has no item, so item conditions don't apply to it.
+      if (
+        targetId !== BOARD_TARGET &&
+        !a.conditions.every((f) => matchesFilter(target, columns, f, ctx))
+      )
+        continue;
 
       // Loop guard: an automation never runs twice in one chain of cause and effect, and
       // chains stop at a fixed depth.
@@ -464,6 +514,7 @@ export function runAutomations(input: EngineInput): EngineResult {
     runs,
     created: createdIds.length,
     counterNext: createdIds.length > 0 ? counter : null,
+    items: working,
   };
 }
 

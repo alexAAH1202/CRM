@@ -635,3 +635,180 @@ describe('writes', () => {
     expect(out).toHaveLength(2);
   });
 });
+
+describe('scheduled (clock) runs', () => {
+  const sched = (id: string, trigger: Trigger, actions: Action[], over: Partial<Automation> = {}) =>
+    auto(id, trigger, actions, over);
+  const onDate: Trigger = {
+    type: 'dateArrives',
+    columnId: due.id,
+    which: 'end',
+    offsetDays: -3,
+    atTime: '09:00',
+  };
+  const evFor = (automationId: string, itemId: string | null): AutoEvent => ({
+    kind: 'scheduled',
+    automationId,
+    itemId,
+  });
+
+  it('runs only the automation the clock fired, on its item, with the owner as the actor', () => {
+    const a = sched('rem', onDate, [
+      { type: 'notify', to: 'owner', uid: null, message: '{item} is due soon' },
+    ]);
+    const other = sched('oth', onDate, [{ type: 'archive' }]);
+    const r = run({
+      automations: [a, other],
+      items: [item('i', { name: 'Rates', values: {} })],
+      event: evFor('rem', 'i'),
+      actor: 'owner',
+    });
+    expect(r.runs.map((x) => [x.automationId, x.status])).toEqual([['rem', 'ok']]);
+    const note = sets(r.ops, '/notifications/')[0]!;
+    expect(dataOf(note)).toMatchObject({
+      title: 'Rates is due soon',
+      actor: 'owner',
+      type: 'automation',
+      link: '/w/w/b/b?item=i',
+    });
+  });
+  it('instant events never trigger scheduled automations, and scheduled events never trigger instant ones', () => {
+    const a = sched('rem', onDate, [{ type: 'archive' }]);
+    expect(
+      run({ automations: [a], items: [item('i')], event: { kind: 'created', itemId: 'i' } }).runs,
+    ).toEqual([]);
+    const inst = auto('inst', { type: 'itemCreated' }, [{ type: 'archive' }]);
+    expect(
+      run({ automations: [inst, a], items: [item('i')], event: evFor('rem', 'i') }).runs.map(
+        (x) => x.automationId,
+      ),
+    ).toEqual(['rem']);
+  });
+  it('conditions still apply to the item', () => {
+    const a = sched('rem', onDate, [{ type: 'archive' }], {
+      conditions: [{ id: 'c', columnId: status.id, op: 'is', value: ['work'] }],
+    });
+    expect(
+      run({
+        automations: [a],
+        items: [item('i', { values: { [status.id]: 'todo' } })],
+        event: evFor('rem', 'i'),
+      }).runs,
+    ).toEqual([]);
+    expect(
+      run({
+        automations: [a],
+        items: [item('i', { values: { [status.id]: 'work' } })],
+        event: evFor('rem', 'i'),
+      }).runs,
+    ).toHaveLength(1);
+  });
+  it('a scheduled action can set the date relative to today (chores that come round again)', () => {
+    const a = sched(
+      're',
+      {
+        type: 'recurring',
+        scope: 'items',
+        schedule: {
+          recurrence: { kind: 'weekly', every: 1, weekdays: [0] },
+          atTime: '09:00',
+          startDate: '2026-03-01',
+        },
+      },
+      [
+        { type: 'setValue', columnId: status.id, value: 'todo' },
+        { type: 'setValue', columnId: due.id, value: '@today+7' },
+      ],
+    );
+    const r = run({
+      automations: [a],
+      items: [item('i', { values: { [status.id]: 'done' } })],
+      event: evFor('re', 'i'),
+    });
+    const d = dataOf(updates(r.ops)[0]!);
+    expect(d[`values.${status.id}`]).toBe('todo');
+    expect(d[`values.${due.id}`]).toBe('2026-03-17'); // today is 2026-03-10
+  });
+  it('a date token on a non-date column fails the run, applying nothing', () => {
+    const a = sched('x', onDate, [{ type: 'setValue', columnId: note.id, value: '@today+1' }]);
+    expect(
+      run({ automations: [a], items: [item('i')], event: evFor('x', 'i') }).runs[0],
+    ).toMatchObject({ status: 'failed' });
+  });
+  it('board-wide schedule: creates numbered items in the first group and notifies, never touches an item doc', () => {
+    const a = sched(
+      'wk',
+      {
+        type: 'recurring',
+        scope: 'board',
+        schedule: {
+          recurrence: { kind: 'weekly', every: 1, weekdays: [1] },
+          atTime: '08:00',
+          startDate: '2026-03-02',
+        },
+      },
+      [
+        { type: 'createItem', name: 'Take out the bins', groupId: null, subitem: false },
+        { type: 'notify', to: 'owner', uid: null, message: 'Weekly chores added' },
+      ],
+    );
+    const r = run({
+      automations: [a],
+      items: [item('old')],
+      event: evFor('wk', null),
+      startNumber: 7,
+    });
+    expect(r.runs[0]!.status).toBe('ok');
+    expect(r.counterNext).toBe(8);
+    const created = sets(r.ops, '/boards/b/items/').map(dataOf);
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({
+      name: 'Take out the bins',
+      groupId: 'g1',
+      parentId: null,
+      itemNumber: 7,
+    });
+    expect(updates(r.ops)).toHaveLength(0);
+    const n = dataOf(sets(r.ops, '/notifications/')[0]!);
+    expect(n['link']).toBe('/w/w/b/b'); // the board, not an item
+    expect(n['title']).toBe('Weekly chores added');
+  });
+  it('a board-wide schedule cannot change items (it has none): the run fails and nothing is written', () => {
+    const a = sched(
+      'bad',
+      {
+        type: 'recurring',
+        scope: 'board',
+        schedule: {
+          recurrence: { kind: 'daily', every: 1 },
+          atTime: '08:00',
+          startDate: '2026-03-02',
+        },
+      },
+      [{ type: 'archive' }],
+    );
+    const r = run({ automations: [a], items: [item('i')], event: evFor('bad', null) });
+    expect(r.runs[0]).toMatchObject({ status: 'failed' });
+    expect(updates(r.ops)).toHaveLength(0);
+    expect(sets(r.ops, '/boards/b/items/')).toHaveLength(0);
+  });
+  it('a scheduled change can fire instant automations too, under the same loop guard', () => {
+    const sch = sched('sch', onDate, [{ type: 'setValue', columnId: status.id, value: 'done' }]);
+    const reaction = auto(
+      'react',
+      { type: 'statusChangedTo', columnId: status.id, labelId: 'done' },
+      [{ type: 'setValue', columnId: note.id, value: 'finished' }],
+    );
+    const r = run({ automations: [sch, reaction], items: [item('i')], event: evFor('sch', 'i') });
+    expect(r.runs.map((x) => x.automationId)).toEqual(['sch', 'react']);
+    expect(dataOf(updates(r.ops)[0]!)[`values.${note.id}`]).toBe('finished');
+  });
+  it('a deleted or archived target is skipped quietly', () => {
+    const a = sched('rem', onDate, [{ type: 'archive' }]);
+    expect(
+      run({ automations: [a], items: [item('i', { deleted: true })], event: evFor('rem', 'i') })
+        .runs,
+    ).toEqual([]);
+    expect(run({ automations: [a], items: [], event: evFor('rem', 'missing') }).runs).toEqual([]);
+  });
+});

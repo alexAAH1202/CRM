@@ -47,6 +47,7 @@ import {
   addAutomationOps,
   enabledAutomations,
   runtimeFor,
+  scheduleOpsFor,
   usesNumbering,
 } from '../automations/runtime';
 import {
@@ -196,6 +197,20 @@ export async function deleteBoardCompletely(wid: string, bid: string): Promise<v
   await commitOps('board:delete', [{ kind: 'delete', path: base }]);
 }
 
+/** Schedule writes for items known only by id (archive / delete / restore): values come from the open board. */
+function scheduleForIds(
+  bid: string,
+  ids: readonly string[],
+  flags: { archived: boolean; deleted: boolean },
+) {
+  const rt = runtimeFor(bid);
+  if (!rt) return [];
+  return scheduleOpsFor(
+    bid,
+    ids.map((id) => ({ id, values: rt.items.get(id)?.values ?? {}, ...flags })),
+  );
+}
+
 /** Adds an item at the end of a group, numbered from the board counter (transaction). */
 export function createItem(input: {
   board: Board;
@@ -241,6 +256,19 @@ export function createItem(input: {
         },
       });
       ops.push(activity(input.wid, input.board.id, input.uid, 'create', iid, input.name.trim()));
+      ops.push(
+        ...scheduleOpsFor(input.board.id, [
+          {
+            id: iid,
+            values: cleanValues(input.board.columns, {
+              ...defaultItemValues(input.board.columns),
+              ...(input.values ?? {}),
+            }),
+            archived: false,
+            deleted: false,
+          },
+        ]),
+      );
       const rt = runtimeFor(input.board.id);
       if (!rt || enabledAutomations(input.board.id).length === 0) return ops;
       const itemsAfter = new Map<string, EngineItem>(rt.items);
@@ -327,6 +355,18 @@ export function setCell(input: {
         change.data,
       ),
     );
+  // A date changed: keep the helper's schedule queue in step, in the same batch.
+  if (input.column.type === 'date' || input.column.type === 'timeline') {
+    const v = normalizeValue(input.column, input.value);
+    const values = { ...input.item.values };
+    if (v === null) delete values[input.column.id];
+    else values[input.column.id] = v;
+    ops.push(
+      ...scheduleOpsFor(input.board.id, [
+        { id: input.item.id, values, archived: input.item.archived, deleted: false },
+      ]),
+    );
+  }
   return commitWithAutomations(`cell:${input.column.type}`, input.board.id, ops, (base, ctl) => {
     if (isComputedType(input.column.type)) return base;
     const before = normalizeValue(input.column, input.item.values[input.column.id]);
@@ -513,6 +553,20 @@ export function bulkSetCell(input: {
     items: input.items,
     value: input.value,
   });
+  if (input.column.type === 'date' || input.column.type === 'timeline') {
+    const v = normalizeValue(input.column, input.value);
+    ops.push(
+      ...scheduleOpsFor(
+        input.board.id,
+        input.items.map((it) => {
+          const values = { ...it.values };
+          if (v === null) delete values[input.column.id];
+          else values[input.column.id] = v;
+          return { id: it.id, values, archived: it.archived, deleted: false };
+        }),
+      ),
+    );
+  }
   if (input.items.length > 0)
     ops.push(
       activity(input.wid, input.board.id, input.uid, 'bulk', null, '', {
@@ -595,7 +649,9 @@ export function archiveItems(
   ids: string[],
   archived: boolean,
 ) {
-  return commitOpsChunked('item:archive', planArchiveItems(wid, bid, uid, ids, archived));
+  const ops = planArchiveItems(wid, bid, uid, ids, archived);
+  ops.push(...scheduleForIds(bid, ids, { archived, deleted: false }));
+  return commitOpsChunked('item:archive', ops);
 }
 
 export function deleteItems(
@@ -607,16 +663,17 @@ export function deleteItems(
   logged?: Array<{ id: string; name: string }>,
 ) {
   const ops = planDeleteItems(wid, bid, uid, ids);
+  ops.push(...scheduleForIds(bid, ids, { archived: false, deleted: true }));
   if (logged) ops.push(...activityForMany(wid, bid, uid, 'deleted', logged));
   return commitOpsChunked('item:delete', ops);
 }
 
 /** Undo for deletes: clears the tombstone (and archive flag). */
 export function restoreItems(wid: string, bid: string, uid: string, ids: string[]) {
-  return commitOpsChunked(
-    'item:restore',
-    ids.flatMap((id) => planRestoreItem(wid, bid, id, uid)),
-  );
+  return commitOpsChunked('item:restore', [
+    ...ids.flatMap((id) => planRestoreItem(wid, bid, id, uid)),
+    ...scheduleForIds(bid, ids, { archived: false, deleted: false }),
+  ]);
 }
 
 export function duplicateItems(input: {

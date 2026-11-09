@@ -42,8 +42,9 @@ export function useBoardAutomationsRegistration(input: {
   items: ReadonlyMap<string, BoardItem> | null;
   members: WorkspaceMember[] | null;
   memberName: (uid: string) => string;
+  tz: string;
 }) {
-  const { wid, board, automations, items, members, memberName } = input;
+  const { wid, board, automations, items, members, memberName, tz } = input;
   useEffect(() => {
     if (!items || !members) return;
     setBoardRuntime({
@@ -53,7 +54,8 @@ export function useBoardAutomationsRegistration(input: {
       items,
       memberUids: new Set(members.map((m) => m.uid)),
       memberName,
+      tz,
     });
-  }, [wid, board, automations, items, members, memberName]);
+  }, [wid, board, automations, items, members, memberName, tz]);
   useEffect(() => () => setBoardRuntime(null), []);
 }

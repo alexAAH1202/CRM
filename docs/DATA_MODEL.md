@@ -247,7 +247,12 @@ Emoji reactions are P1 and not built yet.
          | { type: 'statusChangedTo', columnId, labelId }
          | { type: 'personAssigned', columnId: string | null, uid: string | null }
          | { type: 'movedToGroup', groupId }
-         | { type: 'subitemsAllDone', columnId, labelId },
+         | { type: 'subitemsAllDone', columnId, labelId }
+         // scheduled (run by the Apps Script helper, on the workspace's time zone)
+         | { type: 'dateArrives', columnId, which: 'start'|'end', offsetDays, atTime: 'HH:MM' }
+         | { type: 'overdue', columnId, atTime }       // the day after the date, if not done
+         | { type: 'recurring', scope: 'board'|'items',
+             schedule: { recurrence: {kind:'daily'|'weekly'|'monthly', every, weekdays?, dayOfMonth?}, atTime, startDate } },
   conditions: Filter[],                 // same shape as view filters; all must match (max 5)
   actions: Array<                       // 1–5, run in order
       { type: 'setValue', columnId, value }          // value may be '@me' (people) or '@today' (date)
@@ -260,8 +265,9 @@ Emoji reactions are P1 and not built yet.
 ```
 
 Max 20 per board. The owner is whoever created it and never changes. Any editor may edit or
-switch one off; the owner or an admin deletes it. Scheduled triggers (dates, recurring) are
-added with the Apps Script helper in Phase 7.
+switch one off; the owner or an admin deletes it. Scheduled triggers run in the helper as the
+owner; a board-wide recurring schedule (`scope: 'board'`) has no item, so it can only create items
+and send notifications.
 
 ### `boards/{bid}/automationRuns/{rid}` (capped at 50/board, pruned)
 
@@ -294,16 +300,32 @@ account) delete. Index: `(itemId asc, at desc)` for the item's Activity tab.
 
 ## Workspace-level collections
 
-### `workspaces/{wid}/scheduledEvents/{eid}`
+### `boards/{bid}/scheduledEvents/{eid}` **[moved under the board in 7b]**
 
 ```ts
-{ fireAt, boardId, itemId: string | null, automationId, kind,
-  status: 'pending'|'done'|'failed', attempts, lastError?, idempotencyKey }
+{ kind: 'date' | 'overdue' | 'recurring', automationId, itemId: string | null, boardId,
+  fireAt: Timestamp, status: 'pending' | 'done' | 'failed', attempts, idempotencyKey,
+  dateValue: string | null,           // the date it was computed from (spots a stale event)
+  lastError?, doneAt?, lastRunAt?, updatedAt }
 ```
 
-Written by the browser in the same batch as the item or automation change that
-implies it. Read and updated by Apps Script through REST, which uses IAM and
-bypasses rules.
+The queue the Apps Script helper works from (spec 6.2). It lives under the board (so the rules can
+use the path's board, and a private board's events stay private); the helper finds due events with
+one collection-group query `status == 'pending' && fireAt <= now`, so it never scans items.
+The document id is deterministic: `{automationId}_{itemId}` for date/overdue events and
+`{automationId}` for a recurring schedule, so re-registering just overwrites and removing needs no
+lookup.
+
+- **The browser registers events** in the same batch as the edit that implies them: a date column
+  changes, an item is created, deleted, archived or restored, a bulk date edit, and when a scheduled
+  automation is created, edited, switched on/off or deleted (`shared/scheduleOps.ts`). Clients may only
+  write fresh `pending` events with `attempts: 0`; progress is written by the helper (IAM).
+- Reminders for a moment more than 6 hours in the past are not registered (no surprise
+  notifications for old dates).
+- **The helper** handles an event in one atomic commit that also marks it done _only if the event
+  document hasn't changed since it was read_ (a precondition on its `updateTime`), so two runs can't
+  both fire it. A recurring schedule is moved to its next occurrence in the same commit.
+- "Rebuild schedule" (admin, Members → Sorted helper) recomputes everything from the data.
 
 ### `workspaces/{wid}/dashboards/{did}`
 

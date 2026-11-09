@@ -13,6 +13,7 @@ export function fakePlatform(o: FakeOptions = {}) {
   const calls: HttpRequest[] = [];
   const logs: string[] = [];
   let now = o.now ?? Date.parse('2026-03-10T00:00:00Z');
+  let seq = 0;
   const p: Platform = {
     http(req) {
       calls.push(req);
@@ -22,6 +23,7 @@ export function fakePlatform(o: FakeOptions = {}) {
     cachePut: (k, v, ttl) => void cache.set(k, { v, ttl }),
     prop: (n) => o.props?.[n] ?? null,
     nowMs: () => now,
+    uuid: () => `id${(++seq).toString(36).padStart(6, '0')}`,
     sha256Hex: (t) => createHash('sha256').update(t).digest('hex'),
     b64urlDecode: (t) => Buffer.from(t, 'base64url').toString('utf8'),
     log: (m) => void logs.push(m),

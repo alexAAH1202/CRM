@@ -1,6 +1,9 @@
 import {
   isComputedType,
+  isScheduledTrigger,
+  localDateIn,
   MAX_ACTIONS,
+  MAX_OFFSET_DAYS,
   MAX_CONDITIONS,
   newFilter,
   NAME_COLUMN_ID,
@@ -14,6 +17,8 @@ import {
   type Automation,
   type Column,
   type Group,
+  type Recurrence,
+  scheduledActionProblem,
   type Trigger,
   type TriggerType,
 } from '@app/shared';
@@ -50,7 +55,14 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
   personAssigned: 'a person is assigned',
   movedToGroup: 'an item is moved to a group',
   subitemsAllDone: 'all subitems are done',
+  dateArrives: 'a date arrives (a reminder)…',
+  overdue: 'something is overdue…',
+  recurring: 'on a repeating schedule…',
 };
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/** Our weekday numbers are 0 = Sunday … 6 = Saturday; the picker shows Monday first. */
+const WEEKDAY_NUM = [1, 2, 3, 4, 5, 6, 0];
 const ACTION_LABELS: Record<ActionType, string> = {
   setValue: 'set a column to…',
   moveToGroup: 'move the item to a group',
@@ -76,6 +88,29 @@ function defaultTrigger(type: TriggerType, b: Board): Trigger {
       return { type, groupId: b.groups[0]?.id ?? '' };
     case 'subitemsAllDone':
       return { type, columnId: status?.id ?? '', labelId: label };
+    case 'dateArrives': {
+      const dateCol =
+        b.columns.find((c) => c.type === 'date') ?? b.columns.find((c) => c.type === 'timeline');
+      return { type, columnId: dateCol?.id ?? '', which: 'end', offsetDays: -3, atTime: '09:00' };
+    }
+    case 'overdue':
+      return {
+        type,
+        columnId:
+          (b.columns.find((c) => c.type === 'date') ?? b.columns.find((c) => c.type === 'timeline'))
+            ?.id ?? '',
+        atTime: '09:00',
+      };
+    case 'recurring':
+      return {
+        type,
+        scope: 'board',
+        schedule: {
+          recurrence: { kind: 'weekly', every: 1, weekdays: [1] },
+          atTime: '09:00',
+          startDate: localDateIn(Date.now(), Intl.DateTimeFormat().resolvedOptions().timeZone),
+        },
+      };
   }
 }
 
@@ -105,6 +140,16 @@ export function draftError(d: AutomationDraft): string | null {
   if ((t.type === 'statusChangedTo' || t.type === 'subitemsAllDone') && (!t.columnId || !t.labelId))
     return 'Choose the status column and label for the trigger.';
   if (t.type === 'movedToGroup' && !t.groupId) return 'Choose the group for the trigger.';
+  if ((t.type === 'dateArrives' || t.type === 'overdue') && !t.columnId)
+    return 'Choose the date column the trigger watches.';
+  if (
+    t.type === 'recurring' &&
+    t.schedule.recurrence.kind === 'weekly' &&
+    t.schedule.recurrence.weekdays.length === 0
+  )
+    return 'Choose at least one day of the week.';
+  const sched = scheduledActionProblem(d);
+  if (sched) return sched;
   if (d.actions.length === 0) return 'Add at least one action.';
   for (const a of d.actions) {
     if (a.type === 'setValue' && !a.columnId) return 'Choose the column to set.';
@@ -193,29 +238,52 @@ function ValueEditor({
       );
     }
     case 'date': {
+      const off = typeof value === 'string' ? /^@today([+-]\d{1,4})$/.exec(value) : null;
       const mode =
         value === TOKEN_TODAY
           ? 'today'
-          : typeof value === 'string' && value
-            ? 'date'
-            : value === null || value === undefined
-              ? 'empty'
-              : 'date';
+          : off
+            ? 'offset'
+            : typeof value === 'string' && value
+              ? 'date'
+              : value === null || value === undefined
+                ? 'empty'
+                : 'date';
       return (
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <SelectField
             label={label}
             value={mode}
             onChange={(e) =>
               onChange(
-                e.target.value === 'today' ? TOKEN_TODAY : e.target.value === 'empty' ? null : '',
+                e.target.value === 'today'
+                  ? TOKEN_TODAY
+                  : e.target.value === 'offset'
+                    ? '@today+7'
+                    : e.target.value === 'empty'
+                      ? null
+                      : '',
               )
             }
           >
             <option value="today">Today (when it runs)</option>
+            <option value="offset">Today plus or minus some days</option>
             <option value="date">A specific date</option>
             <option value="empty">(empty)</option>
           </SelectField>
+          {mode === 'offset' && (
+            <TextField
+              label="Days from today (negative = earlier)"
+              type="number"
+              min={-9999}
+              max={9999}
+              value={String(Number(off?.[1] ?? 0))}
+              onChange={(e) => {
+                const n = Math.max(-9999, Math.min(9999, Math.trunc(Number(e.target.value) || 0)));
+                onChange(`@today${n < 0 ? '-' : '+'}${Math.abs(n)}`);
+              }}
+            />
+          )}
           {mode === 'date' && (
             <TextField
               label="Date"
@@ -283,6 +351,7 @@ export function AutomationBuilder({
   const [busy, setBusy] = useState(false);
   const err = draftError(d);
   const statusCols = board.columns.filter((c) => c.type === 'status');
+  const dateColumns = board.columns.filter((c) => c.type === 'date' || c.type === 'timeline');
   const settable = board.columns.filter(
     (c) => SETTABLE.includes(c.type) && !isComputedType(c.type),
   );
@@ -418,97 +487,301 @@ export function AutomationBuilder({
               ))}
             </SelectField>
           )}
-        </div>
-      </section>
-
-      <section aria-label="Only if" className="space-y-2">
-        <h3 className="text-sm font-bold">
-          Only if <span className="font-normal text-muted">(optional)</span>
-        </h3>
-        {d.conditions.map((f, i) => {
-          const col = board.columns.find((c) => c.id === f.columnId);
-          const type = col?.type ?? 'text';
-          return (
-            <div
-              key={f.id}
-              className="flex flex-wrap items-end gap-2 rounded-xl border border-border p-3"
-            >
+          {(t.type === 'dateArrives' || t.type === 'overdue') && (
+            <>
               <SelectField
-                label="Column"
-                value={f.columnId}
-                onChange={(e) => {
-                  const c = board.columns.find((x) => x.id === e.target.value);
-                  const next = {
-                    ...f,
-                    columnId: e.target.value,
-                    op: opsFor(c?.type ?? 'name')[0] ?? 'isEmpty',
-                    value: undefined,
-                  };
-                  setD({ ...d, conditions: d.conditions.map((x, j) => (j === i ? next : x)) });
-                }}
+                label="Date column"
+                value={t.columnId}
+                onChange={(e) => setTrigger({ ...t, columnId: e.target.value })}
               >
-                <option value={NAME_COLUMN_ID}>Name</option>
-                {board.columns.map((c) => (
+                {dateColumns.length === 0 && <option value="">(no date column)</option>}
+                {dateColumns.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.title}
                   </option>
                 ))}
               </SelectField>
+              {t.type === 'dateArrives' &&
+                dateColumns.find((c) => c.id === t.columnId)?.type === 'timeline' && (
+                  <SelectField
+                    label="Which end"
+                    value={t.which}
+                    onChange={(e) =>
+                      setTrigger({ ...t, which: e.target.value === 'start' ? 'start' : 'end' })
+                    }
+                  >
+                    <option value="start">Start</option>
+                    <option value="end">End</option>
+                  </SelectField>
+                )}
+              {t.type === 'dateArrives' && (
+                <>
+                  <TextField
+                    label="Days"
+                    type="number"
+                    min={0}
+                    max={MAX_OFFSET_DAYS}
+                    value={String(Math.abs(t.offsetDays))}
+                    onChange={(e) => {
+                      const n = Math.min(
+                        MAX_OFFSET_DAYS,
+                        Math.max(0, Math.trunc(Number(e.target.value) || 0)),
+                      );
+                      setTrigger({ ...t, offsetDays: t.offsetDays < 0 ? -n : n });
+                    }}
+                  />
+                  <SelectField
+                    label="Before or after"
+                    value={t.offsetDays < 0 ? 'before' : 'after'}
+                    onChange={(e) => {
+                      const n = Math.abs(t.offsetDays);
+                      setTrigger({ ...t, offsetDays: e.target.value === 'before' ? -n : n });
+                    }}
+                  >
+                    <option value="before">before the date</option>
+                    <option value="after">after the date</option>
+                  </SelectField>
+                </>
+              )}
+              <TextField
+                label="At (time of day)"
+                type="time"
+                value={t.atTime}
+                onChange={(e) => e.target.value && setTrigger({ ...t, atTime: e.target.value })}
+              />
+            </>
+          )}
+          {t.type === 'recurring' && (
+            <>
               <SelectField
-                label="Is"
-                value={f.op}
+                label="Runs"
+                value={t.scope}
                 onChange={(e) =>
-                  setD({
-                    ...d,
-                    conditions: d.conditions.map((x, j) =>
-                      j === i ? { ...f, op: e.target.value as typeof f.op } : x,
-                    ),
-                  })
+                  setTrigger({ ...t, scope: e.target.value === 'items' ? 'items' : 'board' })
                 }
               >
-                {opsFor(f.columnId === NAME_COLUMN_ID ? 'name' : type).map((op) => (
-                  <option key={op} value={op}>
-                    {OP_LABELS[op]}
-                  </option>
-                ))}
+                <option value="board">once for the board (add items, send a notification)</option>
+                <option value="items">for each item that matches the conditions</option>
               </SelectField>
-              <FilterValue
-                filter={f}
-                column={col}
-                members={members}
-                onChange={(value) =>
-                  setD({
-                    ...d,
-                    conditions: d.conditions.map((x, j) => (j === i ? { ...f, value } : x)),
-                  })
+              <SelectField
+                label="Repeats"
+                value={t.schedule.recurrence.kind}
+                onChange={(e) => {
+                  const every = t.schedule.recurrence.every;
+                  const kind = e.target.value;
+                  const recurrence: Recurrence =
+                    kind === 'daily'
+                      ? { kind: 'daily', every }
+                      : kind === 'monthly'
+                        ? { kind: 'monthly', every, dayOfMonth: 1 }
+                        : { kind: 'weekly', every, weekdays: [1] };
+                  setTrigger({ ...t, schedule: { ...t.schedule, recurrence } });
+                }}
+              >
+                <option value="daily">Every N days</option>
+                <option value="weekly">Every N weeks, on chosen days</option>
+                <option value="monthly">Every N months, on a day of the month</option>
+              </SelectField>
+              <TextField
+                label="Every"
+                type="number"
+                min={1}
+                max={52}
+                value={String(t.schedule.recurrence.every)}
+                onChange={(e) => {
+                  const every = Math.min(52, Math.max(1, Math.trunc(Number(e.target.value) || 1)));
+                  setTrigger({
+                    ...t,
+                    schedule: { ...t.schedule, recurrence: { ...t.schedule.recurrence, every } },
+                  });
+                }}
+              />
+              {t.schedule.recurrence.kind === 'weekly' && (
+                <fieldset className="sm:col-span-2">
+                  <legend className="mb-1 text-sm font-semibold">On</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {WEEKDAYS.map((label, i) => {
+                      const rec = t.schedule.recurrence as Extract<Recurrence, { kind: 'weekly' }>;
+                      const num = WEEKDAY_NUM[i] as number;
+                      const on = rec.weekdays.includes(num);
+                      return (
+                        <label
+                          key={label}
+                          className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() =>
+                              setTrigger({
+                                ...t,
+                                schedule: {
+                                  ...t.schedule,
+                                  recurrence: {
+                                    ...rec,
+                                    weekdays: on
+                                      ? rec.weekdays.filter((x) => x !== num)
+                                      : [...rec.weekdays, num].sort((a, b) => a - b),
+                                  },
+                                },
+                              })
+                            }
+                            className="h-4 w-4 accent-[var(--c-primary)]"
+                          />
+                          {label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              )}
+              {t.schedule.recurrence.kind === 'monthly' && (
+                <TextField
+                  label="Day of the month"
+                  type="number"
+                  min={1}
+                  max={31}
+                  hint="The 29th to 31st run on the last day of shorter months."
+                  value={String(t.schedule.recurrence.dayOfMonth)}
+                  onChange={(e) => {
+                    const dayOfMonth = Math.min(
+                      31,
+                      Math.max(1, Math.trunc(Number(e.target.value) || 1)),
+                    );
+                    setTrigger({
+                      ...t,
+                      schedule: {
+                        ...t.schedule,
+                        recurrence: {
+                          kind: 'monthly',
+                          every: t.schedule.recurrence.every,
+                          dayOfMonth,
+                        },
+                      },
+                    });
+                  }}
+                />
+              )}
+              <TextField
+                label="At (time of day)"
+                type="time"
+                value={t.schedule.atTime}
+                onChange={(e) =>
+                  e.target.value &&
+                  setTrigger({ ...t, schedule: { ...t.schedule, atTime: e.target.value } })
                 }
               />
-              <button
-                type="button"
-                aria-label={`Remove condition ${i + 1}`}
-                onClick={() => setD({ ...d, conditions: d.conditions.filter((_, j) => j !== i) })}
-                className="rounded-lg p-2 text-muted hover:bg-surface-2"
-              >
-                <X size={16} aria-hidden />
-              </button>
-            </div>
-          );
-        })}
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={d.conditions.length >= MAX_CONDITIONS}
-          onClick={() =>
-            setD({
-              ...d,
-              conditions: [...d.conditions, { ...newFilter(board.columns), id: shortId() }],
-            })
-          }
-        >
-          <Plus size={14} aria-hidden /> Add condition
-        </Button>
+              <TextField
+                label="Starting"
+                type="date"
+                value={t.schedule.startDate}
+                onChange={(e) =>
+                  e.target.value &&
+                  setTrigger({ ...t, schedule: { ...t.schedule, startDate: e.target.value } })
+                }
+              />
+            </>
+          )}
+        </div>
       </section>
+
+      {!(t.type === 'recurring' && t.scope === 'board') && (
+        <section aria-label="Only if" className="space-y-2">
+          <h3 className="text-sm font-bold">
+            Only if <span className="font-normal text-muted">(optional)</span>
+          </h3>
+          {d.conditions.map((f, i) => {
+            const col = board.columns.find((c) => c.id === f.columnId);
+            const type = col?.type ?? 'text';
+            return (
+              <div
+                key={f.id}
+                className="flex flex-wrap items-end gap-2 rounded-xl border border-border p-3"
+              >
+                <SelectField
+                  label="Column"
+                  value={f.columnId}
+                  onChange={(e) => {
+                    const c = board.columns.find((x) => x.id === e.target.value);
+                    const next = {
+                      ...f,
+                      columnId: e.target.value,
+                      op: opsFor(c?.type ?? 'name')[0] ?? 'isEmpty',
+                      value: undefined,
+                    };
+                    setD({ ...d, conditions: d.conditions.map((x, j) => (j === i ? next : x)) });
+                  }}
+                >
+                  <option value={NAME_COLUMN_ID}>Name</option>
+                  {board.columns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Is"
+                  value={f.op}
+                  onChange={(e) =>
+                    setD({
+                      ...d,
+                      conditions: d.conditions.map((x, j) =>
+                        j === i ? { ...f, op: e.target.value as typeof f.op } : x,
+                      ),
+                    })
+                  }
+                >
+                  {opsFor(f.columnId === NAME_COLUMN_ID ? 'name' : type).map((op) => (
+                    <option key={op} value={op}>
+                      {OP_LABELS[op]}
+                    </option>
+                  ))}
+                </SelectField>
+                <FilterValue
+                  filter={f}
+                  column={col}
+                  members={members}
+                  onChange={(value) =>
+                    setD({
+                      ...d,
+                      conditions: d.conditions.map((x, j) => (j === i ? { ...f, value } : x)),
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  aria-label={`Remove condition ${i + 1}`}
+                  onClick={() => setD({ ...d, conditions: d.conditions.filter((_, j) => j !== i) })}
+                  className="rounded-lg p-2 text-muted hover:bg-surface-2"
+                >
+                  <X size={16} aria-hidden />
+                </button>
+              </div>
+            );
+          })}
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={d.conditions.length >= MAX_CONDITIONS}
+            onClick={() =>
+              setD({
+                ...d,
+                conditions: [...d.conditions, { ...newFilter(board.columns), id: shortId() }],
+              })
+            }
+          >
+            <Plus size={14} aria-hidden /> Add condition
+          </Button>
+        </section>
+      )}
+
+      {isScheduledTrigger(t) && (
+        <p className="rounded-xl bg-surface-2 p-3 text-sm text-muted">
+          This one runs on a clock, not when you click: the Sorted helper checks every 10 minutes
+          (see Members → Sorted helper). Times use your workspace’s time zone.
+        </p>
+      )}
 
       <section aria-label="Then" className="space-y-2">
         <h3 className="text-sm font-bold">Then</h3>

@@ -3,6 +3,7 @@ import { roleIn, verifyIdToken, type Caller, type Role } from './auth';
 import { loadConfig, TIME_ZONE, VERSION, type HelperConfig } from './config';
 import { FirestoreClient } from './firestore';
 import type { Platform } from './platform';
+import { queueStatus, rebuildSchedule } from './scheduler';
 
 /** Requests bigger than this are refused (uploads are sent in chunks, later). */
 export const MAX_REQUEST_CHARS = 2_000_000;
@@ -46,6 +47,16 @@ const actions: Record<string, Action> = {
       };
     },
   },
+};
+
+actions['rebuildSchedule'] = {
+  auth: 'admin',
+  writes: true,
+  run: (ctx) => rebuildSchedule(ctx.p, ctx.db, ctx.workspaceId as string),
+};
+actions['schedulerStatus'] = {
+  auth: 'admin',
+  run: (ctx) => queueStatus(ctx.p, ctx.db, ctx.workspaceId as string),
 };
 
 /** Later phases add their actions here (scheduler tools, uploads, backup…). */

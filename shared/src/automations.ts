@@ -1,5 +1,14 @@
 import type { Group } from './board';
 import { normalizeValue, type Column } from './columns';
+import { addDays, isIsoDate } from './dates';
+import {
+  describeRecurrence,
+  describeTime,
+  isValidTime,
+  MAX_OFFSET_DAYS,
+  parseRecurrence,
+  type Schedule,
+} from './scheduling';
 import { type Filter, parseViewConfig } from './viewConfig';
 
 /** Limits (mirrored by the security rules). */
@@ -18,7 +27,20 @@ export type Trigger =
   | { type: 'statusChangedTo'; columnId: string; labelId: string }
   | { type: 'personAssigned'; columnId: string | null; uid: string | null }
   | { type: 'movedToGroup'; groupId: string }
-  | { type: 'subitemsAllDone'; columnId: string; labelId: string };
+  | { type: 'subitemsAllDone'; columnId: string; labelId: string }
+  // ---- scheduled: run by the Apps Script helper, not in the browser ----
+  /** N days before (negative) / after a date, at a time of day. For a Timeline, `which` picks the start or end. */
+  | {
+      type: 'dateArrives';
+      columnId: string;
+      which: 'start' | 'end';
+      offsetDays: number;
+      atTime: string;
+    }
+  /** The day after a date passes, if the item isn't done. */
+  | { type: 'overdue'; columnId: string; atTime: string }
+  /** On a repeating schedule: once for the board, or once for each item that matches the conditions. */
+  | { type: 'recurring'; scope: 'board' | 'items'; schedule: Schedule };
 
 export type TriggerType = Trigger['type'];
 export const TRIGGER_TYPES: readonly TriggerType[] = [
@@ -28,13 +50,42 @@ export const TRIGGER_TYPES: readonly TriggerType[] = [
   'personAssigned',
   'movedToGroup',
   'subitemsAllDone',
+  'dateArrives',
+  'overdue',
+  'recurring',
 ];
+
+/** Triggers the helper runs on a clock. The browser only registers them (see scheduleOps). */
+export function isScheduledTrigger(t: Trigger): boolean {
+  return t.type === 'dateArrives' || t.type === 'overdue' || t.type === 'recurring';
+}
+
+export function isScheduledAutomation(a: Pick<Automation, 'trigger'>): boolean {
+  return isScheduledTrigger(a.trigger);
+}
 
 export type NotifyTo = 'assignees' | 'owner' | 'actor' | 'person';
 
 /** Values for setValue may use these tokens, resolved when the automation runs. */
 export const TOKEN_ME = '@me';
 export const TOKEN_TODAY = '@today';
+
+/**
+ * "@today", "@today+7", "@today-3": a date relative to the day the automation runs.
+ * Returns the YYYY-MM-DD, or null if `v` isn't one of these tokens.
+ */
+export function resolveDateToken(v: unknown, today: string): string | null {
+  if (typeof v !== 'string') return null;
+  const m = /^@today(?:([+-])(\d{1,4}))?$/.exec(v);
+  if (!m) return null;
+  if (!m[1]) return today;
+  const n = Number(m[2]);
+  return addDays(today, m[1] === '-' ? -n : n);
+}
+
+export function isDateToken(v: unknown): boolean {
+  return typeof v === 'string' && /^@today(?:[+-]\d{1,4})?$/.test(v);
+}
 
 export type Action =
   | { type: 'setValue'; columnId: string; value: unknown }
@@ -94,6 +145,46 @@ export function parseTrigger(raw: unknown): Trigger | null {
       const columnId = str(r['columnId'], 64);
       const labelId = str(r['labelId'], 64);
       return columnId && labelId ? { type: 'subitemsAllDone', columnId, labelId } : null;
+    }
+    case 'dateArrives': {
+      const columnId = str(r['columnId'], 64);
+      const off = r['offsetDays'];
+      if (
+        !columnId ||
+        typeof off !== 'number' ||
+        !Number.isInteger(off) ||
+        Math.abs(off) > MAX_OFFSET_DAYS
+      )
+        return null;
+      return {
+        type: 'dateArrives',
+        columnId,
+        which: r['which'] === 'start' ? 'start' : 'end',
+        offsetDays: off,
+        atTime: isValidTime(r['atTime']) ? r['atTime'] : '09:00',
+      };
+    }
+    case 'overdue': {
+      const columnId = str(r['columnId'], 64);
+      return columnId
+        ? { type: 'overdue', columnId, atTime: isValidTime(r['atTime']) ? r['atTime'] : '09:00' }
+        : null;
+    }
+    case 'recurring': {
+      const sch = (
+        r['schedule'] && typeof r['schedule'] === 'object' ? r['schedule'] : {}
+      ) as Record<string, unknown>;
+      const recurrence = parseRecurrence(sch['recurrence']);
+      if (!recurrence || !isIsoDate(sch['startDate'])) return null;
+      return {
+        type: 'recurring',
+        scope: r['scope'] === 'items' ? 'items' : 'board',
+        schedule: {
+          recurrence,
+          atTime: isValidTime(sch['atTime']) ? sch['atTime'] : '09:00',
+          startDate: sch['startDate'],
+        },
+      };
     }
     default:
       return null;
@@ -206,6 +297,18 @@ export function describeTrigger(t: Trigger, b: Board, memberName: (uid: string) 
       return `an item is moved to ${groupName(b, t.groupId)}`;
     case 'subitemsAllDone':
       return `all subitems are ${labelName(b, t.columnId, t.labelId)}`;
+    case 'dateArrives': {
+      const col = colName(b, t.columnId);
+      const d =
+        t.offsetDays === 0
+          ? `the day of ${col}`
+          : `${Math.abs(t.offsetDays)} day${Math.abs(t.offsetDays) === 1 ? '' : 's'} ${t.offsetDays < 0 ? 'before' : 'after'} ${col}`;
+      return `it is ${d}, at ${describeTime(t.atTime)}`;
+    }
+    case 'overdue':
+      return `${colName(b, t.columnId)} has passed and it isn’t done, at ${describeTime(t.atTime)}`;
+    case 'recurring':
+      return `${describeRecurrence(t.schedule.recurrence)} at ${describeTime(t.schedule.atTime)}${t.scope === 'items' ? ', for each matching item' : ''}`;
   }
 }
 
@@ -216,8 +319,10 @@ export function describeAction(a: Action, b: Board, memberName: (uid: string) =>
       const v =
         a.value === TOKEN_ME
           ? 'the person who made the change'
-          : a.value === TOKEN_TODAY
-            ? 'today'
+          : isDateToken(a.value)
+            ? a.value === TOKEN_TODAY
+              ? 'today'
+              : `today ${String(a.value).slice(6)} days`
             : col
               ? ((col.settings.labels ?? col.settings.options ?? []).find(
                   (l) => l.id === a.value || (Array.isArray(a.value) && a.value.includes(l.id)),
@@ -258,4 +363,16 @@ export function describeAutomation(
     : '';
   const then = a.actions.map((x) => describeAction(x, b, memberName)).join(', then ');
   return `When ${when}${cond}, ${then}.`;
+}
+
+/** Why a scheduled automation's actions can't work (null = fine). Board-wide runs have no item to act on. */
+export function scheduledActionProblem(a: Pick<Automation, 'trigger' | 'actions'>): string | null {
+  const t = a.trigger;
+  if (t.type !== 'recurring' || t.scope !== 'board') return null;
+  for (const act of a.actions) {
+    if (act.type === 'createItem' && !act.subitem) continue;
+    if (act.type === 'notify' && act.to !== 'assignees') continue;
+    return 'A board-wide schedule has no single item, so it can only create items and send notifications. Choose “for each matching item” to change items.';
+  }
+  return null;
 }

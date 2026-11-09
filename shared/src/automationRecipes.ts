@@ -1,6 +1,7 @@
 import type { Group } from './board';
 import type { Column } from './columns';
 import { TOKEN_ME, TOKEN_TODAY, type Action, type Automation, type Trigger } from './automations';
+import { todayIso } from './dates';
 
 export type AutomationDraft = Omit<Automation, 'id'>;
 
@@ -26,7 +27,7 @@ const labelsOf = (c: Column) => c.settings.labels ?? [];
  * Ready-made automations that fit this board's columns (a recipe is offered only if the board
  * has what it needs). Picking one opens it in the builder, pre-filled, to adjust and save.
  */
-export function recipesFor(board: Board, me: string): Recipe[] {
+export function recipesFor(board: Board, me: string, today: string = todayIso()): Recipe[] {
   const status = board.columns.find((c) => c.type === 'status');
   const people = board.columns.find((c) => c.type === 'people');
   const date = board.columns.find((c) => c.type === 'date');
@@ -174,5 +175,104 @@ export function recipesFor(board: Board, me: string): Recipe[] {
         [{ type: 'notify', to: 'owner', uid: null, message: 'Date changed on {item}' }],
       ),
     );
+
+  // ---- reminders and schedules (these need the Sorted helper to run)
+  if (date)
+    out.push(
+      mk(
+        'remind-before',
+        `Remind me 3 days before “${date.title}”`,
+        'A notification at 9am three days before the date (skipped once it’s done).',
+        { type: 'dateArrives', columnId: date.id, which: 'end', offsetDays: -3, atTime: '09:00' },
+        [{ type: 'notify', to: 'owner', uid: null, message: '{item} is due in 3 days' }],
+        doneGuard(status, doneLabel),
+      ),
+      mk(
+        'remind-today',
+        `Tell me on the day of “${date.title}”`,
+        'A notification at 8am on the day.',
+        { type: 'dateArrives', columnId: date.id, which: 'end', offsetDays: 0, atTime: '08:00' },
+        [{ type: 'notify', to: 'owner', uid: null, message: '{item} is due today' }],
+        doneGuard(status, doneLabel),
+      ),
+      mk(
+        'overdue-nudge',
+        'Nudge me when something is overdue',
+        'The morning after the date, if it isn’t done: tell me and the people on it.',
+        { type: 'overdue', columnId: date.id, atTime: '09:00' },
+        [
+          { type: 'notify', to: 'owner', uid: null, message: '{item} is overdue' },
+          { type: 'notify', to: 'assignees', uid: null, message: '{item} is overdue' },
+        ],
+      ),
+    );
+  if (status && doneLabel && status.settings.labels?.[0])
+    out.push(
+      mk(
+        'weekly-reset',
+        'Reset Done items every Sunday evening',
+        'Every Sunday at 6pm, set everything marked Done back to the first status.',
+        {
+          type: 'recurring',
+          scope: 'items',
+          schedule: {
+            recurrence: { kind: 'weekly', every: 1, weekdays: [0] },
+            atTime: '18:00',
+            startDate: today,
+          },
+        },
+        [{ type: 'setValue', columnId: status.id, value: status.settings.labels[0].id }],
+        [{ id: 'weekly-reset-c1', columnId: status.id, op: 'is', value: [doneLabel.id] }],
+      ),
+    );
+  if (status && doneLabel && date && status.settings.labels?.[0]) {
+    const next = board.columns.find((c) => c.type === 'date' && /next|due/i.test(c.title)) ?? date;
+    out.push(
+      mk(
+        'repeat-in-7',
+        `Bring it round again 7 days after it’s done`,
+        `When status becomes Done: set “${next.title}” to a week from today and reset the status. (Instant; no helper needed.)`,
+        { type: 'statusChangedTo', columnId: status.id, labelId: doneLabel.id },
+        [
+          { type: 'setValue', columnId: next.id, value: '@today+7' },
+          { type: 'setValue', columnId: status.id, value: status.settings.labels[0].id },
+        ],
+      ),
+    );
+  }
+  out.push(
+    mk(
+      'monthly-check',
+      'Remind me on the 1st of every month',
+      'A notification at 9am on the 1st (handy for checking bills and subscriptions).',
+      {
+        type: 'recurring',
+        scope: 'board',
+        schedule: {
+          recurrence: { kind: 'monthly', every: 1, dayOfMonth: 1 },
+          atTime: '09:00',
+          startDate: today,
+        },
+      },
+      [
+        {
+          type: 'notify',
+          to: 'owner',
+          uid: null,
+          message: 'Monthly check: bills, subscriptions and renewals',
+        },
+      ],
+    ),
+  );
   return out;
+}
+
+/** "Not already done": a condition so reminders stay quiet for finished items. */
+function doneGuard(
+  status: Column | undefined,
+  done: { id: string } | undefined,
+): Automation['conditions'] {
+  return status && done
+    ? [{ id: 'not-done', columnId: status.id, op: 'noneOf', value: [done.id] }]
+    : [];
 }

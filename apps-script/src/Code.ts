@@ -8,6 +8,7 @@
 import { DEFAULT_DRIVE_ROOT, TIME_ZONE, VERSION } from './config';
 import { gasPlatform } from './gas';
 import { handleRequest } from './router';
+import { runDueEvents } from './scheduler';
 
 function json(body: unknown): GoogleAppsScript.Content.TextOutput {
   return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(
@@ -28,11 +29,18 @@ export function doPost(e: GoogleAppsScript.Events.DoPost): GoogleAppsScript.Cont
 }
 
 // ---------------------------------------------------------------------------------------------
-// Triggers (the bodies fill in over Phase 7: scheduler in 7b, housekeeping/digest in 7d).
+// Triggers (scheduler: 7b; housekeeping and digest fill in with 7d).
 // ---------------------------------------------------------------------------------------------
 
+/** Every 10 minutes: run whatever scheduled automations have come due. Cheap when there's nothing to do. */
 export function runScheduler(): void {
-  console.log('Scheduler tick (nothing scheduled yet).');
+  try {
+    const sum = runDueEvents(gasPlatform());
+    if (sum.due > 0) console.log(`Scheduler: ${JSON.stringify(sum)}`);
+  } catch (e) {
+    // Never throw out of a trigger: Apps Script would email a failure notice for every run.
+    console.error(`Scheduler failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+  }
 }
 export function runHousekeeping(): void {
   console.log('Housekeeping tick (nothing to do yet).');

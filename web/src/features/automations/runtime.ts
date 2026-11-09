@@ -3,6 +3,10 @@ import {
   runAutomations,
   withFinalCounter,
   todayIso,
+  isScheduledAutomation,
+  planAutomationSchedule,
+  planItemSchedule,
+  type SchedItem,
   type Automation,
   type AutoEvent,
   type EngineItem,
@@ -23,6 +27,8 @@ export interface BoardRuntime {
   items: ReadonlyMap<string, BoardItem>;
   memberUids: ReadonlySet<string>;
   memberName: (uid: string) => string;
+  /** The workspace's time zone: scheduled automations fire on this clock. */
+  tz: string;
 }
 
 let current: BoardRuntime | null = null;
@@ -98,3 +104,55 @@ export function addAutomationOps(input: {
 }
 
 export { useBoardAutomationsRegistration } from './useAutomations';
+
+// ------------------------------------------------------------------ scheduled automations
+
+/**
+ * Keeps the helper's schedule queue in step with an edit: adds the event writes for these items to
+ * the same batch (see shared/scheduleOps.ts). Returns [] when the board has no scheduled automation,
+ * which is almost always.
+ */
+export function scheduleOpsFor(bid: string, items: ReadonlyArray<SchedItem>): WriteOp[] {
+  const rt = runtimeFor(bid);
+  if (!rt || !rt.automations.some(isScheduledAutomation)) return [];
+  return items.flatMap((item) =>
+    planItemSchedule({
+      wid: rt.wid,
+      bid,
+      columns: rt.board.columns,
+      tz: rt.tz,
+      nowMs: Date.now(),
+      automations: rt.automations,
+      item,
+    }),
+  );
+}
+
+/** Writes for an automation being created, changed, switched or removed (`automation` null = removed). */
+export function scheduleOpsForAutomation(
+  bid: string,
+  automationId: string,
+  automation: Automation | null,
+): WriteOp[] {
+  const rt = runtimeFor(bid);
+  if (!rt) return [];
+  const had = rt.automations.find((a) => a.id === automationId);
+  // Nothing to do if neither the old nor the new version is scheduled.
+  if (!(automation && isScheduledAutomation(automation)) && !(had && isScheduledAutomation(had)))
+    return [];
+  return planAutomationSchedule({
+    wid: rt.wid,
+    bid,
+    columns: rt.board.columns,
+    tz: rt.tz,
+    nowMs: Date.now(),
+    automation,
+    automationId,
+    items: [...rt.items.values()].map((i) => ({
+      id: i.id,
+      values: i.values,
+      archived: i.archived,
+      deleted: i.deleted,
+    })),
+  });
+}

@@ -595,3 +595,41 @@ me` query per board I can see (only matching items are billed, plus one read per
 - The helper turns the same `WriteOp`s the web app and rules tests execute into Firestore REST
   writes (field masks, server timestamps and array unions as transforms), so scheduled
   automations (7b) reuse the shared planners and engine instead of a second implementation.
+
+### D72. Scheduled automations: the browser registers, the helper executes
+
+- Triggers: a date arrives (N days before/after a date or timeline column, at a time of day),
+  overdue (the day after, if not done) and recurring (every N days, weeks on chosen days, or
+  months on a day; the 29th to 31st fall on a short month's last day). Recurring runs either
+  **once for the board** (create items, notify) or **for each item matching the conditions**
+  (e.g. reset everything Done every Sunday evening).
+- The browser keeps `scheduledEvents` in step in the **same batch** as each edit (D-spec 6.2.3), so
+  the helper only ever does one indexed query. "Rebuild schedule" repairs drift (after imports,
+  duplicates, or an old client).
+- The helper runs the **same automation engine** as the browser, so a scheduled change can trigger
+  instant automations under the same loop guard, and numbering, notifications, activity and run
+  history behave identically. It acts as the automation's **owner** (their name on activity and
+  runs); notifications go only to current members.
+
+### D73. Exactly-once, retries and time limits
+
+- Each event is processed in one atomic commit with a precondition on the event's `updateTime` (and
+  the board counter's), so overlapping runs or a re-run can never fire it twice; a lost race
+  changes nothing. A moved counter is retried with the fresh value.
+- Failure handling: a database blip is retried 10 and 20 minutes later and given up after 3 attempts
+  (`status: 'failed'`, shown in the Helper card); a run that can never work (a column was deleted)
+  is recorded as **failed** in run history and doesn't retry, but a recurring series carries on.
+- A run starts no new event after 4 minutes (Apps Script stops at 6) and takes at most 100 events; the
+  rest are simply due next time. An idle tick costs one query.
+
+### D74. Time zones: the workspace's, not the browser's or the script's
+
+- "9am" means 9am on the clock in the workspace's `timezone` (set when it was created; defaults to
+  Melbourne), including across daylight-saving changes (tests cover the October and April changes). A
+  time that doesn't exist (2:30am on the spring-forward day) lands just after the gap.
+
+### D75. Date tokens make chores come round again, with no helper
+
+- `setValue` accepts `@today`, `@today+7`, `@today-3`. So "when Done: set Next due to a week from
+  today and reset the status" (a recipe) is an ordinary instant automation. The helper is for things
+  that must happen when nobody is looking.

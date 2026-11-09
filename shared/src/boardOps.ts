@@ -18,6 +18,9 @@ export const boardPaths = {
   item: (wid: string, bid: string, iid: string) => `${paths.board(wid, bid)}/items/${iid}`,
   activity: (wid: string, bid: string) => `${paths.board(wid, bid)}/activity`,
   runs: (wid: string, bid: string) => `${paths.board(wid, bid)}/automationRuns`,
+  events: (wid: string, bid: string) => `${paths.board(wid, bid)}/scheduledEvents`,
+  event: (wid: string, bid: string, eid: string) =>
+    `${paths.board(wid, bid)}/scheduledEvents/${eid}`,
   automations: (wid: string, bid: string) => `${paths.board(wid, bid)}/automations`,
   automation: (wid: string, bid: string, aid: string) =>
     `${paths.board(wid, bid)}/automations/${aid}`,

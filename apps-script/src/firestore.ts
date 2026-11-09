@@ -24,7 +24,7 @@ export interface RestWrite {
   update?: { name: string; fields: FsFields };
   updateMask?: { fieldPaths: string[] };
   updateTransforms?: FieldTransform[];
-  currentDocument?: { exists: boolean };
+  currentDocument?: { exists?: boolean; updateTime?: string };
   delete?: string;
 }
 
@@ -135,16 +135,42 @@ function walk(data: Record<string, unknown>, prefix: string[], mask: boolean): W
  * The same WriteOps the web app and the rules tests execute, turned into REST writes. This is
  * what lets the helper reuse the shared planners and the automation engine unchanged.
  */
-export function opsToWrites(projectId: string, ops: readonly WriteOp[]): RestWrite[] {
+export interface Precondition {
+  /** The document must still have this updateTime (i.e. nobody changed it since it was read). */
+  updateTime?: string;
+  exists?: boolean;
+}
+
+/** A "someone else changed it first" refusal: the caller should re-read and decide again. */
+export class PreconditionFailed extends Error {
+  constructor(message = 'The document changed since it was read.') {
+    super(message);
+    this.name = 'PreconditionFailed';
+  }
+}
+
+export function opsToWrites(
+  projectId: string,
+  ops: readonly WriteOp[],
+  preconditions: ReadonlyMap<string, Precondition> = new Map(),
+): RestWrite[] {
   const root = `projects/${projectId}/databases/(default)/documents`;
   return ops.map((op): RestWrite => {
     const name = `${root}/${op.path}`;
-    if (op.kind === 'delete') return { delete: name };
+    const pre = preconditions.get(op.path);
+    const currentDocument = pre
+      ? pre.updateTime
+        ? { updateTime: pre.updateTime }
+        : { exists: pre.exists === true }
+      : undefined;
+    if (op.kind === 'delete')
+      return { delete: name, ...(currentDocument ? { currentDocument } : {}) };
     if (op.kind === 'set') {
       const w = walk(op.data, [], false);
       return {
         update: { name, fields: toFields(w.value) },
         ...(w.transforms.length ? { updateTransforms: w.transforms } : {}),
+        ...(currentDocument ? { currentDocument } : {}),
       };
     }
     const w = walk(op.data, [], true);
@@ -152,7 +178,7 @@ export function opsToWrites(projectId: string, ops: readonly WriteOp[]): RestWri
       update: { name, fields: toFields(w.value) },
       updateMask: { fieldPaths: w.paths },
       ...(w.transforms.length ? { updateTransforms: w.transforms } : {}),
-      currentDocument: { exists: true },
+      currentDocument: currentDocument ?? { exists: true },
     };
   });
 }
@@ -282,10 +308,16 @@ export class FirestoreClient {
   }
 
   /** Atomic, like the app's batches. Max 500 writes per commit (Firestore's limit). */
-  commit(ops: readonly WriteOp[]): void {
+  commit(ops: readonly WriteOp[], preconditions?: ReadonlyMap<string, Precondition>): void {
     for (let i = 0; i < ops.length; i += 400) {
-      const writes = opsToWrites(this.projectId, ops.slice(i, i + 400));
+      const writes = opsToWrites(this.projectId, ops.slice(i, i + 400), preconditions);
       const { status, json } = this.call(`${this.base}:commit`, 'POST', { writes });
+      if (
+        status === 409 ||
+        (json as { error?: { status?: string } } | null)?.error?.status === 'FAILED_PRECONDITION' ||
+        (json as { error?: { status?: string } } | null)?.error?.status === 'ABORTED'
+      )
+        throw new PreconditionFailed();
       if (status !== 200) this.fail(status, json, 'commit');
     }
   }
