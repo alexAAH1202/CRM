@@ -16,8 +16,14 @@ export const VIEW_TYPE_META: Record<ViewType, { label: string; defaultName: stri
   chart: { label: 'Chart', defaultName: 'Chart' },
 };
 
-/** View types that exist so far (Gantt / Workload / Chart arrive in 4b). */
-export const AVAILABLE_VIEW_TYPES: readonly ViewType[] = ['table', 'kanban', 'calendar'];
+export const AVAILABLE_VIEW_TYPES: readonly ViewType[] = [
+  'table',
+  'kanban',
+  'calendar',
+  'gantt',
+  'workload',
+  'chart',
+];
 export const MAX_VIEWS = 12;
 
 export function parseViewType(v: unknown): ViewType {

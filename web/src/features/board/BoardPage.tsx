@@ -14,6 +14,9 @@ import { BoardSettingsDialog } from './BoardSettingsDialog';
 import { BoardTable } from './BoardTable';
 import { BoardToolbar } from './BoardToolbar';
 import { CalendarView } from './CalendarView';
+import { ChartView } from './ChartView';
+import { GanttView } from './GanttView';
+import { WorkloadView } from './WorkloadView';
 import { KanbanView } from './KanbanView';
 import { ViewTabs } from './ViewTabs';
 
@@ -87,7 +90,7 @@ function BoardView({ board: b }: { board: Board }) {
             </Button>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2">
           {views !== null && (
             <ViewTabs
               wid={workspace.id}
@@ -117,6 +120,12 @@ function BoardView({ board: b }: { board: Board }) {
           <KanbanView {...viewProps} />
         ) : active.type === 'calendar' ? (
           <CalendarView {...viewProps} />
+        ) : active.type === 'gantt' ? (
+          <GanttView {...viewProps} />
+        ) : active.type === 'workload' ? (
+          <WorkloadView {...viewProps} />
+        ) : active.type === 'chart' ? (
+          <ChartView {...viewProps} />
         ) : (
           <BoardTable {...viewProps} />
         )

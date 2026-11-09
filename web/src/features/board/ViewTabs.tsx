@@ -6,11 +6,14 @@ import {
   type ViewType,
 } from '@app/shared';
 import {
-  Columns3,
+  BarChart3,
   CalendarDays,
+  Columns3,
+  GanttChartSquare,
   MoreHorizontal,
   Plus,
   Table2,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -27,9 +30,9 @@ export const VIEW_ICONS: Record<ViewType, LucideIcon> = {
   table: Table2,
   kanban: Columns3,
   calendar: CalendarDays,
-  gantt: Table2,
-  workload: Table2,
-  chart: Table2,
+  gantt: GanttChartSquare,
+  workload: Users,
+  chart: BarChart3,
 };
 
 interface Props {

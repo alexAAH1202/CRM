@@ -31,4 +31,5 @@ on free tiers: the Firebase Spark plan plus a Google Apps Script helper.
 | 2. Boards & table view (2a + 2b)   | ✅ done |
 | 3. Columns, formulas, dependencies | ✅ done |
 | 4a. Saved views, Kanban, Calendar  | ✅ done |
-| 4b. Gantt, Workload, Chart         | next    |
+| 4b. Gantt, Workload, Chart         | ✅ done |
+| 5. Collaboration                   | next    |
