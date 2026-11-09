@@ -53,7 +53,25 @@ export interface ViewConfig {
   hiddenCols: string[];
   colWidths: Record<string, number>;
   showArchived: boolean;
+  /** Settings for the non-table views (which column makes the lanes, which dates to use…). */
+  options: ViewOptions;
 }
+
+export type CalendarMode = 'month' | 'week';
+
+export interface ViewOptions {
+  /** Kanban: a status / dropdown / people column id. */
+  laneColumnId: string | null;
+  /** Calendar: a date or timeline column id. */
+  dateColumnId: string | null;
+  calendarMode: CalendarMode;
+}
+
+export const EMPTY_VIEW_OPTIONS: ViewOptions = {
+  laneColumnId: null,
+  dateColumnId: null,
+  calendarMode: 'month',
+};
 
 export const NAME_COLUMN_ID = 'name';
 export const GROUPABLE_TYPES: readonly ColumnType[] = ['status', 'dropdown', 'people'];
@@ -68,6 +86,7 @@ export const EMPTY_VIEW_CONFIG: ViewConfig = {
   hiddenCols: [],
   colWidths: {},
   showArchived: false,
+  options: EMPTY_VIEW_OPTIONS,
 };
 
 export const OP_LABELS: Record<FilterOp, string> = {
@@ -182,6 +201,17 @@ export function parseViewConfig(raw: unknown): ViewConfig {
       : [],
     colWidths: widths,
     showArchived: r['showArchived'] === true,
+    options: parseViewOptions(r['options']),
+  };
+}
+
+export function parseViewOptions(raw: unknown): ViewOptions {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === 'string' && v.length > 0 && v.length <= 64 ? v : null);
+  return {
+    laneColumnId: str(r['laneColumnId']),
+    dateColumnId: str(r['dateColumnId']),
+    calendarMode: r['calendarMode'] === 'week' ? 'week' : 'month',
   };
 }
 
@@ -200,6 +230,19 @@ export function pruneViewConfig(config: ViewConfig, columns: readonly Column[]):
     sort: config.sort.filter((s) => known(s.columnId)),
     groupBy: groupCol && GROUPABLE_TYPES.includes(groupCol.type) ? groupCol.id : null,
     hiddenCols: config.hiddenCols.filter((id) => ids.has(id)),
+    options: {
+      ...config.options,
+      laneColumnId: columns.some(
+        (c) => c.id === config.options.laneColumnId && GROUPABLE_TYPES.includes(c.type),
+      )
+        ? config.options.laneColumnId
+        : null,
+      dateColumnId: columns.some(
+        (c) => c.id === config.options.dateColumnId && (c.type === 'date' || c.type === 'timeline'),
+      )
+        ? config.options.dateColumnId
+        : null,
+    },
   };
 }
 

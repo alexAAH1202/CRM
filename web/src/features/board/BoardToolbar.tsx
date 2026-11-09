@@ -14,6 +14,7 @@ import {
   type Label,
   type SortRule,
   type ViewConfig,
+  type ViewType,
 } from '@app/shared';
 import {
   ArrowDownUp,
@@ -39,6 +40,7 @@ interface Props {
   onSearch: (v: string) => void;
   /** False for viewers: changes apply only on this device. */
   shared: boolean;
+  viewType?: ViewType;
 }
 
 const wide = 'w-[min(34rem,calc(100vw-2rem))]';
@@ -376,7 +378,9 @@ export function BoardToolbar({
   search,
   onSearch,
   shared,
+  viewType = 'table',
 }: Props) {
+  const isTable = viewType === 'table';
   const groupable = columns.filter((c) => GROUPABLE_TYPES.includes(c.type));
   const groupCol = columns.find((c) => c.id === config.groupBy);
   const hidden = config.hiddenCols.length;
@@ -415,89 +419,95 @@ export function BoardToolbar({
         <SortPanel columns={columns} config={config} onChange={onChange} />
       </Popover>
 
-      <Popover
-        label="Group by"
-        className="w-64"
-        trigger={(p) => (
-          <ToolButton
-            {...p}
-            icon={<Layers size={14} aria-hidden />}
-            label={groupCol ? `Grouped: ${groupCol.title}` : 'Group by'}
-            active={!!groupCol}
-          />
-        )}
-      >
-        {(close) => (
-          <div role="radiogroup" aria-label="Group by" className="flex flex-col">
-            {[
-              { id: null as string | null, title: 'Board groups (default)' },
-              ...groupable.map((c) => ({ id: c.id as string | null, title: c.title })),
-            ].map((o) => (
-              <button
-                key={o.id ?? 'default'}
-                type="button"
-                role="radio"
-                aria-checked={config.groupBy === o.id}
-                onClick={() => {
-                  onChange({ groupBy: o.id });
-                  close();
-                }}
-                className={cx(
-                  'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-2',
-                  config.groupBy === o.id && 'font-bold text-primary',
-                )}
-              >
-                {o.title}
-              </button>
-            ))}
-            {groupable.length === 0 && (
-              <p className="px-3 py-2 text-xs text-muted">
-                Add a Status, Dropdown or People column to group by it.
-              </p>
+      {isTable && (
+        <>
+          <Popover
+            label="Group by"
+            className="w-64"
+            trigger={(p) => (
+              <ToolButton
+                {...p}
+                icon={<Layers size={14} aria-hidden />}
+                label={groupCol ? `Grouped: ${groupCol.title}` : 'Group by'}
+                active={!!groupCol}
+              />
             )}
-          </div>
-        )}
-      </Popover>
+          >
+            {(close) => (
+              <div role="radiogroup" aria-label="Group by" className="flex flex-col">
+                {[
+                  { id: null as string | null, title: 'Board groups (default)' },
+                  ...groupable.map((c) => ({ id: c.id as string | null, title: c.title })),
+                ].map((o) => (
+                  <button
+                    key={o.id ?? 'default'}
+                    type="button"
+                    role="radio"
+                    aria-checked={config.groupBy === o.id}
+                    onClick={() => {
+                      onChange({ groupBy: o.id });
+                      close();
+                    }}
+                    className={cx(
+                      'flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-surface-2',
+                      config.groupBy === o.id && 'font-bold text-primary',
+                    )}
+                  >
+                    {o.title}
+                  </button>
+                ))}
+                {groupable.length === 0 && (
+                  <p className="px-3 py-2 text-xs text-muted">
+                    Add a Status, Dropdown or People column to group by it.
+                  </p>
+                )}
+              </div>
+            )}
+          </Popover>
 
-      <Popover
-        label="Columns"
-        className="w-64"
-        trigger={(p) => (
-          <ToolButton
-            {...p}
-            icon={<Columns3 size={14} aria-hidden />}
+          <Popover
             label="Columns"
-            count={hidden}
-            active={hidden > 0}
-          />
-        )}
-      >
-        <div className="flex flex-col">
-          {columns.length === 0 && <p className="px-3 py-2 text-sm text-muted">No columns yet.</p>}
-          {columns.map((c) => {
-            const shown = !config.hiddenCols.includes(c.id);
-            return (
-              <label
-                key={c.id}
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-surface-2"
-              >
-                <input
-                  type="checkbox"
-                  checked={shown}
-                  onChange={() =>
-                    onChange({
-                      hiddenCols: shown
-                        ? [...config.hiddenCols, c.id]
-                        : config.hiddenCols.filter((id) => id !== c.id),
-                    })
-                  }
-                />
-                {c.title}
-              </label>
-            );
-          })}
-        </div>
-      </Popover>
+            className="w-64"
+            trigger={(p) => (
+              <ToolButton
+                {...p}
+                icon={<Columns3 size={14} aria-hidden />}
+                label="Columns"
+                count={hidden}
+                active={hidden > 0}
+              />
+            )}
+          >
+            <div className="flex flex-col">
+              {columns.length === 0 && (
+                <p className="px-3 py-2 text-sm text-muted">No columns yet.</p>
+              )}
+              {columns.map((c) => {
+                const shown = !config.hiddenCols.includes(c.id);
+                return (
+                  <label
+                    key={c.id}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-surface-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={shown}
+                      onChange={() =>
+                        onChange({
+                          hiddenCols: shown
+                            ? [...config.hiddenCols, c.id]
+                            : config.hiddenCols.filter((id) => id !== c.id),
+                        })
+                      }
+                    />
+                    {c.title}
+                  </label>
+                );
+              })}
+            </div>
+          </Popover>
+        </>
+      )}
 
       <ToolButton
         icon={<Archive size={14} aria-hidden />}

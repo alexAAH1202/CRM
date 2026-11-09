@@ -22,3 +22,4 @@ export * from './dates';
 export * from './dependencies';
 export * from './formula';
 export * from './computed';
+export * from './views';

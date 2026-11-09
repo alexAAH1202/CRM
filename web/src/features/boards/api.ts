@@ -15,6 +15,9 @@ import {
   type ConversionResult,
   type DuplicableItem,
   type ViewConfig,
+  type ViewType,
+  VIEW_TYPE_META,
+  shortId,
   keyBetween,
   paths,
   planCreateBoard,
@@ -229,7 +232,7 @@ export function deleteGroup(input: {
 
 // ------------------------------------------------------------ 2b: views
 
-/** Saves a view's settings (filters, sort, group-by, hidden columns, widths). */
+/** Saves a view's settings (filters, sort, group-by, options…). */
 export function saveViewConfig(
   wid: string,
   bid: string,
@@ -258,6 +261,46 @@ export function saveViewConfig(
           },
         ],
   );
+}
+
+export function createView(input: {
+  wid: string;
+  bid: string;
+  uid: string;
+  type: ViewType;
+  name: string;
+  lastOrder: string | null;
+  config: ViewConfig;
+}): Promise<string> {
+  const vid = shortId();
+  return commitOps('view:create', [
+    {
+      kind: 'set',
+      path: boardPaths.view(input.wid, input.bid, vid),
+      data: {
+        type: input.type,
+        name: input.name.trim().slice(0, 80) || VIEW_TYPE_META[input.type].defaultName,
+        order: keyBetween(input.lastOrder, null),
+        config: input.config,
+        createdBy: input.uid,
+        updatedAt: SERVER_TIME,
+      },
+    },
+  ]).then(() => vid);
+}
+
+export function renameView(wid: string, bid: string, vid: string, name: string) {
+  return commitOps('view:rename', [
+    {
+      kind: 'update',
+      path: boardPaths.view(wid, bid, vid),
+      data: { name: name.trim().slice(0, 80), updatedAt: SERVER_TIME },
+    },
+  ]);
+}
+
+export function deleteView(wid: string, bid: string, vid: string) {
+  return commitOps('view:delete', [{ kind: 'delete', path: boardPaths.view(wid, bid, vid) }]);
 }
 
 // ------------------------------------------------------------ 2b: item actions

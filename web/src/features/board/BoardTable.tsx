@@ -58,7 +58,7 @@ import {
 } from '../boards/api';
 import type { Board, BoardItem, WorkspaceMember } from '../boards/types';
 import { BulkBar } from './BulkBar';
-import { CellEnvProvider } from './cellEnv';
+import { CellEnvProvider, useBoardCellEnv } from './cellEnv';
 import { ChangeTypeDialog, DefaultValueDialog } from './ColumnDialogs';
 import { FormulaDialog, ProgressDialog } from './ComputedDialogs';
 import {
@@ -451,34 +451,7 @@ export function BoardTable({
       return n;
     });
 
-  const cellEnv = useMemo(
-    () => ({
-      items,
-      // A new tag must exist on the column before an item can refer to it.
-      saveColumnAndSet: (column: Column, item: BoardItem, value: unknown) => {
-        saveColumns(
-          wid,
-          board.id,
-          board.columns.map((x) => (x.id === column.id ? column : x)),
-        )
-          .then(() =>
-            setCell({
-              wid,
-              board: {
-                ...board,
-                columns: board.columns.map((x) => (x.id === column.id ? column : x)),
-              },
-              item,
-              uid,
-              column,
-              value,
-            }),
-          )
-          .catch(fail);
-      },
-    }),
-    [items, wid, board, uid, fail],
-  );
+  const cellEnv = useBoardCellEnv(wid, board, items, uid);
 
   const ctxValue: TableContextValue = {
     wid,
