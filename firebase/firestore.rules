@@ -321,6 +321,58 @@ service cloud.firestore {
         allow delete: if canEdit(wid);
       }
 
+      // -------------------------------------------------------- dashboards
+
+      match /dashboards/{did} {
+        // A widget is a small map of a known shape; rules can't loop, so each slot is checked.
+        function widgetOk(l, i) {
+          return l.size() <= i || (l[i] is map && l[i].type is string);
+        }
+        function idOk(l, i) {
+          return l.size() <= i || (l[i] is string && l[i].size() >= 1 && l[i].size() <= 128);
+        }
+        function widgetsOk(l) {
+          return widgetOk(l, 0) && widgetOk(l, 1) && widgetOk(l, 2) && widgetOk(l, 3) && widgetOk(l, 4) && widgetOk(l, 5) && widgetOk(l, 6) && widgetOk(l, 7) && widgetOk(l, 8) && widgetOk(l, 9) && widgetOk(l, 10) && widgetOk(l, 11) && widgetOk(l, 12) && widgetOk(l, 13) && widgetOk(l, 14) && widgetOk(l, 15) && widgetOk(l, 16) && widgetOk(l, 17) && widgetOk(l, 18) && widgetOk(l, 19) && widgetOk(l, 20) && widgetOk(l, 21) && widgetOk(l, 22) && widgetOk(l, 23);
+        }
+        function listsOk(l) {
+          return idOk(l, 0) && idOk(l, 1) && idOk(l, 2) && idOk(l, 3) && idOk(l, 4);
+        }
+        function validDashboard(d) {
+          return d.keys().hasOnly(
+                   ['name', 'boardIds', 'widgets', 'visibility', 'memberIds',
+                    'createdBy', 'createdAt', 'updatedAt'])
+            && isString(d.name, 1, 200)
+            && isList(d.boardIds, 5) && listsOk(d.boardIds)
+            && isList(d.widgets, 24) && widgetsOk(d.widgets)
+            && d.visibility in ['main', 'private']
+            && isList(d.memberIds, 50)
+            && (d.visibility == 'private' || d.memberIds.size() == 0)
+            && d.updatedAt == request.time;
+        }
+        // Main dashboards are for everyone in the household; private ones for the people named
+        // (and admins, as with private lists).
+        function canSeeDashboard(d) {
+          return d.visibility == 'main' || request.auth.uid in d.memberIds || isAdmin(wid);
+        }
+
+        allow read: if isMember(wid) && canSeeDashboard(resource.data);
+        allow create: if canEdit(wid)
+          && validDashboard(request.resource.data)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && (request.resource.data.visibility == 'main'
+              || request.auth.uid in request.resource.data.memberIds);
+        allow update: if canEdit(wid)
+          && canSeeDashboard(resource.data)
+          && validDashboard(request.resource.data)
+          && !changedKeys().hasAny(['createdBy', 'createdAt'])
+          && (request.resource.data.visibility == 'main'
+              || request.auth.uid in request.resource.data.memberIds
+              || isAdmin(wid));
+        allow delete: if isAdmin(wid)
+          || (canEdit(wid) && resource.data.createdBy == request.auth.uid);
+      }
+
       // ----------------------------------------------------------- boards
 
       match /boards/{bid} {

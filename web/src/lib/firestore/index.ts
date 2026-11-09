@@ -12,6 +12,10 @@ import {
   getDoc,
   getDocs,
   getCountFromServer,
+  getAggregateFromServer,
+  count,
+  sum,
+  average,
   getDocsFromCache,
   runTransaction,
   onSnapshot,
@@ -184,6 +188,28 @@ export async function commitOps(label: string, ops: WriteOp[]): Promise<void> {
 /** Large op lists (e.g. deleting a board) split into <=500-op batches. */
 export async function commitOpsChunked(label: string, ops: WriteOp[], size = 100): Promise<void> {
   for (let i = 0; i < ops.length; i += size) await commitOps(label, ops.slice(i, i + size));
+}
+
+/**
+ * A count, total or average computed by the server (an aggregation query): billed about one read
+ * per thousand matching index entries, not one per document, which is why dashboard numbers use
+ * it. The meter records one read (the minimum); a very large match would cost a few more.
+ */
+export async function readAggregate(
+  label: string,
+  q: Query,
+  spec: { measure: 'count' | 'sum' | 'avg'; field?: string | null },
+): Promise<number> {
+  const agg =
+    spec.measure === 'sum' && spec.field
+      ? { value: sum(spec.field) }
+      : spec.measure === 'avg' && spec.field
+        ? { value: average(spec.field) }
+        : { value: count() };
+  const snap = await getAggregateFromServer(q, agg);
+  meter.recordReads(label, 1, false, false);
+  const v = snap.data().value;
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }
 
 /** Number of documents matching a query: an aggregation, billed as 1 read per 1,000 entries (min 1). */

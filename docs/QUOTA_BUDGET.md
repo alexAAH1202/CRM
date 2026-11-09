@@ -162,12 +162,12 @@ or `localStorage.usageMeter = '1'`) shows per-session estimates by label. It
 can't see rule reads or the over-30-minute re-billing, so Phase 9 compares it
 against the Firebase console's usage tab.
 
-| Measurement                                           | Phase | Result       |
-| ----------------------------------------------------- | ----- | ------------ |
-| Rule `get()` cost per membership-gated request        | 1     | _to measure_ |
-| Board open: cold / warm / delta (see the table below) | 2     | measured     |
-| Dashboard load (5 boards, 8 widgets)                  | 8     | _to measure_ |
-| Full 15-user scenario vs this budget                  | 9     | _to measure_ |
+| Measurement                                                | Phase | Result                                                                                                                                                                    |
+| ---------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rule `get()` cost per membership-gated request             | 1     | _to measure_                                                                                                                                                              |
+| Board open: cold / warm / delta (see the table below)      | 2     | measured                                                                                                                                                                  |
+| Dashboard load (1 list of 7 items, 9 widgets, warm reload) | 9     | 14 reads: 2 aggregation counts, the list document, plus the usual start-up reads; the items came from the device cache (a cold load adds one read per item in each list). |
+| Full 15-user scenario vs this budget                       | 9     | _to measure_                                                                                                                                                              |
 
 ### Measured app-side costs (Phases 1–6)
 
