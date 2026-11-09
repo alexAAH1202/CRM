@@ -633,3 +633,36 @@ me` query per board I can see (only matching items are billed, plus one read per
 - `setValue` accepts `@today`, `@today+7`, `@today-3`. So "when Done: set Next due to a week from
   today and reset the status" (a recipe) is an ordinary instant automation. The helper is for things
   that must happen when nobody is looking.
+
+### D76. Uploads: resumable, piece by piece, through the helper
+
+- The browser can't write to the owner's Drive, so the helper (running as the owner) does. A file is
+  sent as 1 MiB pieces (base64 in a JSON request, safely under Apps Script's request limit), each
+  forwarded to Drive's _resumable upload_ with a `Content-Range`. Max 10 MB (`LIMITS.MAX_FILE_MB`), so
+  at most 10 pieces; a flaky connection retries one piece, not the file.
+- Drive's session address never reaches the browser: the helper keeps it in the script cache under an
+  opaque upload id bound to the person and workspace that started it. A piece whose position is
+  behind the helper's (a retry) is acknowledged without being re-sent; a gap or wrong-sized piece is
+  refused. Sessions expire after 6 hours.
+- Refused before any bytes move: empty, over 10 MB, programs (`.exe`, `.sh`, `.js`…), odd MIME types
+  (become `application/octet-stream`), and names are stripped of paths and control characters. At most
+  40 uploads per person per hour. Viewers can't upload.
+- The item stores `{ name, url, driveFileId, mimeType, size, addedBy, addedAt }` in its Files column
+  (extra fields optional, so plain links still work). Nothing in Firestore changes shape beyond that.
+
+### D77. One Drive folder per workspace, shared with members as viewers
+
+- First upload creates `Sorted – <workspace name>` under the root folder and records it in
+  `workspace.driveFolderId` (a lost race keeps the winner's folder and trashes the spare).
+- Sharing mirrors the members list: every member (any role) is a _reader_; stale readers are removed.
+  Only individual-user reader grants are ever touched, so the owner, editors and link sharing are
+  left alone. Runs: after someone accepts an invite or is removed (best effort, from the browser), a
+  button on the Helper card, and every night for every workspace as a safety net. Repeat requests
+  within a minute are ignored. An address Drive rejects (not a Google account) is skipped, not fatal.
+- Anyone who can view the folder in Drive can open the files; the app doesn't proxy downloads.
+
+### D78. Boards are listed A–Z with a colour of their own
+
+- The sidebar sorts boards case-insensitively with numbers in order (“Trip 2” before “Trip 10”).
+- Each board's icon colour comes from its id (not its position), so it never changes when boards are
+  added or renamed. Grey is not used.

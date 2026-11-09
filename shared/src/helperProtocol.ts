@@ -1,3 +1,5 @@
+import type { UploadedFile } from './files';
+
 /**
  * The contract between the browser and the Apps Script helper (shared, so both sides agree).
  *
@@ -50,7 +52,7 @@ export interface WhoAmI {
 }
 
 /** Bump when the helper code changes in a way the app should notice. */
-export const HELPER_VERSION = '7b.1';
+export const HELPER_VERSION = '7c.1';
 
 export interface HelperActions {
   ping: { request: Record<string, never>; response: { pong: true; at: string; version: string } };
@@ -64,6 +66,21 @@ export interface HelperActions {
   schedulerStatus: {
     request: { workspaceId: string };
     response: { pending: number; failed: number; nextDue: string | null; stalled: boolean };
+  };
+  /** Member: start an upload to the workspace's Drive folder. */
+  uploadStart: {
+    request: { workspaceId: string; name: string; mimeType: string; size: number };
+    response: { uploadId: string; chunkBytes: number };
+  };
+  /** Member: send the next piece (base64) at `offset`; the last piece completes the upload. */
+  uploadChunk: {
+    request: { workspaceId: string; uploadId: string; offset: number; data: string };
+    response: { done: false; next: number } | { done: true; file: UploadedFile };
+  };
+  /** Member: make the workspace folder's Drive sharing match the members list. */
+  syncFolderSharing: {
+    request: { workspaceId: string };
+    response: { shared: number; added: number; removed: number; skipped: boolean };
   };
 }
 export type HelperActionName = keyof HelperActions;

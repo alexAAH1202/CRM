@@ -54,6 +54,25 @@ export function HelperStatus() {
       .catch(() => setQueue(null));
   }, [state, outdated, workspace.id]);
 
+  const [syncing, setSyncing] = useState(false);
+  const syncDrive = () => {
+    setSyncing(true);
+    callHelper(
+      'syncFolderSharing',
+      { workspaceId: workspace.id },
+      { retries: 0, timeoutMs: 60_000 },
+    )
+      .then((r) =>
+        toast.success(
+          r.skipped
+            ? 'Drive access was checked a moment ago. Try again in a minute.'
+            : `Drive access updated: ${r.added} added, ${r.removed} removed (${r.shared} members).`,
+        ),
+      )
+      .catch((e: unknown) => toast.error(friendlyError(e)))
+      .finally(() => setSyncing(false));
+  };
+
   const rebuild = () => {
     setRebuilding(true);
     callHelper('rebuildSchedule', { workspaceId: workspace.id }, { timeoutMs: 120_000, retries: 0 })
@@ -142,6 +161,18 @@ export function HelperStatus() {
             Use this if reminders seem to be missing (for example after importing or duplicating
             items).
           </span>
+        </div>
+      )}
+      {state.kind === 'ok' && !outdated && (
+        <div className="space-y-2 border-t border-border pt-3 text-sm">
+          <p>
+            <span className="font-semibold">Files:</span> uploads go to a Drive folder that every
+            member can view. New members are added automatically (and checked again every night).
+          </p>
+          <Button size="sm" variant="secondary" onClick={syncDrive} disabled={syncing}>
+            <RefreshCw size={14} aria-hidden className={syncing ? 'animate-spin' : ''} /> Sync Drive
+            access now
+          </Button>
         </div>
       )}
       {state.kind === 'error' && (

@@ -1,3 +1,4 @@
+import { requestFolderSync } from '../files/upload';
 import {
   isRole,
   normalizeEmail,
@@ -106,7 +107,7 @@ export function acceptInvite(user: User, invite: MyInvite) {
   return commitOps(
     'invite:accept',
     planAcceptInvite({ wid: invite.workspaceId, role: invite.role, me: profileOf(user) }),
-  );
+  ).then(() => requestFolderSync(invite.workspaceId)); // so the new member can open files
 }
 
 export function declineInvite(invite: MyInvite) {
@@ -141,7 +142,9 @@ export function changeRole(wid: string, uid: string, from: Role, to: Role) {
 }
 
 export function removeMember(wid: string, uid: string, role: Role) {
-  return commitOps('member:remove', planRemoveMember({ wid, uid, role }));
+  return commitOps('member:remove', planRemoveMember({ wid, uid, role })).then(() =>
+    requestFolderSync(wid),
+  );
 }
 
 export function rememberLastWorkspace(uid: string, wid: string) {

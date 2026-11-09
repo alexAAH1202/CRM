@@ -21,6 +21,7 @@ import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { createFolder, deleteFolder, renameFolder, setFavorite } from '../boards/api';
 import { useBoards } from '../boards/BoardsProvider';
+import { boardColor, byBoardName } from '../boards/boardStyle';
 import { CreateBoardDialog } from '../boards/CreateBoardDialog';
 import type { BoardSummary, Folder } from '../boards/types';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
@@ -52,10 +53,17 @@ function BoardRow({
   const user = useCurrentUser();
   const { favorites } = useBoards();
   const fav = favorites.has(board.id);
+  const color = boardColor(board.id);
   return (
     <div className="group/board flex items-center">
       <NavLink to={`${base}/${board.id}`} className={navItem} onClick={onNavigate}>
-        <LayoutGrid size={16} aria-hidden className="shrink-0" />
+        <span
+          aria-hidden
+          className="flex size-6 shrink-0 items-center justify-center rounded-md"
+          style={{ backgroundColor: color.bg, color: color.text }}
+        >
+          <LayoutGrid size={14} />
+        </span>
         <span className="truncate">{board.name}</span>
         {board.visibility === 'private' && (
           <Lock size={12} aria-label="Private" className="ml-auto shrink-0 text-muted" />
@@ -223,8 +231,9 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
     });
 
   const folderIds = new Set(folders.map((f) => f.id));
-  const favoriteBoards = (boards ?? []).filter((b) => favorites.has(b.id));
-  const loose = (boards ?? []).filter((b) => !b.folderId || !folderIds.has(b.folderId));
+  const sorted = [...(boards ?? [])].sort(byBoardName);
+  const favoriteBoards = sorted.filter((b) => favorites.has(b.id));
+  const loose = sorted.filter((b) => !b.folderId || !folderIds.has(b.folderId));
   const label = 'px-3 text-xs font-bold tracking-wide text-muted uppercase';
 
   return (
@@ -295,7 +304,7 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
             )}
 
             {folders.map((f) => {
-              const inside = boards.filter((b) => b.folderId === f.id);
+              const inside = sorted.filter((b) => b.folderId === f.id);
               const open = !collapsed.has(f.id);
               return (
                 <section key={f.id} aria-label={`Folder ${f.name}`} className="space-y-0.5">
@@ -364,7 +373,7 @@ export function BoardList({ onNavigate }: { onNavigate?: () => void }) {
               <Archive size={12} aria-hidden /> Archived ({archived.length})
             </button>
             {showArchived &&
-              archived.map((b) => (
+              [...archived].sort(byBoardName).map((b) => (
                 <NavLink
                   key={b.id}
                   to={`${base}/${b.id}`}

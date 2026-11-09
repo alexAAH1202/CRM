@@ -36,6 +36,37 @@ var Sorted = (() => {
     setup: () => setup
   });
 
+  // ../shared/src/constants.ts
+  var LIMITS = {
+    /** Max boards a single dashboard may combine (protects read quota). */
+    MAX_DASHBOARD_BOARDS: 5,
+    /** Max upload size for Drive-backed files. */
+    MAX_FILE_MB: 10,
+    /** Time-tracking sessions kept inline on an item before archiving to a subcollection. */
+    MAX_INLINE_TIME_SESSIONS: 200,
+    /** Automation run history kept per board. */
+    MAX_AUTOMATION_RUNS_PER_BOARD: 50,
+    /** Max nested automation depth (loop guard). */
+    MAX_AUTOMATION_DEPTH: 3,
+    /** Firestore writeBatch hard limit. */
+    MAX_BATCH_WRITES: 500,
+    /** Daily email budget for Apps Script digests (consumer cap is ~100 recipients). */
+    MAX_DIGEST_EMAILS_PER_DAY: 80,
+    /** String length caps enforced in rules. */
+    MAX_NAME_LENGTH: 200,
+    MAX_WORKSPACE_NAME_LENGTH: 80,
+    MAX_DISPLAY_NAME_LENGTH: 120,
+    MAX_URL_LENGTH: 2048,
+    MAX_BOARD_MEMBERS: 50,
+    MAX_BOARD_COLUMNS: 100,
+    MAX_BOARD_GROUPS: 100,
+    MAX_ITEM_NAME_LENGTH: 500,
+    MAX_DESCRIPTION_LENGTH: 5e3,
+    MAX_EMAIL_LENGTH: 254,
+    /** Members per workspace (small-team product; keeps rule arrays bounded). */
+    MAX_WORKSPACE_MEMBERS: 50
+  };
+
   // ../shared/src/paths.ts
   var paths = {
     user: (uid) => `users/${uid}`,
@@ -440,7 +471,18 @@ var Sorted = (() => {
           if (!url || seen.has(url)) continue;
           seen.add(url);
           const name = typeof f.name === "string" && f.name.trim() ? f.name.trim().slice(0, 200) : url.replace(/^https?:\/\//, "").slice(0, 200);
-          out.push({ name, url });
+          const entry = { name, url };
+          if (typeof f.driveFileId === "string" && /^[A-Za-z0-9_-]{5,128}$/.test(f.driveFileId))
+            entry.driveFileId = f.driveFileId;
+          if (typeof f.mimeType === "string" && /^[\w.+-]+\/[\w.+-]+$/.test(f.mimeType) && f.mimeType.length <= 100)
+            entry.mimeType = f.mimeType;
+          if (typeof f.size === "number" && Number.isInteger(f.size) && f.size >= 0 && f.size <= 1e9)
+            entry.size = f.size;
+          if (typeof f.addedBy === "string" && f.addedBy.length > 0 && f.addedBy.length <= 128)
+            entry.addedBy = f.addedBy;
+          if (typeof f.addedAt === "string" && f.addedAt.length > 0 && f.addedAt.length <= 40)
+            entry.addedAt = f.addedAt;
+          out.push(entry);
           if (out.length >= MAX_FILES) break;
         }
         return out.length ? out : null;
@@ -1432,6 +1474,65 @@ var Sorted = (() => {
     };
   }
 
+  // ../shared/src/files.ts
+  var MAX_FILE_BYTES = LIMITS.MAX_FILE_MB * 1024 * 1024;
+  var UPLOAD_CHUNK_BYTES = 1024 * 1024;
+  var BLOCKED_EXTENSIONS = /* @__PURE__ */ new Set([
+    "exe",
+    "msi",
+    "bat",
+    "cmd",
+    "com",
+    "scr",
+    "pif",
+    "vbs",
+    "vbe",
+    "js",
+    "jse",
+    "wsf",
+    "wsh",
+    "ps1",
+    "jar",
+    "apk",
+    "dmg",
+    "app",
+    "sh",
+    "reg",
+    "lnk",
+    "dll",
+    "hta"
+  ]);
+  function sanitizeFileName(raw) {
+    let s = typeof raw === "string" ? raw : "";
+    s = s.replace(/[\u0000-\u001f\u007f<>:"|?*\\/]+/g, " ").replace(/\s+/g, " ").trim();
+    s = s.replace(/^[.\s]+/, "");
+    if (s.length > 150) {
+      const dot = s.lastIndexOf(".");
+      const ext = dot > 0 && s.length - dot <= 10 ? s.slice(dot) : "";
+      s = s.slice(0, 150 - ext.length).trimEnd() + ext;
+    }
+    return s || "file";
+  }
+  function isBlockedFileName(name) {
+    const dot = name.lastIndexOf(".");
+    return dot >= 0 && BLOCKED_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+  }
+  function uploadProblem(name, size) {
+    if (typeof size !== "number" || !Number.isInteger(size) || size < 0)
+      return "That file’s size isn’t valid.";
+    if (size === 0) return "That file is empty.";
+    if (size > MAX_FILE_BYTES) return `Files can be up to ${LIMITS.MAX_FILE_MB} MB.`;
+    if (isBlockedFileName(sanitizeFileName(name)))
+      return "That type of file can’t be uploaded (it could run programs).";
+    return null;
+  }
+  function cleanMimeType(raw) {
+    return typeof raw === "string" && raw.length <= 100 && /^[\w.+-]+\/[\w.+-]+$/.test(raw) ? raw : "application/octet-stream";
+  }
+  function driveViewUrl(fileId) {
+    return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
+  }
+
   // ../shared/src/helperProtocol.ts
   var HelperError = class extends Error {
     constructor(code, message) {
@@ -1441,7 +1542,7 @@ var Sorted = (() => {
       this.code = code;
     }
   };
-  var HELPER_VERSION = "7b.1";
+  var HELPER_VERSION = "7c.1";
 
   // ../shared/src/scheduleOps.ts
   function eventId(automationId, itemId) {
@@ -1533,107 +1634,6 @@ var Sorted = (() => {
       apiKey: p.prop("FIREBASE_API_KEY") ?? DEFAULT_API_KEY,
       driveRootFolderId: p.prop("DRIVE_ROOT_FOLDER_ID") ?? DEFAULT_DRIVE_ROOT
     };
-  }
-
-  // src/gas.ts
-  function gasPlatform() {
-    const cache = CacheService.getScriptCache();
-    const props = PropertiesService.getScriptProperties();
-    return {
-      http(req) {
-        const headers = { ...req.headers ?? {} };
-        if (req.oauth) headers["Authorization"] = `Bearer ${ScriptApp.getOAuthToken()}`;
-        const res = UrlFetchApp.fetch(req.url, {
-          method: (req.method ?? "GET").toLowerCase(),
-          headers,
-          ...req.body !== void 0 ? { payload: req.body } : {},
-          muteHttpExceptions: true,
-          followRedirects: true
-        });
-        return { status: res.getResponseCode(), body: res.getContentText() };
-      },
-      cacheGet: (k) => cache.get(k),
-      cachePut: (k, v, ttl) => {
-        cache.put(k, v, Math.min(ttl, 21600));
-      },
-      prop: (n) => props.getProperty(n),
-      nowMs: () => Date.now(),
-      uuid: () => Utilities.getUuid().replace(/-/g, ""),
-      sha256Hex: (text) => Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8).map((b) => (b < 0 ? b + 256 : b).toString(16).padStart(2, "0")).join(""),
-      b64urlDecode: (text) => Utilities.newBlob(
-        Utilities.base64DecodeWebSafe(text.padEnd(Math.ceil(text.length / 4) * 4, "="))
-      ).getDataAsString("UTF-8"),
-      log: (m) => console.log(m)
-    };
-  }
-
-  // src/auth.ts
-  var ROLES = ["admin", "member", "viewer"];
-  function jwtExpiry(p, token) {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    try {
-      const exp = JSON.parse(p.b64urlDecode(parts[1])).exp;
-      return typeof exp === "number" ? exp : null;
-    } catch {
-      return null;
-    }
-  }
-  var CACHE_SECONDS = 300;
-  function verifyIdToken(p, cfg, idToken) {
-    if (typeof idToken !== "string" || idToken.length < 20 || idToken.length > 4096)
-      throw new HelperError("unauthenticated", "Sign in again.");
-    const exp = jwtExpiry(p, idToken);
-    const now = p.nowMs();
-    if (exp !== null && exp * 1e3 <= now)
-      throw new HelperError("unauthenticated", "Your sign-in has expired. Reload the page.");
-    const key = `tok:${p.sha256Hex(idToken)}`;
-    const hit = p.cacheGet(key);
-    if (hit) {
-      try {
-        return JSON.parse(hit);
-      } catch {
-      }
-    }
-    const res = p.http({
-      url: `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(cfg.apiKey)}`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken })
-    });
-    if (res.status === 400 || res.status === 401 || res.status === 403)
-      throw new HelperError(
-        "unauthenticated",
-        "Your sign-in could not be verified. Reload the page."
-      );
-    if (res.status !== 200) {
-      p.log(`accounts:lookup returned ${res.status}`);
-      throw new HelperError("unavailable", "Could not check your sign-in right now.");
-    }
-    let user;
-    try {
-      user = JSON.parse(res.body).users?.[0];
-    } catch {
-      user = void 0;
-    }
-    if (!user || typeof user.localId !== "string")
-      throw new HelperError("unauthenticated", "Your sign-in could not be verified.");
-    const caller = {
-      uid: user.localId,
-      email: typeof user.email === "string" ? user.email : null
-    };
-    const ttl = exp === null ? CACHE_SECONDS : Math.max(1, Math.min(CACHE_SECONDS, Math.floor(exp - now / 1e3)));
-    p.cachePut(key, JSON.stringify(caller), ttl);
-    return caller;
-  }
-  function roleIn(db, uid, workspaceId) {
-    if (typeof workspaceId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(workspaceId))
-      throw new HelperError("bad_request", "A workspace is required.");
-    const m = db.getDoc(`workspaces/${workspaceId}/members/${uid}`);
-    const role = m?.data["role"];
-    if (!m || typeof role !== "string" || !ROLES.includes(role))
-      throw new HelperError("forbidden", "You are not a member of this workspace.");
-    return role;
   }
 
   // src/firestoreCodec.ts
@@ -1877,6 +1877,350 @@ var Sorted = (() => {
       }
     }
   };
+
+  // src/drive.ts
+  var DRIVE = "https://www.googleapis.com/drive/v3";
+  var UPLOAD = "https://www.googleapis.com/upload/drive/v3/files";
+  var SESSION_TTL_SECONDS = 6 * 3600;
+  var MAX_UPLOADS_PER_HOUR = 40;
+  function driveFail(res, what, p) {
+    p.log(`Drive ${what} failed: ${res.status} ${res.body.slice(0, 300)}`);
+    if (res.status === 429 || res.status >= 500)
+      throw new HelperError("unavailable", "Google Drive is busy. Try again shortly.");
+    if (res.status === 403 || res.status === 401)
+      throw new HelperError(
+        "internal",
+        "The helper isn’t allowed to use Google Drive (check the Drive API is enabled and the folder is yours)."
+      );
+    if (res.status === 404) throw new HelperError("not_found", "That Drive item was not found.");
+    throw new HelperError("internal", "Google Drive refused the request.");
+  }
+  function driveJson(p, what, req) {
+    const res = p.http({ ...req, oauth: true });
+    if (res.status < 200 || res.status > 299) driveFail(res, what, p);
+    try {
+      return JSON.parse(res.body);
+    } catch {
+      throw new HelperError("internal", "Google Drive sent an unreadable reply.");
+    }
+  }
+  function ensureWorkspaceFolder(p, cfg, db, wid) {
+    if (!cfg.driveRootFolderId)
+      throw new HelperError("unavailable", "The Drive folder hasn’t been set up for the helper.");
+    const path = `workspaces/${wid}`;
+    const ws = db.getDoc(path);
+    if (!ws) throw new HelperError("not_found", "That workspace was not found.");
+    const existing = ws.data["driveFolderId"];
+    if (typeof existing === "string" && existing) return existing;
+    const wsName = sanitizeFileName(ws.data["name"] ?? "Workspace").slice(0, 80);
+    const made = driveJson(p, "create folder", {
+      url: `${DRIVE}/files?fields=id`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `Sorted – ${wsName}`,
+        mimeType: "application/vnd.google-apps.folder",
+        parents: [cfg.driveRootFolderId]
+      })
+    });
+    try {
+      db.commit(
+        [{ kind: "update", path, data: { driveFolderId: made.id } }],
+        /* @__PURE__ */ new Map([[path, { updateTime: ws.updateTime ?? void 0 }]])
+      );
+      return made.id;
+    } catch (e) {
+      if (!(e instanceof PreconditionFailed)) throw e;
+      const again = db.getDoc(path)?.data["driveFolderId"];
+      if (typeof again === "string" && again) {
+        p.http({
+          url: `${DRIVE}/files/${made.id}`,
+          method: "PATCH",
+          oauth: true,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ trashed: true })
+        });
+        return again;
+      }
+      const fresh = db.getDoc(path);
+      db.commit(
+        [{ kind: "update", path, data: { driveFolderId: made.id } }],
+        /* @__PURE__ */ new Map([[path, { updateTime: fresh?.updateTime ?? void 0 }]])
+      );
+      return made.id;
+    }
+  }
+  function rateLimit(p, uid) {
+    const key = `uprl:${uid}`;
+    const n = Number(p.cacheGet(key) ?? "0");
+    if (n >= MAX_UPLOADS_PER_HOUR)
+      throw new HelperError("rate_limited", "That’s a lot of uploads. Try again in a little while.");
+    p.cachePut(key, String(n + 1), 3600);
+  }
+  function uploadStart(p, cfg, db, caller, wid, req) {
+    const problem = uploadProblem(req["name"], req["size"]);
+    if (problem) throw new HelperError(problem.includes("MB") ? "too_large" : "bad_request", problem);
+    const size = req["size"];
+    const name = sanitizeFileName(req["name"]);
+    const mime = cleanMimeType(req["mimeType"]);
+    rateLimit(p, caller.uid);
+    const folder = ensureWorkspaceFolder(p, cfg, db, wid);
+    const res = p.http({
+      url: `${UPLOAD}?uploadType=resumable&fields=id,name,mimeType,size`,
+      method: "POST",
+      oauth: true,
+      headers: {
+        "Content-Type": "application/json; charset=UTF-8",
+        "X-Upload-Content-Type": mime,
+        "X-Upload-Content-Length": String(size)
+      },
+      body: JSON.stringify({
+        name,
+        mimeType: mime,
+        parents: [folder],
+        description: `Uploaded by ${caller.email ?? caller.uid} via Sorted`
+      })
+    });
+    const session = res.headers?.["location"];
+    if (res.status !== 200 || !session || !session.startsWith("https://"))
+      driveFail(res, "start upload", p);
+    const uploadId = p.uuid();
+    const state = { uid: caller.uid, wid, session, size, name, mime, next: 0 };
+    p.cachePut(`up:${uploadId}`, JSON.stringify(state), SESSION_TTL_SECONDS);
+    return { uploadId, chunkBytes: UPLOAD_CHUNK_BYTES };
+  }
+  function decodedLength(b64) {
+    const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
+    return b64.length / 4 * 3 - pad;
+  }
+  function uploadChunk(p, caller, wid, req) {
+    const id = req["uploadId"];
+    if (typeof id !== "string" || !/^[A-Za-z0-9]{8,64}$/.test(id))
+      throw new HelperError("bad_request", "That upload isn’t valid.");
+    const raw = p.cacheGet(`up:${id}`);
+    const st = raw ? JSON.parse(raw) : null;
+    if (!st || st.uid !== caller.uid || st.wid !== wid)
+      throw new HelperError("not_found", "That upload has expired. Please start it again.");
+    const offset = req["offset"];
+    const data = req["data"];
+    if (typeof offset !== "number" || !Number.isInteger(offset) || offset < 0 || offset > st.size)
+      throw new HelperError("bad_request", "That piece’s position isn’t valid.");
+    if (typeof data !== "string" || data.length === 0 || data.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data))
+      throw new HelperError("bad_request", "That piece isn’t valid.");
+    if (offset < st.next) return { done: false, next: st.next };
+    if (offset > st.next)
+      throw new HelperError("bad_request", "A piece is missing. Please start the upload again.");
+    const len = decodedLength(data);
+    const expected = Math.min(UPLOAD_CHUNK_BYTES, st.size - offset);
+    if (len !== expected) throw new HelperError("bad_request", "That piece is the wrong size.");
+    const end = offset + len;
+    const res = p.http({
+      url: st.session,
+      method: "PUT",
+      oauth: true,
+      headers: { "Content-Range": `bytes ${offset}-${end - 1}/${st.size}` },
+      bodyBase64: data,
+      followRedirects: false
+    });
+    if (res.status === 308) {
+      st.next = end;
+      p.cachePut(`up:${id}`, JSON.stringify(st), SESSION_TTL_SECONDS);
+      return { done: false, next: end };
+    }
+    if (res.status === 200 || res.status === 201) {
+      if (end !== st.size) driveFail(res, "finish upload early", p);
+      p.cachePut(`up:${id}`, "", 1);
+      let meta;
+      try {
+        meta = JSON.parse(res.body);
+      } catch {
+        meta = {};
+      }
+      if (typeof meta.id !== "string") driveFail(res, "finish upload", p);
+      return {
+        done: true,
+        file: {
+          driveFileId: meta.id,
+          name: typeof meta.name === "string" ? meta.name : st.name,
+          mimeType: typeof meta.mimeType === "string" ? meta.mimeType : st.mime,
+          size: Number(meta.size ?? st.size),
+          url: driveViewUrl(meta.id)
+        }
+      };
+    }
+    if (res.status === 404 || res.status === 410) {
+      p.cachePut(`up:${id}`, "", 1);
+      throw new HelperError("not_found", "That upload has expired. Please start it again.");
+    }
+    driveFail(res, "upload piece", p);
+  }
+  function planSharing(members, current) {
+    const want = new Set(members.map((m) => m.trim().toLowerCase()).filter((m) => m.includes("@")));
+    const have = /* @__PURE__ */ new Map();
+    const remove = [];
+    for (const perm of current) {
+      if (perm.type !== "user" || !perm.emailAddress) continue;
+      const email = perm.emailAddress.toLowerCase();
+      if (perm.role === "owner" || perm.role === "organizer" || perm.role === "fileOrganizer")
+        continue;
+      have.set(email, perm);
+      if (perm.role === "reader" && !want.has(email)) remove.push(perm);
+    }
+    const add = [...want].filter((e) => !have.has(e)).sort();
+    return { add, remove };
+  }
+  var SYNC_MIN_GAP_SECONDS = 60;
+  function syncFolderSharing(p, cfg, db, wid, opts = {}) {
+    const gapKey = `sync:${wid}`;
+    if (!opts.force && p.cacheGet(gapKey)) return { shared: 0, added: 0, removed: 0, skipped: true };
+    p.cachePut(gapKey, "1", SYNC_MIN_GAP_SECONDS);
+    const folder = ensureWorkspaceFolder(p, cfg, db, wid);
+    const members = db.query({ parent: `workspaces/${wid}`, collection: "members", limit: 200 }).map((d) => d.data["email"]).filter((e) => typeof e === "string");
+    const perms = driveJson(p, "list permissions", {
+      url: `${DRIVE}/files/${folder}/permissions?fields=${encodeURIComponent("permissions(id,type,role,emailAddress)")}&pageSize=100`
+    }).permissions ?? [];
+    const plan = planSharing(members, perms);
+    let added = 0;
+    for (const email of plan.add) {
+      const res = p.http({
+        url: `${DRIVE}/files/${folder}/permissions?sendNotificationEmail=false`,
+        method: "POST",
+        oauth: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "user", role: "reader", emailAddress: email })
+      });
+      if (res.status === 200) added++;
+      else p.log(`Drive share with ${email} skipped: ${res.status}`);
+    }
+    let removed = 0;
+    for (const perm of plan.remove) {
+      const res = p.http({
+        url: `${DRIVE}/files/${folder}/permissions/${perm.id}`,
+        method: "DELETE",
+        oauth: true
+      });
+      if (res.status === 204 || res.status === 200 || res.status === 404) removed++;
+      else p.log(`Drive unshare ${perm.id} failed: ${res.status}`);
+    }
+    return { shared: members.length, added, removed, skipped: false };
+  }
+  function syncAllFolders(p, cfg, db) {
+    const workspaces = db.query({ collection: "workspaces", limit: 100 });
+    let n = 0;
+    for (const w of workspaces) {
+      try {
+        syncFolderSharing(p, cfg, db, w.id, { force: true });
+        n++;
+      } catch (e) {
+        p.log(`Folder sync for ${w.id} failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    return n;
+  }
+
+  // src/gas.ts
+  function gasPlatform() {
+    const cache = CacheService.getScriptCache();
+    const props = PropertiesService.getScriptProperties();
+    return {
+      http(req) {
+        const headers = { ...req.headers ?? {} };
+        if (req.oauth) headers["Authorization"] = `Bearer ${ScriptApp.getOAuthToken()}`;
+        const res = UrlFetchApp.fetch(req.url, {
+          method: (req.method ?? "GET").toLowerCase(),
+          headers,
+          ...req.bodyBase64 !== void 0 ? { payload: Utilities.newBlob(Utilities.base64Decode(req.bodyBase64)).getBytes() } : req.body !== void 0 ? { payload: req.body } : {},
+          muteHttpExceptions: true,
+          followRedirects: req.followRedirects ?? true
+        });
+        const headers2 = {};
+        for (const [k, v] of Object.entries(res.getAllHeaders()))
+          headers2[k.toLowerCase()] = Array.isArray(v) ? String(v[0]) : String(v);
+        return { status: res.getResponseCode(), body: res.getContentText(), headers: headers2 };
+      },
+      cacheGet: (k) => cache.get(k),
+      cachePut: (k, v, ttl) => {
+        cache.put(k, v, Math.min(ttl, 21600));
+      },
+      prop: (n) => props.getProperty(n),
+      nowMs: () => Date.now(),
+      uuid: () => Utilities.getUuid().replace(/-/g, ""),
+      sha256Hex: (text) => Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8).map((b) => (b < 0 ? b + 256 : b).toString(16).padStart(2, "0")).join(""),
+      b64urlDecode: (text) => Utilities.newBlob(
+        Utilities.base64DecodeWebSafe(text.padEnd(Math.ceil(text.length / 4) * 4, "="))
+      ).getDataAsString("UTF-8"),
+      log: (m) => console.log(m)
+    };
+  }
+
+  // src/auth.ts
+  var ROLES = ["admin", "member", "viewer"];
+  function jwtExpiry(p, token) {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    try {
+      const exp = JSON.parse(p.b64urlDecode(parts[1])).exp;
+      return typeof exp === "number" ? exp : null;
+    } catch {
+      return null;
+    }
+  }
+  var CACHE_SECONDS = 300;
+  function verifyIdToken(p, cfg, idToken) {
+    if (typeof idToken !== "string" || idToken.length < 20 || idToken.length > 4096)
+      throw new HelperError("unauthenticated", "Sign in again.");
+    const exp = jwtExpiry(p, idToken);
+    const now = p.nowMs();
+    if (exp !== null && exp * 1e3 <= now)
+      throw new HelperError("unauthenticated", "Your sign-in has expired. Reload the page.");
+    const key = `tok:${p.sha256Hex(idToken)}`;
+    const hit = p.cacheGet(key);
+    if (hit) {
+      try {
+        return JSON.parse(hit);
+      } catch {
+      }
+    }
+    const res = p.http({
+      url: `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(cfg.apiKey)}`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken })
+    });
+    if (res.status === 400 || res.status === 401 || res.status === 403)
+      throw new HelperError(
+        "unauthenticated",
+        "Your sign-in could not be verified. Reload the page."
+      );
+    if (res.status !== 200) {
+      p.log(`accounts:lookup returned ${res.status}`);
+      throw new HelperError("unavailable", "Could not check your sign-in right now.");
+    }
+    let user;
+    try {
+      user = JSON.parse(res.body).users?.[0];
+    } catch {
+      user = void 0;
+    }
+    if (!user || typeof user.localId !== "string")
+      throw new HelperError("unauthenticated", "Your sign-in could not be verified.");
+    const caller = {
+      uid: user.localId,
+      email: typeof user.email === "string" ? user.email : null
+    };
+    const ttl = exp === null ? CACHE_SECONDS : Math.max(1, Math.min(CACHE_SECONDS, Math.floor(exp - now / 1e3)));
+    p.cachePut(key, JSON.stringify(caller), ttl);
+    return caller;
+  }
+  function roleIn(db, uid, workspaceId) {
+    if (typeof workspaceId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(workspaceId))
+      throw new HelperError("bad_request", "A workspace is required.");
+    const m = db.getDoc(`workspaces/${workspaceId}/members/${uid}`);
+    const role = m?.data["role"];
+    if (!m || typeof role !== "string" || !ROLES.includes(role))
+      throw new HelperError("forbidden", "You are not a member of this workspace.");
+    return role;
+  }
 
   // src/scheduler.ts
   var RUN_BUDGET_MS = 4 * 60 * 1e3;
@@ -2313,6 +2657,20 @@ var Sorted = (() => {
     auth: "admin",
     run: (ctx) => queueStatus(ctx.p, ctx.db, ctx.workspaceId)
   };
+  actions["uploadStart"] = {
+    auth: "member",
+    writes: true,
+    run: (ctx, req) => uploadStart(ctx.p, ctx.cfg, ctx.db, ctx.caller, ctx.workspaceId, req)
+  };
+  actions["uploadChunk"] = {
+    auth: "member",
+    writes: true,
+    run: (ctx, req) => uploadChunk(ctx.p, ctx.caller, ctx.workspaceId, req)
+  };
+  actions["syncFolderSharing"] = {
+    auth: "member",
+    run: (ctx) => syncFolderSharing(ctx.p, ctx.cfg, ctx.db, ctx.workspaceId)
+  };
   var ok = (data) => ({ ok: true, data });
   var fail = (code, message) => ({
     ok: false,
@@ -2384,7 +2742,16 @@ var Sorted = (() => {
     }
   }
   function runHousekeeping() {
-    console.log("Housekeeping tick (nothing to do yet).");
+    try {
+      const p = gasPlatform();
+      const cfg = loadConfig(p);
+      const n = syncAllFolders(p, cfg, new FirestoreClient(p, cfg.projectId));
+      console.log(`Housekeeping: Drive sharing checked for ${n} workspace(s).`);
+    } catch (e) {
+      console.error(
+        `Housekeeping failed: ${e instanceof Error ? e.stack ?? e.message : String(e)}`
+      );
+    }
   }
   function runDigest() {
     console.log("Digest tick (nothing to send yet).");

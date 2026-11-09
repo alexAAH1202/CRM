@@ -11,11 +11,18 @@ export function gasPlatform(): Platform {
       const res = UrlFetchApp.fetch(req.url, {
         method: (req.method ?? 'GET').toLowerCase() as GoogleAppsScript.URL_Fetch.HttpMethod,
         headers,
-        ...(req.body !== undefined ? { payload: req.body } : {}),
+        ...(req.bodyBase64 !== undefined
+          ? { payload: Utilities.newBlob(Utilities.base64Decode(req.bodyBase64)).getBytes() }
+          : req.body !== undefined
+            ? { payload: req.body }
+            : {}),
         muteHttpExceptions: true,
-        followRedirects: true,
+        followRedirects: req.followRedirects ?? true,
       });
-      return { status: res.getResponseCode(), body: res.getContentText() };
+      const headers2: Record<string, string> = {};
+      for (const [k, v] of Object.entries(res.getAllHeaders()))
+        headers2[k.toLowerCase()] = Array.isArray(v) ? String(v[0]) : String(v);
+      return { status: res.getResponseCode(), body: res.getContentText(), headers: headers2 };
     },
     cacheGet: (k) => cache.get(k),
     cachePut: (k, v, ttl) => {

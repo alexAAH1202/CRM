@@ -206,14 +206,14 @@ between two simultaneous creates into `permission-denied` (see D43).
 
   Phase 3 additions:
 
-  | Column type                                                | Stored value / setting                                                   |
-  | ---------------------------------------------------------- | ------------------------------------------------------------------------ |
-  | rating                                                     | `number` 1–5 (cleared = field removed)                                   |
-  | email, phone                                               | `string`                                                                 |
-  | tags                                                       | tag ids (`string[]`), tags live in column `settings`                     |
-  | files                                                      | `[{ name, url, ... }]` (links, max 20; http(s) only)                     |
-  | dependency                                                 | `[{ id, lag }]` predecessor item ids, `lag` in days (±365, max 30 preds) |
-  | formula, progress, itemId, createdAt, updatedAt, createdBy | **never stored**: computed on render from the column's `settings`        |
+  | Column type                                                | Stored value / setting                                                         |
+  | ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+  | rating                                                     | `number` 1–5 (cleared = field removed)                                         |
+  | email, phone                                               | `string`                                                                       |
+  | tags                                                       | tag ids (`string[]`), tags live in column `settings`                           |
+  | files                                                      | `[{ name, url, driveFileId?, mimeType?, size?, addedBy?, addedAt? }]` (max 20) |
+  | dependency                                                 | `[{ id, lag }]` predecessor item ids, `lag` in days (±365, max 30 preds)       |
+  | formula, progress, itemId, createdAt, updatedAt, createdBy | **never stored**: computed on render from the column's `settings`              |
 
   Column `settings` also carry (2b): `summary` (footer: none/count/sum/avg/min/max/
   distribution) and `defaultValue` (what new items start with; status uses

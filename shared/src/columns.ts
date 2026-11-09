@@ -117,6 +117,12 @@ export interface LinkValue {
 export interface FileValue {
   name: string;
   url: string;
+  /** Set for files uploaded through the helper (absent for plain links). */
+  driveFileId?: string;
+  mimeType?: string;
+  size?: number;
+  addedBy?: string;
+  addedAt?: string;
 }
 /** A dependency on another item (a predecessor), with a lag in days (finish-to-start). */
 export interface DependencyValue {
@@ -369,7 +375,22 @@ export function normalizeValue(col: Column, v: unknown): CellValue {
           typeof f.name === 'string' && f.name.trim()
             ? f.name.trim().slice(0, 200)
             : url.replace(/^https?:\/\//, '').slice(0, 200);
-        out.push({ name, url });
+        const entry: FileValue = { name, url };
+        if (typeof f.driveFileId === 'string' && /^[A-Za-z0-9_-]{5,128}$/.test(f.driveFileId))
+          entry.driveFileId = f.driveFileId;
+        if (
+          typeof f.mimeType === 'string' &&
+          /^[\w.+-]+\/[\w.+-]+$/.test(f.mimeType) &&
+          f.mimeType.length <= 100
+        )
+          entry.mimeType = f.mimeType;
+        if (typeof f.size === 'number' && Number.isInteger(f.size) && f.size >= 0 && f.size <= 1e9)
+          entry.size = f.size;
+        if (typeof f.addedBy === 'string' && f.addedBy.length > 0 && f.addedBy.length <= 128)
+          entry.addedBy = f.addedBy;
+        if (typeof f.addedAt === 'string' && f.addedAt.length > 0 && f.addedAt.length <= 40)
+          entry.addedAt = f.addedAt;
+        out.push(entry);
         if (out.length >= MAX_FILES) break;
       }
       return out.length ? out : null;
