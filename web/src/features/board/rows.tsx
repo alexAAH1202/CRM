@@ -105,6 +105,7 @@ export function GroupHeaderRow({
     >
       <div
         ref={drag.setNodeRef}
+        role="gridcell"
         className={cx(
           stickyName,
           'col-span-full flex w-max items-center gap-1 justify-self-start bg-bg pr-2 whitespace-nowrap',
@@ -333,7 +334,7 @@ export function ColumnsRow({
           <ResizeHandle columnId={c.id} width={t.widths[i] ?? 150} />
         </div>
       ))}
-      <div>{t.canEdit && <AddColumnButton onAdd={t.onAddColumn} />}</div>
+      <div role="gridcell">{t.canEdit && <AddColumnButton onAdd={t.onAddColumn} />}</div>
     </div>
   );
 }
@@ -780,7 +781,7 @@ export function AddItemRow({
         className={cx(stickyName, 'rounded-bl-xl')}
         style={{ background: LABEL_COLORS[group.color].bg, opacity: 0.5 }}
       />
-      <div className={cx(stickyName, 'bg-surface')} style={{ left: EDGE }}>
+      <div role="gridcell" className={cx(stickyName, 'bg-surface')} style={{ left: EDGE }}>
         <AddInput
           label={`Add item to ${group.name}`}
           placeholder="+ Add item"
@@ -817,7 +818,7 @@ export function AddSubitemRow({
         className={stickyName}
         style={{ background: LABEL_COLORS[group.color].bg, opacity: 0.45 }}
       />
-      <div className={cx(stickyName, 'bg-surface-2/50')} style={{ left: EDGE }}>
+      <div role="gridcell" className={cx(stickyName, 'bg-surface-2/50')} style={{ left: EDGE }}>
         <AddInput
           label={`Add subitem to ${parent.name}`}
           placeholder="+ Add subitem"
@@ -875,6 +876,7 @@ export function SummaryRow({ group, pos }: { group: LayoutGroup<BoardItem>; pos:
         return (
           <div
             key={c.id}
+            role="gridcell"
             className="flex items-center justify-center overflow-hidden border-r border-border px-2"
           >
             {body}

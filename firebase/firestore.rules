@@ -473,6 +473,7 @@ service cloud.firestore {
             && isString(request.resource.data.itemName, 0, 200)
             && request.resource.data.actor == request.auth.uid
             && request.resource.data.data is map
+            && request.resource.data.data.size() <= 8
             && request.resource.data.at == request.time;
           allow update: if false;
           allow delete: if isAdmin(wid);

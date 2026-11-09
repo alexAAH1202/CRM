@@ -1,6 +1,6 @@
 import { EMPTY_VIEW_CONFIG } from '@app/shared';
-import { Activity, Archive, Lock, Settings, ShieldAlert, Zap } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Activity, Archive, Download, Lock, Settings, ShieldAlert, Zap } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { FullPageSpinner } from '../../components/FullPageSpinner';
 import { Button, EmptyState, SidePanel, Skeleton } from '../../components/ui';
@@ -11,6 +11,7 @@ import { useBoardDoc, useBoardItems } from '../boards/useBoardData';
 import { useViewConfig } from '../boards/useViewConfig';
 import { useViews, type BoardView } from '../boards/useViews';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
+import { trimRunHistory } from '../automations/api';
 import { AutomationsPanel } from '../automations/AutomationsPanel';
 import { useAutomations, useBoardAutomationsRegistration } from '../automations/useAutomations';
 import { ActivityList } from '../activity/ActivityList';
@@ -22,6 +23,7 @@ import { ChartView } from './ChartView';
 import { GanttView } from './GanttView';
 import { WorkloadView } from './WorkloadView';
 import { KanbanView } from './KanbanView';
+import { downloadBoardCsv } from './exportCsv';
 import { ItemPanel } from './ItemPanel';
 import { ViewTabs } from './ViewTabs';
 
@@ -44,6 +46,9 @@ function BoardView({ board: b }: { board: Board }) {
     memberName,
   });
   const canEdit = role !== 'viewer' && !b.archived;
+  useEffect(() => {
+    if (canEdit) void trimRunHistory(workspace.id, b.id).catch(() => undefined);
+  }, [canEdit, workspace.id, b.id]);
   const { views } = useViews(workspace.id, b.id);
   const [params, setParams] = useSearchParams();
   // A board with no saved view doc yet shows an implicit "Main table".
@@ -114,6 +119,16 @@ function BoardView({ board: b }: { board: Board }) {
               <p className="mt-1 line-clamp-2 text-sm text-muted">{b.description}</p>
             )}
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={items.status !== 'ready'}
+            onClick={() => items.status === 'ready' && downloadBoardCsv(b, items.data, memberName)}
+            aria-label="Export CSV"
+            title="Download this board as a spreadsheet (CSV)"
+          >
+            <Download size={14} aria-hidden /> <span className="hidden lg:inline">Export</span>
+          </Button>
           <Button
             variant="secondary"
             size="sm"

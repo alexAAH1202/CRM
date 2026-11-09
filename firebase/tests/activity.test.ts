@@ -60,6 +60,12 @@ describe('activity log', () => {
     await assertFails(setDoc(doc(db(env, 'bob'), p + '3'), { ...good, extra: 1 }));
     await assertFails(setDoc(doc(db(env, 'bob'), p + '4'), { ...good, type: 'hacked' }));
     await assertFails(setDoc(doc(db(env, 'bob'), p + '5'), { ...good, itemName: 'x'.repeat(201) }));
+    await assertFails(
+      setDoc(doc(db(env, 'bob'), p + '6'), {
+        ...good,
+        data: Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`k${i}`, 'x'])),
+      }),
+    );
   });
   it('entries are append-only; only admins can delete (pruning)', async () => {
     const e = entry('bob');

@@ -831,11 +831,12 @@ export function BoardTable({
             ref={scrollRef}
             onKeyDown={onGridKeyDown}
             className="relative min-h-0 flex-1 overflow-auto"
-            role="grid"
-            aria-label={`${board.name} table`}
-            aria-rowcount={rows.length}
           >
+            {/* Only rows live inside the grid; the "Add group" button and the bulk bar sit beside it. */}
             <div
+              role="grid"
+              aria-label={`${board.name} table`}
+              aria-rowcount={rows.length}
               style={{ height: virtualizer.getTotalSize(), width: totalWidth + 32 }}
               className="relative pr-8"
             >

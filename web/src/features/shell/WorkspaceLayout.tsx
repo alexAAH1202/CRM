@@ -7,6 +7,7 @@ import { BoardsProvider } from '../boards/BoardsProvider';
 import { NotificationsProvider } from '../notifications/NotificationsProvider';
 import { WorkspaceProvider, useWorkspaceState } from '../workspaces/WorkspaceProvider';
 import { SearchPalette } from '../search/SearchPalette';
+import { OfflineBanner } from './OfflineBanner';
 import { MobileTopBar, Sidebar } from './Sidebar';
 import { SearchContext } from './searchContext';
 
@@ -80,6 +81,7 @@ function Body() {
             )}
             <div className="flex min-w-0 flex-1 flex-col">
               <MobileTopBar onMenu={() => setDrawer(true)} />
+              <OfflineBanner />
               <main className="min-h-0 flex-1 overflow-auto">
                 <Outlet />
               </main>

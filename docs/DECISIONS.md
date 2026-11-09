@@ -503,3 +503,32 @@ me` query per board I can see (only matching items are billed, plus one read per
   the columns it needs, and it opens pre-filled so the person can adjust before saving.
 - Tokens `@me` and `@today` in "set a column" resolve when it runs; `{item}` in messages and
   names becomes the item's name.
+
+### D61. A hardening round after Phase 6: measure, don't estimate
+
+- `e2e/quota-5.spec.ts` drives typical flows with the usage meter and **fails if a flow gets
+  dearer** (see QUOTA_BUDGET § Measured app-side costs). It found one cost the model missed:
+  your own edits echo through your own listener (~1 read each). Budgeted as billed; the
+  revised daily total is ≈ 16,400 reads (33%).
+- `e2e/a11y-mobile.spec.ts` scans 14 screens with axe (WCAG A/AA; serious/critical must be
+  zero), exercises a 393px-wide phone, and checks CSV export and the offline banner.
+  The scan found real problems, fixed: the view tabs and the table grid had ARIA roles whose
+  children weren't allowed (buttons directly inside a `tablist`, `grid`, or `row`).
+
+### D62. CSV export is built on the device and guards against formula injection
+
+- Built from the loaded items (zero reads), with computed columns worked out, people by
+  name, and subitems under their parent. Any cell starting with `= + - @` (tab/CR) gets a
+  leading apostrophe so a spreadsheet can't run it as a formula; real numbers are untouched.
+  A BOM is added so Excel reads UTF-8.
+
+### D63. Run history is trimmed when an editor opens a board
+
+- Previously only trimmed when the Automations panel was opened. Now once per board per
+  session: one count aggregation (1 read), and only if there are 10+ more than 50 runs, a read
+  of just the surplus (oldest first), which is deleted. Activity pruning stays with Phase 7.
+
+### D64. An offline banner, not a blocker
+
+- The browser's online/offline events show a banner; Firestore keeps working from its cache and
+  queues writes. The banner says the exceptions (item-creating automations need a connection).
