@@ -33,12 +33,12 @@ async function events(request: APIRequestContext, page: Page) {
 async function newBillsBoard(page: Page) {
   await page.goto('/new');
   await page
-    .getByLabel('Workspace name')
+    .getByLabel('Household name')
     .fill(`Sched ${run} ${Math.random().toString(36).slice(2, 5)}`);
-  await page.getByRole('button', { name: 'Create workspace' }).click();
+  await page.getByRole('button', { name: 'Create household' }).click();
   await page.getByRole('button', { name: 'Choose a template' }).click();
   await page.getByRole('radio', { name: /Bills & subscriptions/ }).click();
-  await page.getByRole('button', { name: 'Create board' }).click();
+  await page.getByRole('button', { name: 'Create list' }).click();
   await expect(page.getByRole('grid')).toBeVisible();
 }
 
@@ -135,7 +135,7 @@ test('reminders: the browser keeps the helper’s schedule queue in step with da
   expect(permissionErrors(ada)).toEqual([]);
 });
 
-test('building a repeating schedule; a board-wide schedule cannot change items', async ({
+test('building a repeating schedule; a list-wide schedule cannot change items', async ({
   browser,
 }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace', { timezoneId: TZ });
@@ -200,8 +200,8 @@ test('Helper card: scheduled-run queue and the Rebuild schedule button', async (
     });
   });
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Queue ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`Queue ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('link', { name: 'Members' }).click();
   const card = ada.getByRole('region', { name: 'Sorted helper' });
   await expect(card).toContainText('4 waiting');

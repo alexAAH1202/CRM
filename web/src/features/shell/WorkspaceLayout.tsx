@@ -28,14 +28,14 @@ function Body() {
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  if (state.status === 'loading') return <FullPageSpinner label="Opening workspace" />;
+  if (state.status === 'loading') return <FullPageSpinner label="Opening household" />;
   if (state.status === 'noAccess' || state.status === 'error') {
     return (
       <EmptyState
         icon={<ShieldAlert size={28} />}
         title={
           state.status === 'noAccess'
-            ? "You don't have access to this workspace"
+            ? "You don't have access to this household"
             : 'Something went wrong'
         }
         body={
@@ -45,7 +45,7 @@ function Body() {
         }
         action={
           <Link to="/" className="font-semibold text-primary underline underline-offset-2">
-            Go to my workspaces
+            Go to my households
           </Link>
         }
       />

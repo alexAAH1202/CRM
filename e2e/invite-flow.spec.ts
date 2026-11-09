@@ -5,12 +5,12 @@ const run = Date.now().toString(36);
 const WORKSPACE = `E2E Team ${run}`;
 const INVITEE = `bob-${run}@example.com`;
 
-test('create workspace → invite → accept → change role → outsider blocked', async ({ browser }) => {
+test('create household → invite → accept → change role → outsider blocked', async ({ browser }) => {
   // 1. Ada (on the dev creator allowlist) creates a workspace.
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(WORKSPACE);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(WORKSPACE);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await expect(ada.getByRole('heading', { name: WORKSPACE })).toBeVisible();
   const workspaceUrl = new URL(ada.url()).pathname;
 
@@ -26,7 +26,7 @@ test('create workspace → invite → accept → change role → outsider blocke
   const bob = await signedInPage(browser, INVITEE, 'Bob Builder');
   await expect(bob).toHaveURL(/\/invites$/);
   await expect(bob.getByText(WORKSPACE, { exact: true })).toBeVisible();
-  await bob.getByRole('button', { name: 'Join workspace' }).click();
+  await bob.getByRole('button', { name: 'Join household' }).click();
   await expect(bob.getByRole('heading', { name: WORKSPACE })).toBeVisible();
   await bob.getByRole('link', { name: 'Members' }).click();
   await expect(bob.getByText('Ada Lovelace', { exact: true })).toBeVisible();
@@ -43,9 +43,9 @@ test('create workspace → invite → accept → change role → outsider blocke
 
   // 5. An outsider can't open the workspace and sees the "ask for an invite" screen.
   const zed = await signedInPage(browser, `zed-${run}@example.com`, 'Zed');
-  await expect(zed.getByRole('heading', { name: "You're not in a workspace yet" })).toBeVisible();
+  await expect(zed.getByRole('heading', { name: "You're not in a household yet" })).toBeVisible();
   await zed.goto(workspaceUrl);
   await expect(
-    zed.getByRole('heading', { name: "You don't have access to this workspace" }),
+    zed.getByRole('heading', { name: "You don't have access to this household" }),
   ).toBeVisible();
 });

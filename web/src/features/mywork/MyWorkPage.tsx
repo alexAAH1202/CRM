@@ -119,7 +119,7 @@ export default function MyWorkPage() {
         </Button>
       </div>
       <p className="mb-4 text-sm text-muted">
-        Everything assigned to you across your boards, by due date. Updated when you open this page,
+        Everything assigned to you across your lists, by due date. Updated when you open this page,
         or press Refresh.
       </p>
       {state === null ? (

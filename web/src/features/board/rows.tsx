@@ -380,7 +380,7 @@ function NameCell({
       data-nav-col={0}
     >
       {!isSub && t.canEdit && (
-        <span className="flex w-4 shrink-0 justify-center">
+        <span className="hidden w-4 shrink-0 justify-center sm:flex">
           {drag?.enabled && (
             <button
               type="button"
@@ -402,10 +402,10 @@ function NameCell({
           onChange={() => t.toggleSelect(item.id)}
           aria-label={`Select ${item.name}`}
           className={cx(
-            'mx-1.5 h-4 w-4 shrink-0 accent-[var(--c-primary)]',
+            'mx-1 h-4 w-4 shrink-0 accent-[var(--c-primary)] sm:mx-1.5',
             !checked &&
               !t.selectionActive &&
-              'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100',
+              'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100',
           )}
         />
       )}
@@ -420,7 +420,7 @@ function NameCell({
             'mr-0.5 flex h-6 shrink-0 items-center gap-0.5 rounded px-1 text-xs text-muted hover:bg-surface-3 hover:text-fg',
             subCount === 0 &&
               !expanded &&
-              'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100',
+              'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 max-sm:hidden',
           )}
         >
           {expanded ? (
@@ -452,9 +452,15 @@ function NameCell({
         <button
           type="button"
           disabled={!t.canEdit}
-          onClick={() => setEditing(true)}
+          // On a phone a tap opens the item (there's no hover, and the name is the big target);
+          // renaming is in the item itself. Elsewhere a click edits the name in place.
+          onClick={() =>
+            window.matchMedia('(max-width: 639px)').matches
+              ? t.onOpenItem(item.id)
+              : setEditing(true)
+          }
           data-nav-focus
-          className="flex h-full min-w-0 flex-1 items-center gap-1.5 px-2 text-left text-sm enabled:hover:text-primary"
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left text-sm enabled:hover:text-primary sm:px-2"
           aria-label={t.canEdit ? `Rename ${item.name}` : item.name}
         >
           <span className={cx('truncate', item.archived && 'line-through opacity-60')}>
@@ -469,7 +475,7 @@ function NameCell({
             <Pencil
               size={12}
               aria-hidden
-              className="shrink-0 opacity-0 group-hover/row:opacity-40"
+              className="shrink-0 opacity-0 group-hover/row:opacity-40 max-sm:hidden"
             />
           )}
         </button>
@@ -479,7 +485,7 @@ function NameCell({
         onClick={() => t.onOpenItem(item.id)}
         aria-label={`Open ${item.name}`}
         title="Open item: updates, files and details"
-        className="mr-1 shrink-0 rounded p-1 text-muted opacity-0 group-hover/row:opacity-100 hover:bg-surface-3 hover:text-fg focus-visible:opacity-100"
+        className="mr-1 shrink-0 rounded p-1 text-muted opacity-0 group-hover/row:opacity-100 hover:bg-surface-3 hover:text-fg focus-visible:opacity-100 max-sm:hidden"
       >
         <PanelRight size={14} aria-hidden />
       </button>
@@ -509,7 +515,7 @@ function ItemMenu({
           type="button"
           {...p}
           aria-label={`Options for ${item.name}`}
-          className="mr-1 rounded-md p-1 text-muted opacity-0 hover:bg-surface-3 focus-visible:opacity-100 group-hover/row:opacity-100 aria-expanded:opacity-100"
+          className="mr-0.5 rounded-md p-1 text-muted opacity-0 hover:bg-surface-3 focus-visible:opacity-100 group-hover/row:opacity-100 aria-expanded:opacity-100 pointer-coarse:opacity-100 sm:mr-1"
         >
           <MoreHorizontal size={16} aria-hidden />
         </button>

@@ -71,8 +71,12 @@ export function ViewTabs({ wid, bid, views, activeId, canEdit, onSelect }: Props
   };
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-1">
-      <div role="tablist" aria-label="Views" className="flex min-w-0 flex-wrap items-center gap-1">
+    <div className="-mx-4 flex min-w-0 flex-nowrap items-center gap-1 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
+      <div
+        role="tablist"
+        aria-label="Views"
+        className="flex shrink-0 items-center gap-1 sm:min-w-0 sm:flex-wrap"
+      >
         {views.map((v) => {
           const Icon = VIEW_ICONS[v.type];
           const on = v.id === activeId;
@@ -124,7 +128,7 @@ export function ViewTabs({ wid, bid, views, activeId, canEdit, onSelect }: Props
               <button
                 type="button"
                 disabled={views.length < 2}
-                title={views.length < 2 ? 'A board needs at least one view' : undefined}
+                title={views.length < 2 ? 'A list needs at least one view' : undefined}
                 className="rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-surface-2 disabled:opacity-50"
                 onClick={() => {
                   close();

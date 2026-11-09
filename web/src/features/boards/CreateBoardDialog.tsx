@@ -22,7 +22,7 @@ export function CreateBoardDialog({ open, onClose }: { open: boolean; onClose: (
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const chosen = TEMPLATES.find((t) => t.id === template);
-  const finalName = name.trim() || chosen?.name || 'New board';
+  const finalName = name.trim() || chosen?.name || 'New list';
 
   async function submit() {
     setBusy(true);
@@ -52,7 +52,7 @@ export function CreateBoardDialog({ open, onClose }: { open: boolean; onClose: (
     <Modal
       open={open}
       onClose={onClose}
-      title="New board"
+      title="New list"
       className="sm:w-[min(44rem,calc(100vw-2rem))]"
       footer={
         <>
@@ -60,7 +60,7 @@ export function CreateBoardDialog({ open, onClose }: { open: boolean; onClose: (
             Cancel
           </Button>
           <Button onClick={() => void submit()} disabled={busy}>
-            Create board
+            Create list
           </Button>
         </>
       }
@@ -95,7 +95,7 @@ export function CreateBoardDialog({ open, onClose }: { open: boolean; onClose: (
           </div>
         </fieldset>
         <TextField
-          label="Board name"
+          label="List name"
           placeholder={chosen?.name}
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -105,7 +105,7 @@ export function CreateBoardDialog({ open, onClose }: { open: boolean; onClose: (
           <div role="radiogroup" className="grid gap-2 sm:grid-cols-2">
             {(
               [
-                ['main', Globe, 'Everyone in the workspace', 'All members can find and open it.'],
+                ['main', Globe, 'Everyone in the household', 'All members can find and open it.'],
                 ['private', Lock, 'Private', 'Only people you choose (and admins).'],
               ] as const
             ).map(([v, Icon, title, desc]) => (

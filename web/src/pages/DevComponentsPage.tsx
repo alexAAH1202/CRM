@@ -148,7 +148,7 @@ export default function DevComponentsPage() {
           icon={<Inbox size={28} />}
           title="No notifications yet"
           body="When someone mentions you or assigns you an item, it shows up here."
-          action={<Button size="sm">Create your first board</Button>}
+          action={<Button size="sm">Create your first list</Button>}
         />
       </Section>
 

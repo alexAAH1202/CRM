@@ -208,7 +208,7 @@ export function HelperStatus() {
               </span>
             )}
             <span className="block text-xs text-muted">
-              In your workspace’s Drive folder, under “Backups”. The newest 8 are kept.
+              In your household’s Drive folder, under “Backups”. The newest 8 are kept.
             </span>
           </li>
           <li>

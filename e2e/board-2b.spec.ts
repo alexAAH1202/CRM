@@ -6,12 +6,12 @@ const run = Date.now().toString(36);
 async function freshBoard(page: Page, template: RegExp, boardTitle: string) {
   await page.goto('/new');
   await page
-    .getByLabel('Workspace name')
+    .getByLabel('Household name')
     .fill(`2b ${run} ${Math.random().toString(36).slice(2, 6)}`);
-  await page.getByRole('button', { name: 'Create workspace' }).click();
+  await page.getByRole('button', { name: 'Create household' }).click();
   await page.getByRole('button', { name: 'Choose a template' }).click();
   await page.getByRole('radio', { name: template }).click();
-  await page.getByRole('button', { name: 'Create board' }).click();
+  await page.getByRole('button', { name: 'Create list' }).click();
   await expect(page.getByRole('heading', { name: boardTitle, level: 1 })).toBeVisible();
   await expect(page.getByRole('grid')).toBeVisible();
 }
@@ -76,7 +76,7 @@ test('subitems, filter saved to the view, archive, group-by, drag reorder, bulk'
   await expect(ada.getByRole('heading', { name: 'Done', level: 2 })).toBeVisible();
   await expect(ada.getByRole('heading', { name: 'To do', level: 2 })).toBeVisible();
   await ada.getByRole('button', { name: /Grouped: Status/ }).click();
-  await ada.getByRole('radio', { name: /Board groups/ }).click();
+  await ada.getByRole('radio', { name: /List groups/ }).click();
 
   // Drag "Feed the pets" above "Dishes"
   const before = await names(ada, /^Rename (Dishes|Feed the pets)$/);
@@ -109,7 +109,7 @@ test('subitems, filter saved to the view, archive, group-by, drag reorder, bulk'
   expect(permissionErrors(ada)).toEqual([]);
 });
 
-test('favourites, folders, duplicate board, change column type, summaries', async ({ browser }) => {
+test('favourites, folders, duplicate list, change column type, summaries', async ({ browser }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await freshBoard(ada, /Bills & subscriptions/, 'Bills & subscriptions');
 
@@ -131,12 +131,12 @@ test('favourites, folders, duplicate board, change column type, summaries', asyn
   await expect(ada.getByRole('region', { name: 'Favourites' })).toBeVisible();
 
   // Folder
-  await ada.getByRole('button', { name: 'New board or folder' }).click();
+  await ada.getByRole('button', { name: 'New list or folder' }).click();
   await ada.getByRole('button', { name: 'New folder' }).click();
   await ada.getByLabel('Folder name').fill('Money');
   await ada.getByRole('button', { name: 'Save' }).click();
   await expect(ada.getByRole('region', { name: 'Folder Money' })).toBeVisible();
-  await ada.getByRole('button', { name: 'Board settings' }).click();
+  await ada.getByRole('button', { name: 'List settings' }).click();
   await ada.getByLabel('Folder', { exact: true }).selectOption({ label: 'Money' });
   await ada.getByRole('button', { name: 'Save' }).click();
   await expect(
@@ -144,8 +144,8 @@ test('favourites, folders, duplicate board, change column type, summaries', asyn
   ).toBeVisible();
 
   // Duplicate board (items and their values come along)
-  await ada.getByRole('button', { name: 'Board settings' }).click();
-  await ada.getByRole('button', { name: 'Duplicate board' }).click();
+  await ada.getByRole('button', { name: 'List settings' }).click();
+  await ada.getByRole('button', { name: 'Duplicate list' }).click();
   await expect(
     ada.getByRole('heading', { name: 'Bills & subscriptions (copy)', level: 1 }),
   ).toBeVisible();
@@ -184,7 +184,7 @@ test('a viewer can filter locally but cannot edit; their view changes are not sa
   await expect(ada.getByText(viewerEmail, { exact: true })).toBeVisible();
 
   const vee = await signedInPage(browser, viewerEmail, 'Vee Viewer');
-  await vee.getByRole('button', { name: 'Join workspace' }).click();
+  await vee.getByRole('button', { name: 'Join household' }).click();
   await vee.waitForURL(/\/w\/[^/]+$/); // joined: the workspace home page
   await vee.goto(boardUrl);
   await expect(vee.getByText('Test smoke alarms', { exact: true })).toBeVisible();

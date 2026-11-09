@@ -31,11 +31,11 @@ test('Kanban: reorder cards within a lane; a card dropped on another lane lands 
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.setViewportSize({ width: 1400, height: 1400 }); // all seven cards on screen at once
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Kanban ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`Kanban ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('button', { name: 'Choose a template' }).click();
   await ada.getByRole('radio', { name: /Household chores/ }).click();
-  await ada.getByRole('button', { name: 'Create board' }).click();
+  await ada.getByRole('button', { name: 'Create list' }).click();
   await expect(ada.getByRole('grid')).toBeVisible();
   await ada.getByRole('button', { name: 'Add view' }).click();
   await ada

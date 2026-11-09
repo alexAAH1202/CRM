@@ -20,11 +20,11 @@ test('recipes, a custom automation, the on/off switch, run history and the loop 
 }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`P6 ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`P6 ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('button', { name: 'Choose a template' }).click();
   await ada.getByRole('radio', { name: /Household chores/ }).click();
-  await ada.getByRole('button', { name: 'Create board' }).click();
+  await ada.getByRole('button', { name: 'Create list' }).click();
   await expect(ada.getByRole('grid')).toBeVisible();
 
   // ---- A prebuilt recipe: stamp "Last done" with today's date when status becomes Done

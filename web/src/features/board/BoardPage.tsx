@@ -145,12 +145,12 @@ function BoardView({ board: b }: { board: Board }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="space-y-3 border-b border-border bg-surface px-4 pt-4 pb-3 sm:px-6">
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <h1 className="flex items-center gap-2 truncate text-2xl font-extrabold">
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+          <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
+            <h1 className="flex items-center gap-2 truncate text-xl font-extrabold sm:text-2xl">
               {b.name}
               {b.visibility === 'private' && (
-                <Lock size={18} aria-label="Private board" className="text-muted" />
+                <Lock size={18} aria-label="Private list" className="text-muted" />
               )}
               {b.archived && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-surface-3 px-2 py-0.5 text-xs font-semibold text-muted">
@@ -162,97 +162,102 @@ function BoardView({ board: b }: { board: Board }) {
               <p className="mt-1 line-clamp-2 text-sm text-muted">{b.description}</p>
             )}
           </div>
-          {role !== 'viewer' && !b.archived && (
-            <>
+          {/* On a phone the actions are one swipeable row under the title; from sm up they sit beside it. */}
+          <div className="-mx-4 flex w-[calc(100%+2rem)] flex-nowrap gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:contents [&::-webkit-scrollbar]:hidden">
+            {role !== 'viewer' && !b.archived && (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!history.undoLabel || history.busy}
+                  onClick={() => void undoLast(b.id)}
+                  aria-label="Undo"
+                  title={
+                    history.undoLabel ? `Undo: ${history.undoLabel} (Ctrl+Z)` : 'Nothing to undo'
+                  }
+                >
+                  <Undo2 size={14} aria-hidden />
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!history.redoLabel || history.busy}
+                  onClick={() => void redoLast(b.id)}
+                  aria-label="Redo"
+                  title={
+                    history.redoLabel
+                      ? `Redo: ${history.redoLabel} (Ctrl+Shift+Z)`
+                      : 'Nothing to redo'
+                  }
+                >
+                  <Redo2 size={14} aria-hidden />
+                </Button>
+              </>
+            )}
+            {role !== 'viewer' && (
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={!history.undoLabel || history.busy}
-                onClick={() => void undoLast(b.id)}
-                aria-label="Undo"
-                title={
-                  history.undoLabel ? `Undo: ${history.undoLabel} (Ctrl+Z)` : 'Nothing to undo'
-                }
+                disabled={items.status !== 'ready'}
+                onClick={() => setTrashOpen(true)}
+                aria-label="Recently deleted"
+                title="Recently deleted: restore items you removed"
               >
-                <Undo2 size={14} aria-hidden />
+                <Trash2 size={14} aria-hidden />
               </Button>
+            )}
+            {canEdit && !b.archived && (
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={!history.redoLabel || history.busy}
-                onClick={() => void redoLast(b.id)}
-                aria-label="Redo"
-                title={
-                  history.redoLabel
-                    ? `Redo: ${history.redoLabel} (Ctrl+Shift+Z)`
-                    : 'Nothing to redo'
-                }
+                disabled={items.status !== 'ready' || !members}
+                onClick={() => setImportOpen(true)}
+                aria-label="Import CSV"
+                title="Add items from a spreadsheet (CSV)"
               >
-                <Redo2 size={14} aria-hidden />
+                <FileUp size={14} aria-hidden /> <span className="hidden lg:inline">Import</span>
               </Button>
-            </>
-          )}
-          {role !== 'viewer' && (
+            )}
             <Button
               variant="secondary"
               size="sm"
               disabled={items.status !== 'ready'}
-              onClick={() => setTrashOpen(true)}
-              aria-label="Recently deleted"
-              title="Recently deleted: restore items you removed"
+              onClick={() =>
+                items.status === 'ready' && downloadBoardCsv(b, items.data, memberName)
+              }
+              aria-label="Export CSV"
+              title="Download this list as a spreadsheet (CSV)"
             >
-              <Trash2 size={14} aria-hidden />
+              <Download size={14} aria-hidden /> <span className="hidden lg:inline">Export</span>
             </Button>
-          )}
-          {canEdit && !b.archived && (
             <Button
               variant="secondary"
               size="sm"
-              disabled={items.status !== 'ready' || !members}
-              onClick={() => setImportOpen(true)}
-              aria-label="Import CSV"
-              title="Add items from a spreadsheet (CSV)"
+              onClick={() => setAutoOpen(true)}
+              aria-label="Automations"
             >
-              <FileUp size={14} aria-hidden /> <span className="hidden lg:inline">Import</span>
+              <Zap size={14} aria-hidden /> <span className="hidden sm:inline">Automations</span>
             </Button>
-          )}
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={items.status !== 'ready'}
-            onClick={() => items.status === 'ready' && downloadBoardCsv(b, items.data, memberName)}
-            aria-label="Export CSV"
-            title="Download this board as a spreadsheet (CSV)"
-          >
-            <Download size={14} aria-hidden /> <span className="hidden lg:inline">Export</span>
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setAutoOpen(true)}
-            aria-label="Automations"
-          >
-            <Zap size={14} aria-hidden /> <span className="hidden sm:inline">Automations</span>
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setActivity(true)}
-            aria-label="Board activity"
-          >
-            <Activity size={14} aria-hidden /> <span className="hidden sm:inline">Activity</span>
-          </Button>
-          {role !== 'viewer' && (
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setSettings(true)}
-              aria-label="Board settings"
+              onClick={() => setActivity(true)}
+              aria-label="List activity"
             >
-              <Settings size={14} aria-hidden />{' '}
-              <span className="hidden sm:inline">Board settings</span>
+              <Activity size={14} aria-hidden /> <span className="hidden sm:inline">Activity</span>
             </Button>
-          )}
+            {role !== 'viewer' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSettings(true)}
+                aria-label="List settings"
+              >
+                <Settings size={14} aria-hidden />{' '}
+                <span className="hidden sm:inline">List settings</span>
+              </Button>
+            )}
+          </div>
         </div>
         <div className="flex flex-col gap-2">
           {views !== null && (
@@ -298,7 +303,7 @@ function BoardView({ board: b }: { board: Board }) {
           >
             {active.type === 'table' ? (
               <>
-                This board is empty. Type a name in <strong>+ Add item</strong> and press Enter (or
+                This list is empty. Type a name in <strong>+ Add item</strong> and press Enter (or
                 click away) to add your first item, then click a cell to fill it in.
               </>
             ) : (
@@ -395,12 +400,12 @@ export default function BoardPage() {
   const { workspace } = useWorkspace();
   const board = useBoardDoc(workspace.id, bid);
 
-  if (board.status === 'loading') return <FullPageSpinner label="Opening board" />;
+  if (board.status === 'loading') return <FullPageSpinner label="Opening list" />;
   if (board.status !== 'ready') {
     return (
       <EmptyState
         icon={<ShieldAlert size={28} />}
-        title={board.status === 'missing' ? 'Board not found' : 'Could not open this board'}
+        title={board.status === 'missing' ? 'List not found' : 'Could not open this list'}
         body={
           board.status === 'error' ? board.message : "It may have been deleted, or it's private."
         }

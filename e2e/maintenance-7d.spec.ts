@@ -45,8 +45,8 @@ test('daily-email switch persists; the Helper card shows tidy-up, backup and ema
     });
   });
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Maint ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`Maint ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
 
   // the switch lives in the notifications settings
   await ada.getByRole('button', { name: /^Notifications/ }).click();

@@ -306,7 +306,7 @@ var Sorted = (() => {
     people: {
       label: "People",
       width: 130,
-      description: "Assign workspace members",
+      description: "Assign household members",
       group: "Choices & people"
     },
     date: { label: "Date", width: 130, description: "A single date", group: "Dates" },
@@ -1151,7 +1151,7 @@ var Sorted = (() => {
     for (const act of a.actions) {
       if (act.type === "createItem" && !act.subitem) continue;
       if (act.type === "notify" && act.to !== "assignees") continue;
-      return "A board-wide schedule has no single item, so it can only create items and send notifications. Choose “for each matching item” to change items.";
+      return "A list-wide schedule has no single item, so it can only create items and send notifications. Choose “for each matching item” to change items.";
     }
     return null;
   }
@@ -1947,10 +1947,10 @@ var Sorted = (() => {
       throw new HelperError("unavailable", "The Drive folder hasn’t been set up for the helper.");
     const path = `workspaces/${wid}`;
     const ws = db.getDoc(path);
-    if (!ws) throw new HelperError("not_found", "That workspace was not found.");
+    if (!ws) throw new HelperError("not_found", "That household was not found.");
     const existing = ws.data["driveFolderId"];
     if (typeof existing === "string" && existing) return existing;
-    const wsName = sanitizeFileName(ws.data["name"] ?? "Workspace").slice(0, 80);
+    const wsName = sanitizeFileName(ws.data["name"] ?? "Household").slice(0, 80);
     const made = driveJson(p, "create folder", {
       url: `${DRIVE}/files?fields=id`,
       method: "POST",
@@ -2381,7 +2381,7 @@ var Sorted = (() => {
     const people = /* @__PURE__ */ new Map();
     const workspaceNames = /* @__PURE__ */ new Map();
     for (const w of db.query({ collection: "workspaces", limit: 100 })) {
-      workspaceNames.set(w.id, String(w.data["name"] ?? "Workspace"));
+      workspaceNames.set(w.id, String(w.data["name"] ?? "Household"));
       for (const m of db.query({ parent: `workspaces/${w.id}`, collection: "members", limit: 200 })) {
         const email = m.data["email"];
         if (typeof email !== "string" || !email.includes("@")) continue;
@@ -2440,7 +2440,7 @@ var Sorted = (() => {
     let unread = 0;
     for (const ws of person.workspaces) {
       const out = {
-        name: names.get(ws.id) ?? "Workspace",
+        name: names.get(ws.id) ?? "Household",
         overdue: [],
         today: [],
         week: []
@@ -2467,7 +2467,7 @@ var Sorted = (() => {
           if (bucket !== "overdue" && bucket !== "today" && bucket !== "week") continue;
           out[bucket].push({
             name: String(it.data["name"] ?? "Untitled"),
-            board: String(b.data["name"] ?? "Board"),
+            board: String(b.data["name"] ?? "List"),
             due: due ?? "",
             url: `${APP_URL}/w/${ws.id}/b/${b.id}?item=${it.id}`
           });
@@ -2654,7 +2654,7 @@ var Sorted = (() => {
     }
   };
   function maintenanceStatus(p, workspaceId) {
-    if (!workspaceId) throw new HelperError("bad_request", "A workspace is required.");
+    if (!workspaceId) throw new HelperError("bad_request", "A household is required.");
     const n = parse(p.prop(NIGHTLY_PROP));
     const d = parse(p.prop(DIGEST_PROP));
     const last = lastBackups(p)[workspaceId];
@@ -2779,11 +2779,11 @@ var Sorted = (() => {
   }
   function roleIn(db, uid, workspaceId) {
     if (typeof workspaceId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(workspaceId))
-      throw new HelperError("bad_request", "A workspace is required.");
+      throw new HelperError("bad_request", "A household is required.");
     const m = db.getDoc(`workspaces/${workspaceId}/members/${uid}`);
     const role = m?.data["role"];
     if (!m || typeof role !== "string" || !ROLES.includes(role))
-      throw new HelperError("forbidden", "You are not a member of this workspace.");
+      throw new HelperError("forbidden", "You are not a member of this household.");
     return role;
   }
 
@@ -2841,7 +2841,7 @@ var Sorted = (() => {
       wid,
       bid,
       tz: typeof settings["timezone"] === "string" ? settings["timezone"] : DEFAULT_TIMEZONE,
-      boardName: String(board.data["name"] ?? "Board"),
+      boardName: String(board.data["name"] ?? "List"),
       columns: Array.isArray(board.data["columns"]) ? board.data["columns"] : [],
       groups: Array.isArray(board.data["groups"]) ? board.data["groups"] : [],
       automations,
@@ -3109,11 +3109,11 @@ var Sorted = (() => {
       b.items = new Map(state);
       return failedRun ? "failed" : nothingRan ? "skipped" : "fired";
     }
-    throw new HelperError("unavailable", "The board was busy; will retry.");
+    throw new HelperError("unavailable", "The list was busy; will retry.");
   }
   function rebuildSchedule(p, db, workspaceId) {
     const ws = db.getDoc(`workspaces/${workspaceId}`);
-    if (!ws) throw new HelperError("not_found", "Workspace not found.");
+    if (!ws) throw new HelperError("not_found", "Household not found.");
     const tz = typeof ws.data["settings"]?.["timezone"] === "string" ? ws.data["settings"]["timezone"] : DEFAULT_TIMEZONE;
     const out = { boards: 0, automations: 0, registered: 0, removed: 0 };
     const boards = db.query({
@@ -3274,7 +3274,7 @@ var Sorted = (() => {
           ctx.role = roleIn(db, ctx.caller.uid, wid);
           ctx.workspaceId = wid;
           if (action.auth === "admin" && ctx.role !== "admin")
-            throw new HelperError("forbidden", "Only a workspace admin can do that.");
+            throw new HelperError("forbidden", "Only a household admin can do that.");
           if (action.writes && ctx.role === "viewer")
             throw new HelperError("forbidden", "Viewers can’t make changes.");
         }

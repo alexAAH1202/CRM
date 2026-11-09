@@ -24,14 +24,14 @@ export default function StartPage() {
   if (status === 'error') {
     return (
       <EmptyState
-        title="Couldn't load your workspaces"
+        title="Couldn't load your households"
         body={error}
         action={<Button onClick={() => void refresh(user)}>Try again</Button>}
       />
     );
   }
   if (status !== 'ready' || lastWid === undefined)
-    return <FullPageSpinner label="Loading your workspaces" />;
+    return <FullPageSpinner label="Loading your households" />;
 
   if (invites.length > 0) return <Navigate to="/invites" replace />;
   if (workspaces.length > 0) {
@@ -47,10 +47,10 @@ export default function StartPage() {
       </header>
       <EmptyState
         icon={<MailQuestion size={28} />}
-        title="You're not in a workspace yet"
+        title="You're not in a household yet"
         body={
           <>
-            Ask a workspace admin to invite <strong className="text-fg">{user.email}</strong>, then
+            Ask a household admin to invite <strong className="text-fg">{user.email}</strong>, then
             come back and refresh this page.
           </>
         }

@@ -8,8 +8,8 @@ const ROLE_UI: Record<Role, { label: string; color: 'purple' | 'blue' | 'gray' }
 };
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
-  admin: 'Manages members, boards and workspace settings',
-  member: 'Creates and edits boards and items',
+  admin: 'Manages members, lists and household settings',
+  member: 'Creates and edits lists and items',
   viewer: 'Read-only access',
 };
 

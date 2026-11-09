@@ -159,7 +159,7 @@ export function runDigest(p: Platform, db: FirestoreClient): DigestSummary {
   const people = new Map<string, Person>();
   const workspaceNames = new Map<string, string>();
   for (const w of db.query({ collection: 'workspaces', limit: 100 })) {
-    workspaceNames.set(w.id, String(w.data['name'] ?? 'Workspace'));
+    workspaceNames.set(w.id, String(w.data['name'] ?? 'Household'));
     for (const m of db.query({ parent: `workspaces/${w.id}`, collection: 'members', limit: 200 })) {
       const email = m.data['email'];
       if (typeof email !== 'string' || !email.includes('@')) continue;
@@ -230,7 +230,7 @@ function gather(
   let unread = 0;
   for (const ws of person.workspaces) {
     const out: DigestWorkspace = {
-      name: names.get(ws.id) ?? 'Workspace',
+      name: names.get(ws.id) ?? 'Household',
       overdue: [],
       today: [],
       week: [],
@@ -262,7 +262,7 @@ function gather(
         if (bucket !== 'overdue' && bucket !== 'today' && bucket !== 'week') continue;
         out[bucket].push({
           name: String(it.data['name'] ?? 'Untitled'),
-          board: String(b.data['name'] ?? 'Board'),
+          board: String(b.data['name'] ?? 'List'),
           due: due ?? '',
           url: `${APP_URL}/w/${ws.id}/b/${b.id}?item=${it.id}`,
         });

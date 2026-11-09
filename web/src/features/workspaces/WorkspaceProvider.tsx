@@ -108,6 +108,6 @@ export function useWorkspaceState(): WorkspaceState {
 /** For components rendered inside a ready workspace. */
 export function useWorkspace(): { workspace: WorkspaceInfo; role: Role } {
   const s = useContext(Ctx);
-  if (s.status !== 'ready') throw new Error('useWorkspace used before the workspace is ready');
+  if (s.status !== 'ready') throw new Error('useWorkspace used before the household is ready');
   return s;
 }

@@ -7,12 +7,12 @@ const run = Date.now().toString(36);
 async function chores(p: Page, label: string) {
   await p.goto('/new');
   await p
-    .getByLabel('Workspace name')
+    .getByLabel('Household name')
     .fill(`${label} ${run} ${Math.random().toString(36).slice(2, 5)}`);
-  await p.getByRole('button', { name: 'Create workspace' }).click();
+  await p.getByRole('button', { name: 'Create household' }).click();
   await p.getByRole('button', { name: 'Choose a template' }).click();
   await p.getByRole('radio', { name: /Household chores/ }).click();
-  await p.getByRole('button', { name: 'Create board' }).click();
+  await p.getByRole('button', { name: 'Create list' }).click();
   await expect(p.getByRole('grid')).toBeVisible();
 }
 
@@ -105,7 +105,7 @@ test.describe('phone-sized screens', () => {
     test.setTimeout(120_000);
     const p = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace', phone);
     await chores(p, 'Phone');
-    await noSideScroll(p, 'board table');
+    await noSideScroll(p, 'list table');
 
     // The navigation lives in a drawer on phones.
     await p.getByRole('button', { name: 'Open navigation' }).click();
@@ -116,7 +116,8 @@ test.describe('phone-sized screens', () => {
     await p.getByRole('button', { name: 'Close navigation' }).click({ force: true });
 
     // Item panel fits the screen and is usable.
-    await p.getByRole('button', { name: 'Open Dishes' }).click({ force: true });
+    // (on a phone the item's name itself opens it)
+    await p.getByRole('button', { name: 'Rename Dishes' }).tap();
     const panel = p.getByRole('dialog').first();
     await within(p, panel, 'item panel');
     await noSideScroll(p, 'item panel open');
@@ -157,7 +158,7 @@ test.describe('phone-sized screens', () => {
   });
 });
 
-test('CSV export downloads the board with readable values and safe cells', async ({ browser }) => {
+test('CSV export downloads the list with readable values and safe cells', async ({ browser }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await chores(ada, 'Csv');
   // a hostile-looking name must come out neutralised

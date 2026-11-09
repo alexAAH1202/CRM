@@ -188,7 +188,7 @@ export const COLUMN_META: Record<
   people: {
     label: 'People',
     width: 130,
-    description: 'Assign workspace members',
+    description: 'Assign household members',
     group: 'Choices & people',
   },
   date: { label: 'Date', width: 130, description: 'A single date', group: 'Dates' },

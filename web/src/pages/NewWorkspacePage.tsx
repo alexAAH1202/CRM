@@ -29,8 +29,8 @@ export default function NewWorkspacePage() {
   if (!canCreate) {
     return (
       <EmptyState
-        title="Creating workspaces is restricted"
-        body="Only approved accounts can create workspaces. Ask an admin to invite you instead."
+        title="Creating households is restricted"
+        body="Only approved accounts can create households. Ask an admin to invite you instead."
         action={
           <Link to="/" className="font-semibold text-primary underline">
             Go back
@@ -44,7 +44,7 @@ export default function NewWorkspacePage() {
     try {
       const wid = await createWorkspace(user, name);
       await refresh(user);
-      toast.success('Workspace created');
+      toast.success('Household created');
       navigate(`/w/${wid}`, { replace: true });
     } catch (err) {
       toast.error(friendlyError(err));
@@ -64,15 +64,15 @@ export default function NewWorkspacePage() {
         >
           <div className="space-y-1">
             <h1 className="text-2xl font-extrabold">
-              {workspaces.length === 0 ? 'Create your workspace' : 'New workspace'}
+              {workspaces.length === 0 ? 'Create your household' : 'New household'}
             </h1>
             <p className="text-sm text-muted">
-              A workspace holds your shared boards — bills, chores, renewals and more. You'll be its
+              A household holds your shared lists — bills, chores, renewals and more. You'll be its
               admin.
             </p>
           </div>
           <TextField
-            label="Workspace name"
+            label="Household name"
             placeholder="e.g. Our household"
             autoFocus
             error={form.formState.errors.name?.message}
@@ -85,7 +85,7 @@ export default function NewWorkspacePage() {
               </Button>
             )}
             <Button type="submit" disabled={form.formState.isSubmitting}>
-              Create workspace
+              Create household
             </Button>
           </div>
         </form>

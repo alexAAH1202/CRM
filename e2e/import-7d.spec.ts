@@ -8,11 +8,11 @@ test('import a CSV: mapping is suggested, bad cells are listed and left empty, i
 }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Import ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`Import ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('button', { name: 'Choose a template' }).click();
   await ada.getByRole('radio', { name: /Bills & subscriptions/ }).click();
-  await ada.getByRole('button', { name: 'Create board' }).click();
+  await ada.getByRole('button', { name: 'Create list' }).click();
   await expect(ada.getByRole('grid')).toBeVisible();
 
   await ada.getByRole('button', { name: 'Import CSV' }).click();
@@ -70,11 +70,11 @@ test('a bad file is refused with a reason, and the import button stays off', asy
 }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Import2 ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`Import2 ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('button', { name: 'Choose a template' }).click();
-  await ada.getByRole('radio', { name: /Blank board/ }).click();
-  await ada.getByRole('button', { name: 'Create board' }).click();
+  await ada.getByRole('radio', { name: /Blank list/ }).click();
+  await ada.getByRole('button', { name: 'Create list' }).click();
   await ada.getByRole('button', { name: 'Import CSV' }).click();
   const dlg = ada.getByRole('dialog', { name: 'Import from CSV' });
   await dlg.getByLabel('Choose a CSV file').setInputFiles({

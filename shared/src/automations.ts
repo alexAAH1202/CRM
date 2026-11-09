@@ -372,7 +372,7 @@ export function scheduledActionProblem(a: Pick<Automation, 'trigger' | 'actions'
   for (const act of a.actions) {
     if (act.type === 'createItem' && !act.subitem) continue;
     if (act.type === 'notify' && act.to !== 'assignees') continue;
-    return 'A board-wide schedule has no single item, so it can only create items and send notifications. Choose “for each matching item” to change items.';
+    return 'A list-wide schedule has no single item, so it can only create items and send notifications. Choose “for each matching item” to change items.';
   }
   return null;
 }

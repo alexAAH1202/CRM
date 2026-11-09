@@ -129,7 +129,7 @@ export function handleRequest(p: Platform, raw: string | null | undefined): Help
         ctx.role = roleIn(db, ctx.caller.uid, wid);
         ctx.workspaceId = wid as string;
         if (action.auth === 'admin' && ctx.role !== 'admin')
-          throw new HelperError('forbidden', 'Only a workspace admin can do that.');
+          throw new HelperError('forbidden', 'Only a household admin can do that.');
         if (action.writes && ctx.role === 'viewer')
           throw new HelperError('forbidden', 'Viewers can’t make changes.');
       }

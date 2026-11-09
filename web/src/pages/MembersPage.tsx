@@ -105,7 +105,7 @@ function InvitePanel({ members, invites }: { members: MemberRow[]; invites: Invi
 
   const onSubmit = form.handleSubmit(async ({ email, role }) => {
     if (members.some((m) => m.email === email)) {
-      form.setError('email', { message: 'Already a member of this workspace' });
+      form.setError('email', { message: 'Already a member of this household' });
       return;
     }
     // Clear immediately: Firestore shows the invite optimistically, and waiting for
@@ -252,7 +252,7 @@ export default function MembersPage() {
 
       {isAdmin && members && invites && <InvitePanel members={members} invites={invites} />}
 
-      <section aria-label="Workspace members" className="rounded-3xl bg-surface shadow-sm">
+      <section aria-label="Household members" className="rounded-3xl bg-surface shadow-sm">
         {!members ? (
           <div className="space-y-3 p-5" aria-busy="true">
             {[0, 1, 2].map((i) => (
@@ -284,7 +284,7 @@ export default function MembersPage() {
                       disabled={lastAdmin}
                       title={
                         lastAdmin
-                          ? 'A workspace needs at least one admin'
+                          ? 'A household needs at least one admin'
                           : ROLE_DESCRIPTIONS[m.role]
                       }
                       onChange={(e) => void onRoleChange(m, e.target.value as Role)}
@@ -331,7 +331,7 @@ export default function MembersPage() {
 
       {isAdmin && workspace.adminUids.length === 1 && (
         <p className="text-sm text-muted">
-          Tip: make a second person an admin so the workspace is never locked if one account is
+          Tip: make a second person an admin so the household is never locked if one account is
           lost.
         </p>
       )}
@@ -340,7 +340,7 @@ export default function MembersPage() {
         open={pending !== null}
         danger
         title={pending?.kind === 'leave' ? `Leave ${workspace.name}?` : 'Remove member?'}
-        confirmLabel={pending?.kind === 'leave' ? 'Leave workspace' : 'Remove'}
+        confirmLabel={pending?.kind === 'leave' ? 'Leave household' : 'Remove'}
         body={
           pending?.kind === 'leave'
             ? "You'll lose access immediately. An admin can invite you again."

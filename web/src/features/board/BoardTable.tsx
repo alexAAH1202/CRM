@@ -107,14 +107,19 @@ const ROW_H: Record<Row['kind'], number> = {
 
 /** Narrower item-name column on phones so other columns stay in view. */
 function useNameWidth(): number {
-  const narrow = () => typeof window !== 'undefined' && window.innerWidth < 640;
-  const [isNarrow, setNarrow] = useState(narrow);
+  // On a phone the name column takes about 60% of the screen (names are what you came to read),
+  // and the other columns scroll in beside it.
+  const width = () =>
+    typeof window !== 'undefined' && window.innerWidth < 640
+      ? Math.max(190, Math.min(260, Math.round(window.innerWidth * 0.6)))
+      : NAME_COLUMN_WIDTH;
+  const [nameWidth, setNameWidth] = useState(width);
   useEffect(() => {
-    const onResize = () => setNarrow(narrow());
+    const onResize = () => setNameWidth(width());
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  return isNarrow ? 200 : NAME_COLUMN_WIDTH;
+  return nameWidth;
 }
 
 const collapsedKey = (bid: string) => `collapsed:${bid}`;

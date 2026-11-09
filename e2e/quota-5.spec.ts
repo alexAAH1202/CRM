@@ -34,8 +34,8 @@ async function measure(p: Page, name: string, fn: () => Promise<void>): Promise<
 test('typical flows stay within their read/write budgets', async ({ browser }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Q ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
+  await ada.getByLabel('Household name').fill(`Q ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
   await ada.getByRole('link', { name: 'Members' }).click();
   const bobEmail = `bobq-${run}@example.com`;
   await ada.getByLabel('Email').fill(bobEmail);
@@ -43,15 +43,15 @@ test('typical flows stay within their read/write budgets', async ({ browser }) =
   await ada.getByRole('button', { name: 'Send invite' }).click();
   await expect(ada.getByText(bobEmail, { exact: true })).toBeVisible();
   const bob = await signedInPage(browser, bobEmail, 'Bob Builder');
-  await bob.getByRole('button', { name: 'Join workspace' }).click();
+  await bob.getByRole('button', { name: 'Join household' }).click();
   await expect(bob.getByRole('heading', { name: `Q ${run}` })).toBeVisible();
 
   // Create a board (13-ish docs: board, view, counter, items).
   await ada.getByRole('link', { name: 'Home' }).click();
-  const create = await measure(ada, 'create board from template', async () => {
+  const create = await measure(ada, 'create list from template', async () => {
     await ada.getByRole('button', { name: 'Choose a template' }).click();
     await ada.getByRole('radio', { name: /Household chores/ }).click();
-    await ada.getByRole('button', { name: 'Create board' }).click();
+    await ada.getByRole('button', { name: 'Create list' }).click();
     await expect(ada.getByRole('grid')).toBeVisible();
   });
   expect(create.writes).toBeLessThanOrEqual(12);
@@ -59,7 +59,7 @@ test('typical flows stay within their read/write budgets', async ({ browser }) =
   // Warm reopen of the same board (persistent cache): the point of delta sync.
   const boardUrl = ada.url();
   await ada.waitForTimeout(1500); // let the local cache reach disk before reloading
-  const warm = await measure(ada, 'reload board (warm cache)', async () => {
+  const warm = await measure(ada, 'reload list (warm cache)', async () => {
     await ada.reload();
     await expect(ada.getByRole('grid')).toBeVisible();
   });
@@ -74,7 +74,7 @@ test('typical flows stay within their read/write budgets', async ({ browser }) =
   expect(warm.reads - perWorkspace).toBeLessThanOrEqual(80);
 
   // Bob opens it cold, then someone else's single edit costs ~1 read for him.
-  const cold = await measure(bob, 'open board (cold cache)', async () => {
+  const cold = await measure(bob, 'open list (cold cache)', async () => {
     await bob.goto(boardUrl);
     await expect(bob.getByRole('grid')).toBeVisible();
   });
@@ -119,13 +119,13 @@ test('typical flows stay within their read/write budgets', async ({ browser }) =
   expect(panel.reads).toBeLessThanOrEqual(10);
   await ada.keyboard.press('Escape');
 
-  const mywork = await measure(ada, 'open My work (1 board)', async () => {
+  const mywork = await measure(ada, 'open My work (1 list)', async () => {
     await ada.getByRole('link', { name: 'My work' }).click();
     await expect(ada.getByRole('heading', { name: 'My work' })).toBeVisible();
   });
   expect(mywork.reads).toBeLessThanOrEqual(6);
 
-  const home = await measure(ada, 'workspace home (warm)', async () => {
+  const home = await measure(ada, 'household home (warm)', async () => {
     await ada.getByRole('link', { name: 'Home' }).click();
     await expect(ada.getByRole('heading', { name: `Q ${run}` })).toBeVisible();
   });

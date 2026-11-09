@@ -87,10 +87,10 @@ export function verifyIdToken(p: Platform, cfg: HelperConfig, idToken: unknown):
 /** The caller's role in a workspace; `forbidden` if they're not a member. */
 export function roleIn(db: FirestoreClient, uid: string, workspaceId: unknown): Role {
   if (typeof workspaceId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(workspaceId))
-    throw new HelperError('bad_request', 'A workspace is required.');
+    throw new HelperError('bad_request', 'A household is required.');
   const m = db.getDoc(`workspaces/${workspaceId}/members/${uid}`);
   const role = m?.data['role'];
   if (!m || typeof role !== 'string' || !(ROLES as readonly string[]).includes(role))
-    throw new HelperError('forbidden', 'You are not a member of this workspace.');
+    throw new HelperError('forbidden', 'You are not a member of this household.');
   return role as Role;
 }

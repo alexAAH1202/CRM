@@ -3,19 +3,19 @@ import { signedInPage } from './helpers';
 
 const run = Date.now().toString(36);
 
-test('board from template → edit cells → add item → viewer sees live, read-only', async ({
+test('list from template → edit cells → add item → viewer sees live, read-only', async ({
   browser,
 }) => {
   const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
   await ada.goto('/new');
-  await ada.getByLabel('Workspace name').fill(`Board test ${run}`);
-  await ada.getByRole('button', { name: 'Create workspace' }).click();
-  await expect(ada.getByRole('heading', { name: `Board test ${run}` })).toBeVisible();
+  await ada.getByLabel('Household name').fill(`List test ${run}`);
+  await ada.getByRole('button', { name: 'Create household' }).click();
+  await expect(ada.getByRole('heading', { name: `List test ${run}` })).toBeVisible();
 
   // Create a board from the chores template.
   await ada.getByRole('button', { name: 'Choose a template' }).click();
   await ada.getByRole('radio', { name: /Household chores/ }).click();
-  await ada.getByRole('button', { name: 'Create board' }).click();
+  await ada.getByRole('button', { name: 'Create list' }).click();
   await expect(ada.getByRole('heading', { name: 'Household chores' })).toBeVisible();
   await expect(ada.getByText('Take out the bins', { exact: true })).toBeVisible();
 
@@ -45,8 +45,8 @@ test('board from template → edit cells → add item → viewer sees live, read
   await expect(ada.getByText(viewerEmail, { exact: true })).toBeVisible();
 
   const viv = await signedInPage(browser, viewerEmail, 'Viv Viewer');
-  await viv.getByRole('button', { name: 'Join workspace' }).click();
-  await expect(viv.getByRole('heading', { name: `Board test ${run}` })).toBeVisible(); // join saved
+  await viv.getByRole('button', { name: 'Join household' }).click();
+  await expect(viv.getByRole('heading', { name: `List test ${run}` })).toBeVisible(); // join saved
   await viv.goto(boardUrl);
   await expect(viv.getByText('Water the plants', { exact: true })).toBeVisible();
   await expect(viv.getByLabel('Add item to Weekly')).toHaveCount(0); // read-only
