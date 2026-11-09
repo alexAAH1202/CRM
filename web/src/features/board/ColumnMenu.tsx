@@ -5,11 +5,27 @@ import {
   LABEL_COLORS,
   makeColumn,
   shortId,
+  summaryKindOf,
+  summaryOptions,
+  SUMMARY_LABELS,
   type Column,
   type ColumnType,
   type Label,
+  type SummaryKind,
 } from '@app/shared';
-import { ChevronDown, Pencil, Plus, Tags, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Pencil,
+  Plus,
+  Repeat,
+  Sigma,
+  Star,
+  Tags,
+  Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Button, Modal, Popover, SelectField, TextField } from '../../components/ui';
@@ -61,15 +77,20 @@ export function AddColumnButton({ onAdd }: { onAdd: (c: Column) => void }) {
 function LabelsEditor({
   title,
   labels,
+  defaultId,
+  showDefault,
   onSave,
   onClose,
 }: {
   title: string;
   labels: Label[];
-  onSave: (labels: Label[]) => void;
+  defaultId: string | null;
+  showDefault: boolean;
+  onSave: (labels: Label[], defaultId: string | null) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<Label[]>(labels);
+  const [defId, setDefId] = useState<string | null>(defaultId);
   const update = (i: number, patch: Partial<Label>) =>
     setDraft((d) => d.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   return (
@@ -84,11 +105,10 @@ function LabelsEditor({
           </Button>
           <Button
             onClick={() => {
-              onSave(
-                draft
-                  .filter((l) => l.name.trim() !== '')
-                  .map((l) => ({ ...l, name: l.name.trim() })),
-              );
+              const cleaned = draft
+                .filter((l) => l.name.trim() !== '')
+                .map((l) => ({ ...l, name: l.name.trim() }));
+              onSave(cleaned, cleaned.some((l) => l.id === defId) ? defId : null);
               onClose();
             }}
           >
@@ -154,6 +174,23 @@ function LabelsEditor({
       >
         <Plus size={14} aria-hidden /> Add label
       </Button>
+      {showDefault && (
+        <SelectField
+          label="New items start as"
+          className="mt-4 max-w-xs"
+          value={defId ?? ''}
+          onChange={(e) => setDefId(e.target.value || null)}
+        >
+          <option value="">(empty)</option>
+          {draft
+            .filter((l) => l.name.trim())
+            .map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+        </SelectField>
+      )}
       <p className="mt-3 text-xs text-muted">
         Removing a label clears it from any items that use it.
       </p>
@@ -223,16 +260,36 @@ function NumberSettings({
   );
 }
 
+const DEFAULTABLE: ColumnType[] = [
+  'text',
+  'longText',
+  'numbers',
+  'date',
+  'checkbox',
+  'dropdown',
+  'link',
+];
+
 export function ColumnHeader({
   column,
   canEdit,
+  index,
+  count,
   onSave,
   onDelete,
+  onMove,
+  onChangeType,
+  onDefault,
 }: {
   column: Column;
   canEdit: boolean;
+  index: number;
+  count: number;
   onSave: (c: Column) => void;
   onDelete: () => void;
+  onMove: (dir: -1 | 1) => void;
+  onChangeType: () => void;
+  onDefault: () => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [dialog, setDialog] = useState<'labels' | 'numbers' | 'delete' | null>(null);
@@ -322,6 +379,76 @@ export function ColumnHeader({
             )}
             <button
               type="button"
+              className={menuItem}
+              onClick={() => {
+                close();
+                onChangeType();
+              }}
+            >
+              <Repeat size={14} aria-hidden /> Change type
+            </button>
+            {DEFAULTABLE.includes(column.type) && (
+              <button
+                type="button"
+                className={menuItem}
+                onClick={() => {
+                  close();
+                  onDefault();
+                }}
+              >
+                <Star size={14} aria-hidden /> Default value
+              </button>
+            )}
+            <button
+              type="button"
+              className={menuItem}
+              disabled={index === 0}
+              onClick={() => {
+                close();
+                onMove(-1);
+              }}
+            >
+              <ArrowLeft size={14} aria-hidden /> Move left
+            </button>
+            <button
+              type="button"
+              className={menuItem}
+              disabled={index === count - 1}
+              onClick={() => {
+                close();
+                onMove(1);
+              }}
+            >
+              <ArrowRight size={14} aria-hidden /> Move right
+            </button>
+            {summaryOptions(column.type).length > 1 && (
+              <div className="mt-1 border-t border-border pt-1">
+                <div className="flex items-center gap-1 px-3 py-1 text-xs font-semibold text-muted">
+                  <Sigma size={12} aria-hidden /> Footer shows
+                </div>
+                {summaryOptions(column.type).map((k: SummaryKind) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={summaryKindOf(column) === k}
+                    className={menuItem}
+                    onClick={() => {
+                      close();
+                      onSave({ ...column, settings: { ...column.settings, summary: k } });
+                    }}
+                  >
+                    <span className="w-4">
+                      {summaryKindOf(column) === k && <Check size={14} aria-hidden />}
+                    </span>
+                    {SUMMARY_LABELS[k]}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="my-1 border-t border-border" />
+            <button
+              type="button"
               className={`${menuItem} text-danger`}
               onClick={() => {
                 close();
@@ -337,9 +464,18 @@ export function ColumnHeader({
         <LabelsEditor
           title={`${column.title} ${labelsKey === 'labels' ? 'labels' : 'options'}`}
           labels={column.settings[labelsKey] ?? []}
+          defaultId={column.type === 'status' ? (column.settings.defaultLabelId ?? null) : null}
+          showDefault={column.type === 'status'}
           onClose={() => setDialog(null)}
-          onSave={(labels) =>
-            onSave({ ...column, settings: { ...column.settings, [labelsKey]: labels } })
+          onSave={(labels, defaultId) =>
+            onSave({
+              ...column,
+              settings: {
+                ...column.settings,
+                [labelsKey]: labels,
+                ...(column.type === 'status' ? { defaultLabelId: defaultId } : {}),
+              },
+            })
           }
         />
       )}

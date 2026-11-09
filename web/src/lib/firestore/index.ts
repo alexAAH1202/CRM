@@ -170,7 +170,7 @@ export async function commitOps(label: string, ops: WriteOp[]): Promise<void> {
 }
 
 /** Large op lists (e.g. deleting a board) split into <=500-op batches. */
-export async function commitOpsChunked(label: string, ops: WriteOp[], size = 450): Promise<void> {
+export async function commitOpsChunked(label: string, ops: WriteOp[], size = 100): Promise<void> {
   for (let i = 0; i < ops.length; i += size) await commitOps(label, ops.slice(i, i + size));
 }
 

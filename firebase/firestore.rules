@@ -115,7 +115,11 @@ service cloud.firestore {
         && isString(request.resource.data.email, 0, 254)
         && isNullableString(request.resource.data.photoURL, 2048)
         && isNullableString(request.resource.data.lastWorkspaceId, 128)
-        && request.resource.data.settings is map;
+        && request.resource.data.settings is map
+        && request.resource.data.settings.keys().hasOnly(['theme', 'favoriteBoardIds'])
+        && (!('favoriteBoardIds' in request.resource.data.settings)
+            || (request.resource.data.settings.favoriteBoardIds is list
+                && request.resource.data.settings.favoriteBoardIds.size() <= 200));
     }
 
     // -------------------------------------------------------------- appConfig
@@ -426,7 +430,7 @@ service cloud.firestore {
             && request.resource.data.keys().hasOnly(['next'])
             && request.resource.data.next is int
             && request.resource.data.next >= 1
-            && request.resource.data.next <= 501;
+            && request.resource.data.next <= 100001;
           allow update: if canEditBoard(wid, bid)
             && request.resource.data.keys().hasOnly(['next'])
             && request.resource.data.next is int

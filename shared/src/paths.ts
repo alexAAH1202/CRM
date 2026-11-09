@@ -7,6 +7,8 @@ export const paths = {
   member: (wid: string, uid: string) => `workspaces/${wid}/members/${uid}`,
   invites: (wid: string) => `workspaces/${wid}/invites`,
   invite: (wid: string, emailLower: string) => `workspaces/${wid}/invites/${emailLower}`,
+  folders: (wid: string) => `workspaces/${wid}/folders`,
+  folder: (wid: string, fid: string) => `workspaces/${wid}/folders/${fid}`,
   boards: (wid: string) => `workspaces/${wid}/boards`,
   board: (wid: string, bid: string) => `workspaces/${wid}/boards/${bid}`,
 } as const;

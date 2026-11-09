@@ -1,4 +1,4 @@
-import { BOARD_SCHEMA_VERSION, type BoardVisibility, type Group } from './board';
+import { BOARD_SCHEMA_VERSION, type BoardDoc, type BoardVisibility, type Group } from './board';
 import { computeAssignees, normalizeValue, type Column } from './columns';
 import { keysBetween } from './ordering';
 import { DELETE_FIELD, SERVER_TIME, type DocData, type WriteOp } from './ops';
@@ -134,6 +134,7 @@ export function planUpdateBoard(
     memberIds: string[];
     archived: boolean;
     order: string;
+    folderId: string | null;
   }>,
 ): WriteOp[] {
   return [
@@ -227,4 +228,263 @@ export function planRestoreItem(wid: string, bid: string, iid: string, uid: stri
       data: { deletedAt: null, archived: false, ...stamp(uid) },
     },
   ];
+}
+
+// ------------------------------------------------------------ 2b: bulk ops
+
+type ItemRef = { id: string; values: Record<string, unknown> };
+
+/** Sets (or clears) one column on many items. */
+export function planBulkSetCell(input: {
+  wid: string;
+  bid: string;
+  uid: string;
+  columns: readonly Column[];
+  column: Column;
+  items: readonly ItemRef[];
+  value: unknown;
+}): WriteOp[] {
+  return input.items.flatMap((it) =>
+    planSetCell({
+      wid: input.wid,
+      bid: input.bid,
+      iid: it.id,
+      uid: input.uid,
+      columns: input.columns,
+      column: input.column,
+      currentValues: it.values,
+      value: input.value,
+    }),
+  );
+}
+
+/** Moves items (with their subitems) into a group, appended in the given order keys. */
+export function planMoveItems(input: {
+  wid: string;
+  bid: string;
+  uid: string;
+  moves: ReadonlyArray<{ id: string; childIds: readonly string[]; order: string }>;
+  groupId: string;
+}): WriteOp[] {
+  return input.moves.flatMap((m) => [
+    ...planUpdateItem(input.wid, input.bid, m.id, input.uid, {
+      groupId: input.groupId,
+      order: m.order,
+    }),
+    ...m.childIds.flatMap((cid) =>
+      planUpdateItem(input.wid, input.bid, cid, input.uid, { groupId: input.groupId }),
+    ),
+  ]);
+}
+
+/** Archive/restore items together with their subitems. */
+export function planArchiveItems(
+  wid: string,
+  bid: string,
+  uid: string,
+  ids: readonly string[],
+  archived: boolean,
+): WriteOp[] {
+  return ids.flatMap((id) => planUpdateItem(wid, bid, id, uid, { archived }));
+}
+
+/** Soft-deletes items together with their subitems. */
+export function planDeleteItems(
+  wid: string,
+  bid: string,
+  uid: string,
+  ids: readonly string[],
+): WriteOp[] {
+  return ids.flatMap((id) => planDeleteItem(wid, bid, id, uid));
+}
+
+export interface DuplicableItem extends ItemRef {
+  name: string;
+  groupId: string;
+  order: string;
+  subitems: ReadonlyArray<{ name: string; order: string; values: Record<string, unknown> }>;
+}
+
+/**
+ * Copies items (and their subitems) to the end of their groups. Numbers are taken
+ * from `startNumber` (the board counter, read inside a transaction); the counter
+ * is advanced once for the whole copy.
+ */
+export function planDuplicateItems(input: {
+  wid: string;
+  bid: string;
+  uid: string;
+  columns: readonly Column[];
+  startNumber: number;
+  counterExists: boolean;
+  items: readonly DuplicableItem[];
+  /** Last existing order key per group, to append after. */
+  lastOrderByGroup: ReadonlyMap<string, string | null>;
+  newId: () => string;
+}): WriteOp[] {
+  const { wid, bid, uid, columns } = input;
+  let n = input.startNumber;
+  const lastByGroup = new Map(input.lastOrderByGroup);
+  const ops: WriteOp[] = [];
+  for (const it of input.items) {
+    const last = lastByGroup.get(it.groupId) ?? null;
+    const order = keysBetween(last, null, 1)[0] as string;
+    lastByGroup.set(it.groupId, order);
+    const pid = input.newId();
+    ops.push({
+      kind: 'set',
+      path: boardPaths.item(wid, bid, pid),
+      data: itemDoc(uid, columns, {
+        name: `${it.name} (copy)`.slice(0, 500),
+        groupId: it.groupId,
+        order,
+        itemNumber: n++,
+        values: it.values,
+      }),
+    });
+    for (const s of it.subitems) {
+      ops.push({
+        kind: 'set',
+        path: boardPaths.item(wid, bid, input.newId()),
+        data: itemDoc(uid, columns, {
+          name: s.name,
+          groupId: it.groupId,
+          order: s.order,
+          itemNumber: n++,
+          parentId: pid,
+          values: s.values,
+        }),
+      });
+    }
+  }
+  ops.push({
+    kind: input.counterExists ? 'update' : 'set',
+    path: boardPaths.counter(wid, bid),
+    data: { next: n },
+  });
+  return ops;
+}
+
+export interface BoardCopySource {
+  board: Pick<
+    BoardDoc,
+    'description' | 'visibility' | 'memberIds' | 'columns' | 'groups' | 'folderId'
+  >;
+  items: ReadonlyArray<{
+    id: string;
+    name: string;
+    groupId: string;
+    order: string;
+    parentId: string | null;
+    itemNumber: number;
+    values: Record<string, unknown>;
+    archived: boolean;
+  }>;
+  views: ReadonlyArray<{ type: string; name: string; order: string; config: unknown }>;
+  counterNext: number;
+}
+
+/** Board + views + counter first, then items — chunk the result in order. */
+export function planDuplicateBoard(input: {
+  wid: string;
+  newBid: string;
+  uid: string;
+  name: string;
+  order: string;
+  source: BoardCopySource;
+  newId: () => string;
+}): WriteOp[] {
+  const { wid, newBid, uid, source } = input;
+  const private_ = source.board.visibility === 'private';
+  const ops: WriteOp[] = [
+    {
+      kind: 'set',
+      path: paths.board(wid, newBid),
+      data: {
+        name: input.name.trim().slice(0, 200),
+        description: source.board.description,
+        folderId: source.board.folderId,
+        order: input.order,
+        visibility: source.board.visibility,
+        memberIds: private_ ? [...new Set([uid, ...source.board.memberIds])] : [],
+        columns: source.board.columns,
+        groups: source.board.groups,
+        schemaVersion: BOARD_SCHEMA_VERSION,
+        archived: false,
+        createdBy: uid,
+        createdAt: SERVER_TIME,
+        updatedAt: SERVER_TIME,
+      },
+    },
+    ...(source.views.length
+      ? source.views
+      : [{ type: 'table', name: 'Main table', order: 'a0', config: {} }]
+    ).map((v, i): WriteOp => ({
+      kind: 'set',
+      path: boardPaths.view(wid, newBid, i === 0 ? 'main' : input.newId()),
+      data: {
+        type: v.type,
+        name: v.name,
+        order: v.order,
+        config: v.config ?? {},
+        createdBy: uid,
+        updatedAt: SERVER_TIME,
+      },
+    })),
+    {
+      kind: 'set',
+      path: boardPaths.counter(wid, newBid),
+      data: { next: Math.max(1, source.counterNext) },
+    },
+  ];
+  const idMap = new Map(source.items.map((i) => [i.id, input.newId()]));
+  // Parents before children so a partially-applied copy never has orphans.
+  const sorted = [...source.items].sort((a, b) => Number(!!a.parentId) - Number(!!b.parentId));
+  for (const it of sorted) {
+    if (it.parentId && !idMap.has(it.parentId)) continue; // orphaned subitem
+    const data = itemDoc(uid, source.board.columns, {
+      name: it.name,
+      groupId: it.groupId,
+      order: it.order,
+      itemNumber: it.itemNumber,
+      parentId: it.parentId ? (idMap.get(it.parentId) as string) : null,
+      values: it.values,
+    });
+    data['archived'] = it.archived;
+    ops.push({ kind: 'set', path: boardPaths.item(wid, newBid, idMap.get(it.id) as string), data });
+  }
+  return ops;
+}
+
+/**
+ * Applies a column type conversion: replaces the column on the board and rewrites
+ * the affected cells. Every write is stamped so delta sync picks it up.
+ */
+export function planApplyConversion(input: {
+  wid: string;
+  bid: string;
+  uid: string;
+  columns: readonly Column[];
+  newColumn: Column;
+  changes: ReadonlyArray<{ id: string; value: unknown }>;
+  itemValues: ReadonlyMap<string, Record<string, unknown>>;
+  touchesPeople: boolean;
+}): WriteOp[] {
+  const { wid, bid, uid } = input;
+  const newColumns = input.columns.map((c) => (c.id === input.newColumn.id ? input.newColumn : c));
+  const ops: WriteOp[] = [...planUpdateBoard(wid, bid, { columns: newColumns })];
+  for (const ch of input.changes) {
+    const data: DocData = {
+      [`values.${input.newColumn.id}`]: ch.value === null ? DELETE_FIELD : ch.value,
+      ...stamp(uid),
+    };
+    if (input.touchesPeople) {
+      data['assigneeUids'] = computeAssignees(newColumns, {
+        ...(input.itemValues.get(ch.id) ?? {}),
+        [input.newColumn.id]: ch.value,
+      });
+    }
+    ops.push({ kind: 'update', path: boardPaths.item(wid, bid, ch.id), data });
+  }
+  return ops;
 }

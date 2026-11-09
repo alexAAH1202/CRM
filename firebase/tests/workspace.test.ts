@@ -149,3 +149,31 @@ describe('workspaces/{wid}', () => {
     await assertSucceeds(commitOps(fs as never, ops));
   });
 });
+
+describe('users/{uid} settings (favourites)', () => {
+  const base = {
+    displayName: 'Dave',
+    email: 'dave@example.com',
+    photoURL: null,
+    lastWorkspaceId: null,
+  };
+  it('accepts theme + favouriteBoardIds, rejects unknown settings and oversized lists', async () => {
+    const fs = db(env, 'dave');
+    await assertSucceeds(
+      setDoc(doc(fs, 'users/dave'), {
+        ...base,
+        settings: { theme: 'dark', favoriteBoardIds: ['b1'] },
+      }),
+    );
+    await assertFails(setDoc(doc(fs, 'users/dave'), { ...base, settings: { sneaky: true } }));
+    await assertFails(
+      setDoc(doc(fs, 'users/dave'), {
+        ...base,
+        settings: { favoriteBoardIds: Array.from({ length: 201 }, (_, i) => `b${i}`) },
+      }),
+    );
+    await assertFails(
+      setDoc(doc(fs, 'users/dave'), { ...base, settings: { favoriteBoardIds: 'nope' } }),
+    );
+  });
+});

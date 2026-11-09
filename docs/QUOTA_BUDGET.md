@@ -202,3 +202,30 @@ assumed 18, so it holds. Writes per start: 0–1 (the profile sync writes only
 when something changed, and the last-workspace write only happens when you
 switch workspace). The members page adds one live listener (N members + 1
 rule read), and admins get one more for pending invites.
+
+## 7. Phase 2b additions (from the code, to be confirmed in Phase 9)
+
+New always-on listeners while a workspace is open (each costs one read on attach plus
+one per change; rules add the lookups in §6):
+
+| Listener                  | Scope          | Typical reads                               |
+| ------------------------- | -------------- | ------------------------------------------- |
+| `folders`                 | workspace      | a handful (one per folder)                  |
+| `users/{me}` (favourites) | per user       | 1, plus 1 per favourite toggle              |
+| `views/main`              | per open board | 1, plus 1 per saved view change (debounced) |
+
+Write costs of the new actions:
+
+| Action                                        | Writes                                     |
+| --------------------------------------------- | ------------------------------------------ |
+| Filter / sort / group / column width change   | 1 (view doc), after a 600 ms pause         |
+| Drag an item or group                         | 1 (plus its subitems for an item)          |
+| Bulk set / archive / delete / move on N items | N (+ subitems), batches of 100             |
+| Duplicate N items                             | N copies (+ subitems) + 1 counter          |
+| Duplicate a board of 150 items                | about 150 + 3, read cost ~150 for the scan |
+| Change a column's type                        | 1 board write + up to N item writes        |
+| Add/remove favourite, folder create/rename    | 1 each                                     |
+
+These are all user-initiated and occasional; the 15-user daily estimate in §4 (about 1,850
+writes, 31% of reads) is unchanged by them. A one-off duplicate of a large board costs about
+a tenth of a day's reads, so it's worth knowing but not a risk.

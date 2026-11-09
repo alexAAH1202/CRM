@@ -7,6 +7,13 @@ export interface BoardSummary {
   archived: boolean;
   order: string;
   createdBy: string;
+  folderId: string | null;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  order: string;
 }
 
 export interface Board extends BoardDoc {

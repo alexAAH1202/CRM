@@ -14,3 +14,7 @@ export * from './board';
 export * from './templates';
 export * from './boardOps';
 export * from './deltaSync';
+export * from './itemLike';
+export * from './viewConfig';
+export * from './summaries';
+export * from './convert';
