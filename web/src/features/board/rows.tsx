@@ -19,6 +19,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  PanelRight,
 } from 'lucide-react';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { Popover } from '../../components/ui';
@@ -472,6 +473,15 @@ function NameCell({
           )}
         </button>
       )}
+      <button
+        type="button"
+        onClick={() => t.onOpenItem(item.id)}
+        aria-label={`Open ${item.name}`}
+        title="Open item: updates, files and details"
+        className="mr-1 shrink-0 rounded p-1 text-muted opacity-0 group-hover/row:opacity-100 hover:bg-surface-3 hover:text-fg focus-visible:opacity-100"
+      >
+        <PanelRight size={14} aria-hidden />
+      </button>
       {t.canEdit && <ItemMenu item={item} group={group} isSub={isSub} />}
     </div>
   );

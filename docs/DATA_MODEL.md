@@ -226,9 +226,17 @@ between two simultaneous creates into `permission-denied` (see D43).
 ### `items/{iid}/updates/{updId}` (comments)
 
 ```ts
-{ author, body /* sanitized rich text */, mentions: string[], parentId: string | null,
-  reactions?: { [emoji]: string[] }, createdAt, editedAt: Timestamp | null }
+{ author, body, mentions: string[], parentId: string | null,
+  createdAt, editedAt: Timestamp | null }
 ```
+
+`body` is a small safe markup, not HTML: `**bold**`, `*italic*`, `[text](https://…)`, bare
+`https://` links, `- ` / `1. ` lists, blank line = paragraph, `@Name` mentions. It is
+turned into React elements by `parseRich` (no HTML is ever stored or injected). Max 5,000
+characters; `mentions` (max 20) lists the uids whose `@Name` is in the text.
+Anyone who can edit the board comments as themselves; only the author edits (text only);
+the author or an admin deletes. Replies are updates with `parentId` set (one level).
+Emoji reactions are P1 and not built yet.
 
 ### `boards/{bid}/automations/{aid}`
 

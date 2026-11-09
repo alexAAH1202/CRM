@@ -32,7 +32,7 @@ import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { setCell } from '../boards/api';
 import type { BoardItem } from '../boards/types';
-import { ItemDialog, useAddItem, useVisibleItems, type ViewProps } from './viewParts';
+import { useAddItem, useVisibleItems, type ViewProps } from './viewParts';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -154,7 +154,6 @@ export function CalendarView(p: ViewProps) {
   const { visible, byId, today } = useVisibleItems(p);
   const add = useAddItem(p);
   const [anchor, setAnchor] = useState(today);
-  const [openId, setOpenId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -223,7 +222,6 @@ export function CalendarView(p: ViewProps) {
   const newValue = (day: string) => ({
     [col.id]: col.type === 'date' ? day : { start: day, end: day },
   });
-  const opened = openId ? byId.get(openId) : undefined;
   const dragging = dragId ? byId.get(dragId.split('|')[0] as string) : undefined;
   const monthKey = anchor.slice(0, 7);
   const label = (e: CalendarEntry<BoardItem>, day: string) =>
@@ -329,7 +327,7 @@ export function CalendarView(p: ViewProps) {
                         id={`${e.item.id}|${day}`}
                         item={e.item}
                         label={label(e, day)}
-                        onOpen={() => setOpenId(e.item.id)}
+                        onOpen={() => p.onOpenItem(e.item.id)}
                       />
                     ))}
                   </DayCell>
@@ -355,7 +353,7 @@ export function CalendarView(p: ViewProps) {
                     id={`${i.id}|`}
                     item={i}
                     label={i.name}
-                    onOpen={() => setOpenId(i.id)}
+                    onOpen={() => p.onOpenItem(i.id)}
                   />
                 ))}
               </div>
@@ -370,7 +368,6 @@ export function CalendarView(p: ViewProps) {
           )}
         </DragOverlay>
       </DndContext>
-      {opened && <ItemDialog p={p} item={opened} onClose={() => setOpenId(null)} />}
     </div>
   );
 }

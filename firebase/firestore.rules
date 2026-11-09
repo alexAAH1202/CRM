@@ -116,7 +116,11 @@ service cloud.firestore {
         && isNullableString(request.resource.data.photoURL, 2048)
         && isNullableString(request.resource.data.lastWorkspaceId, 128)
         && request.resource.data.settings is map
-        && request.resource.data.settings.keys().hasOnly(['theme', 'favoriteBoardIds'])
+        && request.resource.data.settings.keys().hasOnly(
+             ['theme', 'favoriteBoardIds', 'mutedNotifications'])
+        && (!('mutedNotifications' in request.resource.data.settings)
+            || (request.resource.data.settings.mutedNotifications is list
+                && request.resource.data.settings.mutedNotifications.size() <= 10))
         && (!('favoriteBoardIds' in request.resource.data.settings)
             || (request.resource.data.settings.favoriteBoardIds is list
                 && request.resource.data.settings.favoriteBoardIds.size() <= 200));
@@ -401,6 +405,38 @@ service cloud.firestore {
 
           // Hard delete: Admins only (normal deletes are tombstones).
           allow delete: if isAdmin(wid);
+
+          // ------------------------------------------------ updates (comments)
+
+          match /updates/{updid} {
+            function validUpdate(d) {
+              return d.keys().hasOnly(
+                       ['author', 'body', 'mentions', 'parentId', 'createdAt', 'editedAt'])
+                && d.author == request.auth.uid
+                && isString(d.body, 1, 5000)
+                && isList(d.mentions, 20)
+                && isNullableString(d.parentId, 128);
+            }
+
+            allow read: if canSeeBoard(wid, bid);
+
+            // Anyone who can edit the board may comment, as themselves.
+            allow create: if canEditBoard(wid, bid)
+              && validUpdate(request.resource.data)
+              && request.resource.data.createdAt == request.time
+              && request.resource.data.editedAt == null;
+
+            // Only the author edits, and only the text (and who is mentioned).
+            allow update: if canEditBoard(wid, bid)
+              && resource.data.author == request.auth.uid
+              && validUpdate(request.resource.data)
+              && changedKeys().hasOnly(['body', 'mentions', 'editedAt'])
+              && request.resource.data.editedAt == request.time;
+
+            // Authors delete their own; admins can delete anyone's.
+            allow delete: if isAdmin(wid)
+              || (canEditBoard(wid, bid) && resource.data.author == request.auth.uid);
+          }
         }
 
         // ------------------------------------------------------ views

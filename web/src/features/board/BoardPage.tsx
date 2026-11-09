@@ -18,6 +18,7 @@ import { ChartView } from './ChartView';
 import { GanttView } from './GanttView';
 import { WorkloadView } from './WorkloadView';
 import { KanbanView } from './KanbanView';
+import { ItemPanel } from './ItemPanel';
 import { ViewTabs } from './ViewTabs';
 
 function BoardView({ board: b }: { board: Board }) {
@@ -56,7 +57,26 @@ function BoardView({ board: b }: { board: Board }) {
     config: view.config,
     onConfig: view.update,
     memberName,
+    onOpenItem: (id: string) =>
+      setParams(
+        (prev) => {
+          const n = new URLSearchParams(prev);
+          n.set('item', id);
+          return n;
+        },
+        { replace: false },
+      ),
   };
+  const itemId = params.get('item');
+  const closeItem = () =>
+    setParams(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.delete('item');
+        return n;
+      },
+      { replace: true },
+    );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -98,7 +118,17 @@ function BoardView({ board: b }: { board: Board }) {
               views={list}
               activeId={active.id}
               canEdit={canEdit}
-              onSelect={(vid) => setParams({ view: vid }, { replace: true })}
+              onSelect={(vid) =>
+                setParams(
+                  (prev) => {
+                    const n = new URLSearchParams(prev);
+                    n.set('view', vid);
+                    n.delete('item');
+                    return n;
+                  },
+                  { replace: true },
+                )
+              }
             />
           )}
           <div className="min-w-0 flex-1">
@@ -137,6 +167,9 @@ function BoardView({ board: b }: { board: Board }) {
             <Skeleton key={i} className="h-10 w-full max-w-4xl" />
           ))}
         </div>
+      )}
+      {itemId && items.status === 'ready' && members && (
+        <ItemPanel p={viewProps} itemId={itemId} isAdmin={role === 'admin'} onClose={closeItem} />
       )}
       {settings && <BoardSettingsDialog board={b} open onClose={() => setSettings(false)} />}
     </div>

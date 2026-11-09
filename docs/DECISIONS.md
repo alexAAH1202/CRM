@@ -404,3 +404,28 @@ Entries marked **(spec deviation)** change something in `PROJECT_SPEC.md`.
 
 - An item with several people/options counts once for each. Sum/average need a Numbers (or
   formula) column and fall back to counting without one.
+
+### D50. Comments use a tiny markup, not rich-text HTML
+
+- **Reason:** HTML from a rich-text editor has to be sanitised, and one missed case is a
+  stored XSS that runs in every teammate's browser. Our own parser produces a plain tree
+  that React renders, so there is nothing to inject. Only `http(s)` links are ever links.
+- The toolbar (bold, italic, list, link) just inserts the markup; `@` opens a people list.
+  Mentions are stored by uid (`mentions[]`) and the text carries `@Name`, so they stay
+  readable if the data is ever exported.
+
+### D51. Notifications: recipient-side muting, one small listener
+
+- A person's inbox is one listener on their newest 30 notifications for the open workspace.
+- Muting (mentions / assignments / due) is stored on the recipient's own user doc and applied
+  when displaying, so the sender never needs to read anyone's settings (which would cost
+  reads and need extra rules). A muted notification is still written; it's just hidden.
+- Mentions and assignments create the notification in the **same batch** as the change, so a
+  notification can't exist without its cause. The author is never notified about themselves.
+- Composer clears immediately and doesn't wait for the server (Firestore queues writes
+  offline); the text is restored only if the save really fails.
+
+### D52. The item page is a side panel addressed by `?item=`
+
+- Every view (table, Kanban, Calendar, Gantt) opens the same panel, and notification links
+  open it directly. Tabs: Updates, Fields, Files (Activity arrives with the activity log).

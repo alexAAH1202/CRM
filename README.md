@@ -24,12 +24,13 @@ on free tiers: the Firebase Spark plan plus a Google Apps Script helper.
 
 ## Status
 
-| Phase                              | State   |
-| ---------------------------------- | ------- |
-| 0. Foundations                     | ✅ done |
-| 1. Auth, workspace, invites, rules | ✅ done |
-| 2. Boards & table view (2a + 2b)   | ✅ done |
-| 3. Columns, formulas, dependencies | ✅ done |
-| 4a. Saved views, Kanban, Calendar  | ✅ done |
-| 4b. Gantt, Workload, Chart         | ✅ done |
-| 5. Collaboration                   | next    |
+| Phase                                    | State   |
+| ---------------------------------------- | ------- |
+| 0. Foundations                           | ✅ done |
+| 1. Auth, workspace, invites, rules       | ✅ done |
+| 2. Boards & table view (2a + 2b)         | ✅ done |
+| 3. Columns, formulas, dependencies       | ✅ done |
+| 4a. Saved views, Kanban, Calendar        | ✅ done |
+| 4b. Gantt, Workload, Chart               | ✅ done |
+| 5a. Item panel, updates, mentions, inbox | ✅ done |
+| 5b. Activity log, My Work, search        | next    |
