@@ -34,7 +34,12 @@ export const useSessionStore = create<SessionState>()((set) => ({
     try {
       const [workspaces, invites, canCreate] = await Promise.all([
         loadMyWorkspaces(user.uid),
-        loadMyInvites(user.email ?? ''),
+        // Invites are secondary: a failure here (e.g. index still building right
+        // after a deploy) must not block access to existing workspaces.
+        loadMyInvites(user.email ?? '').catch((err: unknown) => {
+          console.warn('Could not load invitations', err);
+          return [];
+        }),
         checkCanCreateWorkspace(),
       ]);
       set({ status: 'ready', workspaces, invites, canCreate });
