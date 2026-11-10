@@ -1,3 +1,4 @@
+import { ITEM_WIDTH_MAX, ITEM_WIDTH_MIN, setItemWidth } from './itemWidth';
 import {
   LABEL_COLOR_NAMES,
   LABEL_COLORS,
@@ -272,6 +273,44 @@ function ResizeHandle({ columnId, width }: { columnId: string; width: number }) 
   );
 }
 
+/** Drag (or arrow keys) on the Item column's right edge to make it wider or narrower. */
+function ItemResizeHandle() {
+  const clamp = (w: number) => Math.min(ITEM_WIDTH_MAX, Math.max(ITEM_WIDTH_MIN, Math.round(w)));
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize Item column"
+      tabIndex={0}
+      title="Drag to resize"
+      className="absolute top-0 right-0 z-10 h-full w-2 cursor-col-resize touch-none hover:bg-primary/30 focus:bg-primary/30 focus:outline-none"
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        e.preventDefault();
+        e.stopPropagation();
+        const w = e.currentTarget.parentElement!.getBoundingClientRect().width;
+        setItemWidth(clamp(w + (e.key === 'ArrowRight' ? 20 : -20)));
+      }}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const start = e.currentTarget.parentElement!.getBoundingClientRect().width;
+        const el = e.currentTarget;
+        el.setPointerCapture(e.pointerId);
+        const move = (ev: PointerEvent) => setItemWidth(clamp(start + ev.clientX - startX));
+        const up = () => {
+          el.removeEventListener('pointermove', move);
+          el.removeEventListener('pointerup', up);
+          el.removeEventListener('pointercancel', up);
+        };
+        el.addEventListener('pointermove', move);
+        el.addEventListener('pointerup', up);
+        el.addEventListener('pointercancel', up);
+      }}
+    />
+  );
+}
+
 export function ColumnsRow({
   group,
   itemIds,
@@ -317,6 +356,7 @@ export function ColumnsRow({
           />
         )}
         Item
+        <ItemResizeHandle />
       </div>
       {t.columns.map((c, i) => (
         <div key={c.id} role="columnheader" className="relative border-r border-border">
