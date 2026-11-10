@@ -106,6 +106,7 @@ export function SearchPalette({ open, onClose }: { open: boolean; onClose: () =>
       <div className="flex items-center gap-2 rounded-xl border border-border px-3 focus-within:border-primary">
         <Search size={16} aria-hidden className="text-muted" />
         <input
+          autoComplete="off"
           ref={input}
           autoFocus
           role="combobox"

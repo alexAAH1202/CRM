@@ -138,6 +138,7 @@ export function GroupHeaderRow({
         <span aria-hidden className="h-3 w-3 shrink-0 rounded-full" style={{ background: color }} />
         {renaming ? (
           <input
+            autoComplete="off"
             autoFocus
             defaultValue={group.name}
             aria-label="Group name"
@@ -433,6 +434,7 @@ function NameCell({
       )}
       {editing ? (
         <input
+          autoComplete="off"
           autoFocus
           defaultValue={item.name}
           aria-label="Item name"
@@ -723,6 +725,7 @@ function AddInput({
   return (
     <div className="relative h-full w-full">
       <input
+        autoComplete="off"
         value={v}
         onChange={(e) => setV(e.target.value)}
         placeholder={placeholder}

@@ -186,6 +186,7 @@ export function TimeCell({ column, item, itemName, canEdit, members, onChange }:
             <p className="text-xs font-bold text-muted">Add time you already spent</p>
             <div className="grid grid-cols-2 gap-2">
               <input
+                autoComplete="off"
                 aria-label="Date"
                 type="date"
                 value={date}
@@ -193,6 +194,7 @@ export function TimeCell({ column, item, itemName, canEdit, members, onChange }:
                 className={field}
               />
               <input
+                autoComplete="off"
                 aria-label="Start time"
                 type="time"
                 value={start}
@@ -201,6 +203,7 @@ export function TimeCell({ column, item, itemName, canEdit, members, onChange }:
               />
               <label className="flex items-center gap-1 text-sm">
                 <input
+                  autoComplete="off"
                   aria-label="Hours"
                   type="number"
                   min={0}
@@ -213,6 +216,7 @@ export function TimeCell({ column, item, itemName, canEdit, members, onChange }:
               </label>
               <label className="flex items-center gap-1 text-sm">
                 <input
+                  autoComplete="off"
                   aria-label="Minutes"
                   type="number"
                   min={0}
@@ -225,6 +229,7 @@ export function TimeCell({ column, item, itemName, canEdit, members, onChange }:
               </label>
             </div>
             <input
+              autoComplete="off"
               aria-label="Note"
               placeholder="Note (optional)"
               maxLength={200}

@@ -246,6 +246,7 @@ function TimelineCell({ column, item, itemName, canEdit, onChange }: CellProps) 
           <label className="block text-xs font-semibold">
             Start
             <input
+              autoComplete="off"
               type="date"
               value={start}
               onChange={(e) => setStart(e.target.value)}
@@ -255,6 +256,7 @@ function TimelineCell({ column, item, itemName, canEdit, onChange }: CellProps) 
           <label className="block text-xs font-semibold">
             End
             <input
+              autoComplete="off"
               type="date"
               value={end}
               onChange={(e) => setEnd(e.target.value)}
@@ -340,6 +342,7 @@ function LinkCell({ column, item, itemName, canEdit, onChange }: CellProps) {
             }}
           >
             <input
+              autoComplete="off"
               autoFocus
               placeholder="https://…"
               value={url}
@@ -348,6 +351,7 @@ function LinkCell({ column, item, itemName, canEdit, onChange }: CellProps) {
               className="h-9 w-full rounded-lg border border-border bg-surface px-2 text-sm"
             />
             <input
+              autoComplete="off"
               placeholder="Text to show (optional)"
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -462,6 +466,7 @@ function StatusCell({ column, item, itemName, canEdit, onChange }: CellProps) {
             }}
           >
             <input
+              autoComplete="off"
               aria-label="New label"
               placeholder="New label…"
               maxLength={40}

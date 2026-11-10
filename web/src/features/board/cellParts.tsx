@@ -51,6 +51,7 @@ export function InlineInput({
   };
   return (
     <input
+      autoComplete="off"
       autoFocus
       type={type}
       aria-label={label}
