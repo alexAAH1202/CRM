@@ -3,6 +3,11 @@ import { readFileSync } from 'node:fs';
 import { permissionErrors, signedInPage } from './helpers';
 
 const run = Date.now().toString(36);
+// Logged time can't end in the future, so manual entries go on yesterday (09:00 + 2h could be
+// later than "now" early in the morning in Melbourne).
+const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Melbourne' }).format(
+  Date.now() - 86_400_000,
+);
 const row = (p: Page, name: string) => p.getByRole('row').filter({ hasText: name }).first();
 
 test('time tracking: timer, manual time, one timer at a time, timesheet and CSV', async ({
@@ -46,6 +51,7 @@ test('time tracking: timer, manual time, one timer at a time, timesheet and CSV'
   // ---- manual time: 1 h 30 m on Dishes
   await ada.getByRole('button', { name: 'Edit Time tracking for Dishes' }).click();
   const dlg = ada.getByRole('dialog', { name: 'Time tracking for Dishes' });
+  await dlg.getByLabel('Date').fill(yesterday);
   await dlg.getByLabel('Hours').fill('1');
   await dlg.getByLabel('Minutes').fill('30');
   await dlg.getByLabel('Note').fill('deep clean');
@@ -67,6 +73,7 @@ test('time tracking: timer, manual time, one timer at a time, timesheet and CSV'
   // ---- timesheet
   await ada.getByRole('link', { name: 'Timesheet' }).click();
   await expect(ada.getByRole('heading', { name: 'Timesheet', level: 1 })).toBeVisible();
+  await ada.getByRole('button', { name: 'All time' }).click(); // yesterday may be last month
   await expect(ada.getByRole('status').filter({ hasText: /1h 3\dm/ })).toBeVisible();
   const person = ada.getByRole('region', { name: 'Ada Lovelace' });
   await expect(person).toContainText('Dishes');
@@ -112,6 +119,7 @@ test('a board footer sums the time, and a copy of a list starts with none', asyn
   ] as const) {
     await ada.getByRole('button', { name: `Edit Time tracking for ${item}` }).click();
     const d = ada.getByRole('dialog', { name: `Time tracking for ${item}` });
+    await d.getByLabel('Date').fill(yesterday);
     await d.getByLabel('Hours').fill(h);
     await d.getByLabel('Minutes').fill('0');
     await d.getByRole('button', { name: 'Add time' }).click();

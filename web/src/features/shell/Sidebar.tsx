@@ -1,4 +1,5 @@
 import { TimerChip } from '../time/TimerChip';
+import { UsagePopup } from '../usage/UsagePopup';
 import {
   Check,
   ChevronsUpDown,
@@ -170,6 +171,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <LogOut size={18} aria-hidden />
           </button>
         </div>
+        <UsagePopup />
         <div className="px-1">
           <ThemeToggle />
         </div>

@@ -3,8 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { watchSystemTheme } from './stores/theme';
 import './styles/index.css';
+import { startUsageLog } from './features/usage/dailyUsage';
 
 watchSystemTheme();
+startUsageLog();
 
 // After a new version is deployed, an open tab may ask for a code chunk that no longer exists.
 // Reload once to pick up the new version (guarded so a real failure can't loop).
