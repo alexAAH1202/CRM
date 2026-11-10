@@ -325,6 +325,9 @@ the `main` branch). Use the same Google account as before.
 
 #### B4.6. Updating the helper later
 
+- Version 7e.1 adds **New document** (Google Docs in the household's Drive folder). It needs
+  no new trigger or permission: redeploy as below.
+
 Paste the new `Code.js` (select all first), save, then **Deploy → Manage
 deployments → ✏️ (edit) → Version: New version → Deploy**.
 

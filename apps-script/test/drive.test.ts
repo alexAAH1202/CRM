@@ -189,6 +189,18 @@ describe('uploads', () => {
     expect(f.mime).toBe('application/octet-stream');
   });
 
+  it('creates a Google Doc in the folder that members (not viewers) can edit', () => {
+    const w = world('member');
+    const r = w.call('createDoc', { name: 'Essay / draft' });
+    expect(r.ok).toBe(true);
+    expect(r.data.mimeType).toBe('application/vnd.google-apps.document');
+    expect(r.data.url).toBe(`https://docs.google.com/document/d/${r.data.driveFileId}/edit`);
+    expect(r.data.name).toBe('Essay draft');
+    const editors = (w.drive.perms.get(r.data.driveFileId) ?? []).map((p) => p.emailAddress);
+    expect(editors.sort()).toEqual(['ada@example.com', 'bob@example.com']);
+    expect(world('viewer', 'u3').call('createDoc', { name: 'x' }).error?.code).toBe('forbidden');
+  });
+
   it('viewers and strangers cannot upload; only the starter can continue an upload', () => {
     const v = world('viewer', 'u3');
     expect(v.call('uploadStart', { name: 'a.pdf', mimeType: 'a/b', size: 5 }).error?.code).toBe(

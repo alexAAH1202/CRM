@@ -12,6 +12,8 @@
 import {
   cleanMimeType,
   driveViewUrl,
+  GOOGLE_DOC,
+  googleDocUrl,
   HelperError,
   MAX_FILE_BYTES,
   sanitizeFileName,
@@ -363,3 +365,59 @@ export function syncAllFolders(p: Platform, cfg: HelperConfig, db: FirestoreClie
 }
 
 export { MAX_FILE_BYTES };
+
+// ---------------------------------------------------------------------------------------------
+// New Google Docs
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * A blank Google Doc in the workspace folder. Members who can edit (not viewers) get edit access
+ * to this one document; everyone else can still view it through the folder.
+ */
+export function createDoc(
+  p: Platform,
+  cfg: HelperConfig,
+  db: FirestoreClient,
+  caller: Caller,
+  wid: string,
+  req: Record<string, unknown>,
+): UploadedFile {
+  const name = sanitizeFileName(req['name']) || 'Untitled document';
+  rateLimit(p, caller.uid);
+  const folder = ensureWorkspaceFolder(p, cfg, db, wid);
+  const made = driveJson<{ id?: string; name?: string }>(p, 'create document', {
+    url: `${DRIVE}/files?fields=id,name`,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+    body: JSON.stringify({
+      name,
+      mimeType: GOOGLE_DOC,
+      parents: [folder],
+      description: `Created by ${caller.email ?? caller.uid} via Sorted`,
+    }),
+  });
+  if (typeof made.id !== 'string')
+    throw new HelperError('internal', 'Google Drive refused the request.');
+  const editors = db
+    .query({ parent: `workspaces/${wid}`, collection: 'members', limit: 200 })
+    .filter((d) => d.data['role'] !== 'viewer')
+    .map((d) => d.data['email'])
+    .filter((e): e is string => typeof e === 'string');
+  for (const email of new Set(editors.map((e) => e.toLowerCase()))) {
+    const res = p.http({
+      url: `${DRIVE}/files/${made.id}/permissions?sendNotificationEmail=false`,
+      method: 'POST',
+      oauth: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'user', role: 'writer', emailAddress: email }),
+    });
+    if (res.status !== 200) p.log(`Doc share with ${email} skipped: ${res.status}`);
+  }
+  return {
+    driveFileId: made.id,
+    name: made.name ?? name,
+    mimeType: GOOGLE_DOC,
+    size: 0,
+    url: googleDocUrl(made.id),
+  };
+}

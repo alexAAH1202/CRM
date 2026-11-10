@@ -1622,6 +1622,10 @@ var Sorted = (() => {
   function driveViewUrl(fileId) {
     return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
   }
+  var GOOGLE_DOC = "application/vnd.google-apps.document";
+  function googleDocUrl(fileId) {
+    return `https://docs.google.com/document/d/${encodeURIComponent(fileId)}/edit`;
+  }
 
   // ../shared/src/helperProtocol.ts
   var HelperError = class extends Error {
@@ -1632,7 +1636,7 @@ var Sorted = (() => {
       this.code = code;
     }
   };
-  var HELPER_VERSION = "7d.1";
+  var HELPER_VERSION = "7e.1";
 
   // ../shared/src/scheduleOps.ts
   function eventId(automationId, itemId) {
@@ -2206,6 +2210,42 @@ var Sorted = (() => {
       }
     }
     return n;
+  }
+  function createDoc(p, cfg, db, caller, wid, req) {
+    const name = sanitizeFileName(req["name"]) || "Untitled document";
+    rateLimit(p, caller.uid);
+    const folder = ensureWorkspaceFolder(p, cfg, db, wid);
+    const made = driveJson(p, "create document", {
+      url: `${DRIVE}/files?fields=id,name`,
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({
+        name,
+        mimeType: GOOGLE_DOC,
+        parents: [folder],
+        description: `Created by ${caller.email ?? caller.uid} via Sorted`
+      })
+    });
+    if (typeof made.id !== "string")
+      throw new HelperError("internal", "Google Drive refused the request.");
+    const editors = db.query({ parent: `workspaces/${wid}`, collection: "members", limit: 200 }).filter((d) => d.data["role"] !== "viewer").map((d) => d.data["email"]).filter((e) => typeof e === "string");
+    for (const email of new Set(editors.map((e) => e.toLowerCase()))) {
+      const res = p.http({
+        url: `${DRIVE}/files/${made.id}/permissions?sendNotificationEmail=false`,
+        method: "POST",
+        oauth: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "user", role: "writer", emailAddress: email })
+      });
+      if (res.status !== 200) p.log(`Doc share with ${email} skipped: ${res.status}`);
+    }
+    return {
+      driveFileId: made.id,
+      name: made.name ?? name,
+      mimeType: GOOGLE_DOC,
+      size: 0,
+      url: googleDocUrl(made.id)
+    };
   }
 
   // src/backup.ts
@@ -3282,6 +3322,15 @@ var Sorted = (() => {
     auth: "member",
     writes: true,
     run: (ctx, req) => uploadStart(ctx.p, ctx.cfg, ctx.db, ctx.caller, ctx.workspaceId, req)
+  };
+  actions["createDoc"] = {
+    auth: "member",
+    writes: true,
+    run: (ctx, req) => {
+      if (ctx.role === "viewer")
+        throw new HelperError("forbidden", "Viewers can’t create documents.");
+      return createDoc(ctx.p, ctx.cfg, ctx.db, ctx.caller, ctx.workspaceId, req);
+    }
   };
   actions["uploadChunk"] = {
     auth: "member",

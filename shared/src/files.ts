@@ -94,6 +94,11 @@ export function formatBytes(n: number): string {
 export function driveViewUrl(fileId: string): string {
   return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
 }
+export const GOOGLE_DOC = 'application/vnd.google-apps.document';
+/** Where a Google Doc opens for editing. */
+export function googleDocUrl(fileId: string): string {
+  return `https://docs.google.com/document/d/${encodeURIComponent(fileId)}/edit`;
+}
 /** Drive's embeddable preview (images, PDFs, most documents). */
 export function drivePreviewUrl(fileId: string): string {
   return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview`;

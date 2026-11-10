@@ -29,12 +29,13 @@ import {
   Trash2,
   TriangleAlert,
   Upload,
+  FilePlus,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Avatar, Button, Modal, Popover } from '../../components/ui';
 import { cx } from '../../lib/cx';
 import { friendlyError } from '../../lib/firestore/errors';
-import { helperConfigured } from '../../lib/helper';
+import { callHelper, helperConfigured } from '../../lib/helper';
 import { toast } from '../../stores/toast';
 import { fileValueFor, uploadToDrive } from '../files/upload';
 import { useCellEnv } from './cellEnv';
@@ -323,6 +324,36 @@ export function FilesCell({ column, item, itemName, canEdit, onChange }: CellPro
       .catch((e: unknown) => setError(friendlyError(e)))
       .finally(() => setUpload(null));
   };
+  const [creating, setCreating] = useState(false);
+  const newDoc = () => {
+    if (creating) return;
+    if (latest.current.files.length >= MAX_FILES) {
+      setError(`You can attach up to ${MAX_FILES} files`);
+      return;
+    }
+    setError('');
+    setCreating(true);
+    // Open the tab now (browsers block pop-ups that aren't a direct result of a click).
+    const tab = window.open('', '_blank');
+    callHelper(
+      'createDoc',
+      { workspaceId: env.wid, name: itemName || 'Untitled document' },
+      { retries: 0, timeoutMs: 60_000 },
+    )
+      .then((done) => {
+        const cur = latest.current;
+        const next = normalizeValue(column, [...cur.files, fileValueFor(done, env.uid)]) as
+          FileValue[] | null;
+        if (next) cur.onChange(next);
+        if (tab) tab.location.href = done.url;
+        toast.success(`Created ${done.name}`);
+      })
+      .catch((e: unknown) => {
+        tab?.close();
+        setError(friendlyError(e));
+      })
+      .finally(() => setCreating(false));
+  };
   const chips = (
     <span className="flex min-w-0 gap-1 overflow-hidden">
       {files.map((f) => (
@@ -469,6 +500,18 @@ export function FilesCell({ column, item, itemName, canEdit, onChange }: CellPro
               >
                 <Upload size={14} aria-hidden /> Upload a file
               </Button>
+              {canEdit && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  type="button"
+                  disabled={creating}
+                  onClick={newDoc}
+                  className="ml-2"
+                >
+                  <FilePlus size={14} aria-hidden /> {creating ? 'Creating…' : 'New document'}
+                </Button>
+              )}
               {upload && (
                 <div className="space-y-1" role="status">
                   <p className="truncate text-xs text-muted">
