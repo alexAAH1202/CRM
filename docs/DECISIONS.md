@@ -887,3 +887,22 @@ me` query per board I can see (only matching items are billed, plus one read per
   this device's storage. A browser can't read the household's real total: that needs a Google Cloud
   sign-in to the monitoring API, which would mean a new permission and an extra service. The console
   link is one click away for the real figure.
+
+### D97. Help for ADHD and executive dysfunction
+
+- **Focus** (sidebar): one thing at a time. Today's plan first, then overdue, due soonest, no date
+  last. "Your things" = assigned to you **or to nobody** (many households never assign). The card
+  shows a countdown, the **first tiny step** (the item's first unfinished subitem) or a **Break it
+  down** form (up to three steps, saved as subitems), a **timebox** (5/15/25 min; a sound, a
+  notification if allowed, and a message at the end; it also runs the item's Time tracking timer if
+  the list has one), **Done** (sets the list's "Done"-type status) and **Not now** (skip for this
+  visit). "After that" shows the next three. Reads each of your lists once per visit (kept a minute).
+- **Quick wins**: any Tags/Dropdown option named "Quick", "2 min" or "5 min" marks one; Focus can show
+  only those.
+- **Countdowns** beside every date in tables: "2 days late", "today", "tomorrow", "in 3 days" (warm
+  colours as it gets close; far-off dates show just the date).
+- **Escalating reminders** (an automation recipe): one click adds four reminders, each quiet once the
+  item is done: 3 days before, on the day (you and the people on it), the day after, and 3 days late
+  ("do it, move the date, or let it go?").
+- **Today's plan**: pick up to three things; stored on your user profile as `settings.todayPlan
+{ date, picks[≤3] }` (rules allow only that shape, only for yourself) and forgotten the next day.

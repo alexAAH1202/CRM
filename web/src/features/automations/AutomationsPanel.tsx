@@ -233,7 +233,23 @@ export function AutomationsPanel({
               <li key={r.id}>
                 <button
                   type="button"
-                  onClick={() => setView({ kind: 'edit', id: null, draft: r.draft })}
+                  onClick={() => {
+                    // A set of reminders is added in one go (each can be edited afterwards).
+                    if (r.bundle?.length) {
+                      Promise.all(
+                        [r.draft, ...r.bundle].map((d) =>
+                          createAutomation(wid, board.id, { ...d, ownerUid: me }),
+                        ),
+                      )
+                        .then(() => {
+                          toast.success(`Added ${r.bundle!.length + 1} reminders`);
+                          setView({ kind: 'list' });
+                        })
+                        .catch(fail);
+                      return;
+                    }
+                    setView({ kind: 'edit', id: null, draft: r.draft });
+                  }}
                   className="flex w-full items-start gap-3 rounded-2xl border border-border p-3 text-left hover:border-primary hover:bg-surface-2"
                 >
                   <Zap size={16} aria-hidden className="mt-0.5 shrink-0 text-primary" />

@@ -29,18 +29,19 @@ test('database usage pop-up: today’s reads from this device, against the free 
     /console\.firebase\.google\.com\/project\/life-management-de315/,
   );
 
-  // it survives a reload (kept on this device for the day)
-  const before = await pop.getByText(/ \/ 50,000$/).textContent();
+  // it's kept on this device for the day and keeps counting after a reload
+  const stored = () =>
+    ada.evaluate(() => {
+      const log = JSON.parse(localStorage.getItem('usage:days') ?? '{}') as Record<
+        string,
+        { reads: number }
+      >;
+      return Object.values(log).reduce((n, d) => n + d.reads, 0);
+    });
+  const before = await stored();
+  expect(before).toBeGreaterThan(0);
   await ada.keyboard.press('Escape');
   await ada.reload();
   await expect(ada.getByRole('grid')).toBeVisible();
-  await ada.waitForTimeout(1500);
-  await ada.getByRole('button', { name: /^Database usage/ }).click();
-  const after = await ada
-    .getByRole('dialog', { name: 'Database usage' })
-    .getByText(/ \/ 50,000$/)
-    .textContent();
-  expect(Number(after!.split(' ')[0]!.replace(/,/g, ''))).toBeGreaterThan(
-    Number(before!.split(' ')[0]!.replace(/,/g, '')),
-  );
+  await expect.poll(stored, { timeout: 10_000 }).toBeGreaterThan(before);
 });

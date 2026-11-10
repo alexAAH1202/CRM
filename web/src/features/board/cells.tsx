@@ -1,3 +1,4 @@
+import { relativeDue, todayIso } from '@app/shared';
 import { TimeCell } from '../time/TimeCell';
 import {
   formatNumber,
@@ -180,7 +181,25 @@ function DateCell({ column, item, itemName, canEdit, onChange }: CellProps) {
       />
     );
   }
-  const shown = v ? fmtDate(v) : null;
+  // A countdown beside the date ("2 days late", "tomorrow") so time is felt, not worked out.
+  const rel = v ? relativeDue(v, todayIso()) : null;
+  const shown = v ? (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="shrink-0">{fmtDate(v)}</span>
+      {rel && rel.tone !== 'later' && (
+        <span
+          className={cx(
+            'truncate rounded-full px-1.5 text-[11px] font-semibold',
+            rel.tone === 'late' && 'bg-danger-soft text-danger',
+            (rel.tone === 'today' || rel.tone === 'soon') && 'bg-primary-soft text-primary',
+            rel.tone === 'week' && 'text-muted',
+          )}
+        >
+          {rel.text}
+        </span>
+      )}
+    </span>
+  ) : null;
   if (!canEdit) return <div className={cx(cellBase, 'justify-center')}>{shown}</div>;
   return (
     <button

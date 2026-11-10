@@ -13,6 +13,7 @@ import {
   Users,
   Clock,
   LayoutDashboard,
+  Target,
 } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
@@ -138,6 +139,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </button>
         <NavLink to={base} end className={navItem} onClick={onNavigate}>
           <Home size={18} aria-hidden /> Home
+        </NavLink>
+        <NavLink to={`${base}/focus`} className={navItem} onClick={onNavigate}>
+          <Target size={18} aria-hidden /> Focus
         </NavLink>
         <NavLink to={`${base}/my-work`} className={navItem} onClick={onNavigate}>
           <ListChecks size={18} aria-hidden /> My work

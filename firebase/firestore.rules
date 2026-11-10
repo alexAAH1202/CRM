@@ -117,7 +117,11 @@ service cloud.firestore {
         && isNullableString(request.resource.data.lastWorkspaceId, 128)
         && request.resource.data.settings is map
         && request.resource.data.settings.keys().hasOnly(
-             ['theme', 'favoriteBoardIds', 'mutedNotifications', 'emailDigest'])
+             ['theme', 'favoriteBoardIds', 'mutedNotifications', 'emailDigest', 'todayPlan'])
+        && (!('todayPlan' in request.resource.data.settings)
+            || (request.resource.data.settings.todayPlan is map
+                && request.resource.data.settings.todayPlan.keys().hasOnly(['date', 'picks'])
+                && isList(request.resource.data.settings.todayPlan.picks, 3)))
         && (!('emailDigest' in request.resource.data.settings)
             || request.resource.data.settings.emailDigest is bool)
         && (!('mutedNotifications' in request.resource.data.settings)

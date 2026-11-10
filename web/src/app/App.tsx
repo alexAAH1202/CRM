@@ -16,6 +16,7 @@ const WorkspaceLayout = lazy(() => import('../features/shell/WorkspaceLayout'));
 const WorkspaceHomePage = lazy(() => import('../pages/WorkspaceHomePage'));
 const MembersPage = lazy(() => import('../pages/MembersPage'));
 const MyWorkPage = lazy(() => import('../features/mywork/MyWorkPage'));
+const FocusPage = lazy(() => import('../features/focus/FocusPage'));
 const TimesheetPage = lazy(() => import('../features/time/TimesheetPage'));
 const DashboardsPage = lazy(() => import('../features/dashboards/DashboardsPage'));
 const DashboardPage = lazy(() => import('../features/dashboards/DashboardPage'));
@@ -48,6 +49,7 @@ export function App() {
                   <Route index element={<WorkspaceHomePage />} />
                   <Route path="members" element={<MembersPage />} />
                   <Route path="my-work" element={<MyWorkPage />} />
+                  <Route path="focus" element={<FocusPage />} />
                   <Route path="timesheet" element={<TimesheetPage />} />
                   <Route path="dashboards" element={<DashboardsPage />} />
                   <Route path="dashboards/:did" element={<DashboardPage />} />

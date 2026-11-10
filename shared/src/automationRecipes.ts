@@ -10,6 +10,8 @@ export interface Recipe {
   title: string;
   description: string;
   draft: AutomationDraft;
+  /** More automations that come with this one (an "escalating reminders" set). */
+  bundle?: AutomationDraft[];
 }
 
 interface Board {
@@ -195,6 +197,91 @@ export function recipesFor(board: Board, me: string, today: string = todayIso())
         [{ type: 'notify', to: 'owner', uid: null, message: '{item} is due today' }],
         doneGuard(status, doneLabel),
       ),
+      {
+        ...mk(
+          'escalate',
+          `Escalating reminders for “${date.title}”`,
+          'Four steps, each skipped once it’s done: 3 days before, on the day, the day after (you and the people on it), and 3 days late.',
+          { type: 'dateArrives', columnId: date.id, which: 'end', offsetDays: -3, atTime: '09:00' },
+          [
+            {
+              type: 'notify',
+              to: 'owner',
+              uid: null,
+              message: 'Heads up: {item} is due in 3 days',
+            },
+          ],
+          doneGuard(status, doneLabel),
+        ),
+        bundle: [
+          mk(
+            'escalate-2',
+            `Escalating reminders for “${date.title}” (on the day)`,
+            '',
+            {
+              type: 'dateArrives',
+              columnId: date.id,
+              which: 'end',
+              offsetDays: 0,
+              atTime: '08:00',
+            },
+            [
+              { type: 'notify', to: 'owner', uid: null, message: 'Today: {item}' },
+              { type: 'notify', to: 'assignees', uid: null, message: 'Today: {item}' },
+            ],
+            doneGuard(status, doneLabel),
+          ).draft,
+          mk(
+            'escalate-3',
+            `Escalating reminders for “${date.title}” (a day late)`,
+            '',
+            {
+              type: 'dateArrives',
+              columnId: date.id,
+              which: 'end',
+              offsetDays: 1,
+              atTime: '09:00',
+            },
+            [
+              {
+                type: 'notify',
+                to: 'owner',
+                uid: null,
+                message: 'Still to do: {item} (a day late)',
+              },
+              {
+                type: 'notify',
+                to: 'assignees',
+                uid: null,
+                message: 'Still to do: {item} (a day late)',
+              },
+            ],
+            doneGuard(status, doneLabel),
+          ).draft,
+          mk(
+            'escalate-4',
+            `Escalating reminders for “${date.title}” (3 days late)`,
+            '',
+            {
+              type: 'dateArrives',
+              columnId: date.id,
+              which: 'end',
+              offsetDays: 3,
+              atTime: '18:00',
+            },
+            [
+              {
+                type: 'notify',
+                to: 'owner',
+                uid: null,
+                message: '{item} is 3 days late: do it, move the date, or let it go?',
+              },
+              { type: 'notify', to: 'assignees', uid: null, message: '{item} is 3 days late' },
+            ],
+            doneGuard(status, doneLabel),
+          ).draft,
+        ],
+      },
       mk(
         'overdue-nudge',
         'Nudge me when something is overdue',
