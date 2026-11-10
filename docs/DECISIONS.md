@@ -948,3 +948,16 @@ me` query per board I can see (only matching items are billed, plus one read per
   Study, Project, or Custom (typed, comma-separated). A template's sample items go in the first
   group when the groups are replaced.
 - Filters treat the Group column as text (the group's name); it has no summary.
+
+### D102. Review fixes: rules and helper
+
+- Lists are deleted by admins only (their items can only be hard-deleted by admins). Changing who
+  can see a dashboard is limited to its creator or an admin, as for lists.
+- Viewers may accept or decline their own assignment: an item update that touches only
+  `acceptance.<their uid>` (plus updatedBy/updatedAt), and an `assignment` notification back.
+- Scheduled automations stop (their events are removed) when the owner is no longer an editor who
+  can see the list: the helper bypasses the rules, so it checks this itself.
+- The helper splits commits to stay under Firestore's 500-writes limit (rebuild, big per-item runs)
+  and looks an item up directly before treating it as deleted.
+- Folder sync also removes document edit access (D100) from people who left or became viewers.
+- Not changed: notifications of people who have left are not purged (no safe query for them yet).

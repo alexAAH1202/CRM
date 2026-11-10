@@ -248,6 +248,19 @@ describe('scheduler: date reminders', () => {
     runDueEvents(w2.p);
     expect(notifications(w2.fs)).toHaveLength(0);
     expect(w2.fs.get(evPath('a1_i1'))).toBeUndefined();
+    // the owner left the household (or became a viewer): the automation stops acting for them
+    const w3 = world();
+    w3.fs.set(`workspaces/${W}/members/owner`, { role: 'viewer', displayName: 'Olive Owner' });
+    addItem(w3.fs, 'i1', { [due.id]: '2026-03-20' });
+    register(
+      w3.fs,
+      [reminder],
+      [{ id: 'i1', values: { [due.id]: '2026-03-20' } }],
+      NOW - 86400_000 * 3,
+    );
+    runDueEvents(w3.p);
+    expect(notifications(w3.fs)).toHaveLength(0);
+    expect(w3.fs.get(evPath('a1_i1'))).toBeUndefined();
   });
 
   it('overdue fires only for items that are not done', () => {

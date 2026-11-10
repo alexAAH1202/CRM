@@ -89,6 +89,20 @@ describe('dashboards: who can make, see, change and remove them', () => {
       }),
     );
   });
+  it('only the creator or an admin changes who can see it', async () => {
+    await create('alice', 'd1');
+    const hide = (who: Persona) =>
+      commitOps(db(env, who), [
+        {
+          kind: 'update',
+          path: path('d1'),
+          data: { visibility: 'private', memberIds: [who], updatedAt: serverTimestamp() },
+        } as unknown as WriteOp,
+      ]);
+    await assertFails(hide('bob'));
+    await assertSucceeds(hide('alice'));
+  });
+
   it('widgets and layout are saved by any editor; viewers cannot', async () => {
     await create('bob', 'd1');
     const w = newWidget('numbers', [MAIN_BOARD], [], { boardId: MAIN_BOARD });

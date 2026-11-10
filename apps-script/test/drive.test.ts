@@ -199,6 +199,11 @@ describe('uploads', () => {
     const editors = (w.drive.perms.get(r.data.driveFileId) ?? []).map((p) => p.emailAddress);
     expect(editors.sort()).toEqual(['ada@example.com', 'bob@example.com']);
     expect(world('viewer', 'u3').call('createDoc', { name: 'x' }).error?.code).toBe('forbidden');
+    // Bob becomes a viewer: the next sync takes away his edit access to the document.
+    w.fs.set('workspaces/w1/members/u2', { role: 'viewer', email: 'bob@example.com' });
+    expect(w.call('syncFolderSharing').ok).toBe(true);
+    const after = (w.drive.perms.get(r.data.driveFileId) ?? []).map((p) => p.emailAddress);
+    expect(after).toEqual(['ada@example.com']);
   });
 
   it('viewers and strangers cannot upload; only the starter can continue an upload', () => {

@@ -189,6 +189,34 @@ describe('board planners against the rules', () => {
         }),
       ),
     );
+    // a viewer who was assigned may answer for themselves, and change nothing else
+    await assertSucceeds(
+      commitOps(
+        db(env, 'bob'),
+        planSetCell({ ...base, columns: [who], column: who, uid: 'bob', value: ['carol'] }),
+      ),
+    );
+    const answer = (as: 'carol' | 'dave', uid: string) =>
+      commitOps(
+        db(env, as),
+        planRespondToAssignment({
+          wid: WID,
+          bid: MAIN_BOARD,
+          iid: 'i1',
+          uid,
+          responderName: 'Carol',
+          response: 'rejected',
+          assigner: 'bob',
+          itemName: 'x',
+          newId: () => `resp-${as}-${uid}`,
+        }),
+      );
+    await assertSucceeds(answer('carol', 'carol'));
+    await assertFails(answer('carol', 'alice'));
+    await assertFails(answer('dave', 'dave'));
+    await assertFails(
+      commitOps(db(env, 'carol'), planUpdateItem(WID, MAIN_BOARD, 'i1', 'carol', { name: 'x' })),
+    );
     await assertSucceeds(commitOps(db(env, 'bob'), planDeleteItem(WID, MAIN_BOARD, 'i1', 'bob')));
   });
 
