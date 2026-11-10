@@ -10,7 +10,14 @@ import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
 import { useBoards } from '../boards/BoardsProvider';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
-import { markAllRead, saveEmailDigest, saveMuted, setRead } from './api';
+import {
+  markAllRead,
+  parseAssignment,
+  respondToAssignment,
+  saveEmailDigest,
+  saveMuted,
+  setRead,
+} from './api';
 import { useNotifications } from './NotificationsProvider';
 
 const MUTE_OPTIONS: Array<{ type: string; label: string; soon?: boolean }> = [
@@ -146,6 +153,44 @@ export function NotificationBell() {
                       {formatDistanceToNow(n.createdAtMs, { addSuffix: true })}
                     </span>
                   </button>
+                  {(() => {
+                    const a = n.type === 'assignment' && !n.read ? parseAssignment(n) : null;
+                    if (!a) return null;
+                    const respond = (response: 'accepted' | 'rejected') =>
+                      void respondToAssignment({
+                        wid: workspace.id,
+                        ...a,
+                        uid: user.uid,
+                        responderName: user.displayName ?? user.email ?? 'Someone',
+                        response,
+                        assigner: n.actor,
+                        nid: n.id,
+                      })
+                        .then(() =>
+                          toast.success(response === 'accepted' ? 'Accepted.' : 'Declined.'),
+                        )
+                        .catch(fail);
+                    return (
+                      <span className="flex flex-col gap-1 py-2">
+                        <button
+                          type="button"
+                          aria-label={`Accept ${a.itemName}`}
+                          onClick={() => respond('accepted')}
+                          className="rounded-lg bg-primary px-2 py-1 text-xs font-semibold text-on-primary"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Reject ${a.itemName}`}
+                          onClick={() => respond('rejected')}
+                          className="rounded-lg px-2 py-1 text-xs font-semibold text-danger hover:bg-surface-2"
+                        >
+                          Reject
+                        </button>
+                      </span>
+                    );
+                  })()}
                   <button
                     type="button"
                     aria-label={n.read ? 'Mark as unread' : 'Mark as read'}

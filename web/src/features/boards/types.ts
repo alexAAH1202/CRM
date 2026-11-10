@@ -29,6 +29,8 @@ export interface BoardItem {
   itemNumber: number;
   values: Record<string, unknown>;
   assigneeUids: string[];
+  /** Per assignee: waiting to accept, accepted or declined (D99). */
+  acceptance?: Record<string, { state: 'pending' | 'accepted' | 'rejected'; by: string }>;
   archived: boolean;
   deleted: boolean;
   /** When it was deleted (null if it isn't). Deleted items stay recoverable until they're purged. */

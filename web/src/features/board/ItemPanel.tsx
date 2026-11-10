@@ -10,6 +10,7 @@ import { renameItem, setCell } from '../boards/api';
 import { ActivityList } from '../activity/ActivityList';
 import { UpdatesTab } from '../updates/UpdatesTab';
 import { CellEnvProvider, useBoardCellEnv } from './cellEnv';
+import { AcceptanceBar } from './AcceptanceBar';
 import { Cell } from './cells';
 import type { ViewProps } from './viewParts';
 
@@ -83,6 +84,7 @@ export function ItemPanel({
   return (
     <SidePanel open onClose={onClose} title={`#${item.itemNumber} ${item.name || 'Untitled'}`}>
       <CellEnvProvider value={env}>
+        <AcceptanceBar wid={wid} bid={board.id} item={item} memberName={memberName} />
         <div
           role="tablist"
           aria-label="Item sections"

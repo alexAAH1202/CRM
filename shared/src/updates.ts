@@ -1,5 +1,6 @@
 import { SERVER_TIME, type WriteOp } from './ops';
 import { paths } from './paths';
+import { boardPaths } from './boardOps';
 import { MAX_UPDATE_LENGTH, plainText } from './richText';
 
 export const NOTIFICATION_TYPES = [
@@ -173,4 +174,48 @@ export function planAssignmentNotifications(i: {
 
 export function planMarkRead(wid: string, uid: string, nid: string, read: boolean): WriteOp[] {
   return [{ kind: 'update', path: paths.notification(wid, uid, nid), data: { read } }];
+}
+
+/**
+ * An assignee accepts or declines an item: records it on the item, marks the assignment
+ * notification read, and tells whoever assigned them.
+ */
+export function planRespondToAssignment(i: {
+  wid: string;
+  bid: string;
+  iid: string;
+  uid: string;
+  responderName: string;
+  response: 'accepted' | 'rejected';
+  assigner: string;
+  itemName: string;
+  nid?: string;
+  newId: () => string;
+}): WriteOp[] {
+  const ops: WriteOp[] = [
+    {
+      kind: 'update',
+      path: boardPaths.item(i.wid, i.bid, i.iid),
+      data: {
+        [`acceptance.${i.uid}`]: { state: i.response, by: i.assigner },
+        updatedBy: i.uid,
+        updatedAt: SERVER_TIME,
+      },
+    },
+  ];
+  if (i.nid) ops.push(...planMarkRead(i.wid, i.uid, i.nid, true));
+  if (i.assigner && i.assigner !== i.uid)
+    ops.push(
+      notificationOp({
+        wid: i.wid,
+        recipient: i.assigner,
+        nid: i.newId(),
+        actor: i.uid,
+        type: 'assignment',
+        title: `${i.responderName} ${i.response === 'accepted' ? 'accepted' : 'declined'} “${i.itemName}”`,
+        body: '',
+        link: itemLink(i.wid, i.bid, i.iid),
+      }),
+    );
+  return ops;
 }

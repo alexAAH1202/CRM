@@ -94,3 +94,35 @@ describe('update planners', () => {
   });
   it('link format', () => expect(itemLink('w', 'b', 'i')).toBe('/w/w/b/b?item=i'));
 });
+
+describe('assignment acceptance', () => {
+  it('responding records it, marks the notification read and tells the assigner', async () => {
+    const { planRespondToAssignment } = await import('./updates');
+    const ops = planRespondToAssignment({
+      wid: 'w',
+      bid: 'b',
+      iid: 'i',
+      uid: 'bob',
+      responderName: 'Bob',
+      response: 'rejected',
+      assigner: 'ada',
+      itemName: 'Dishes',
+      nid: 'n0',
+      newId,
+    });
+    expect(ops).toHaveLength(3);
+    expect(dataOf(ops[0])['acceptance.bob']).toEqual({ state: 'rejected', by: 'ada' });
+    expect(dataOf(ops[1])).toEqual({ read: true });
+    expect(dataOf(ops[2])['title']).toBe('Bob declined “Dishes”');
+  });
+
+  it('assignee changes set pending / accepted and clear removed people', async () => {
+    const { acceptanceChanges } = await import('./boardOps');
+    const { DELETE_FIELD } = await import('./ops');
+    const c = acceptanceChanges(['gone', 'kept'], ['kept', 'bob', 'me'], 'me');
+    expect(c['acceptance.bob']).toEqual({ state: 'pending', by: 'me' });
+    expect(c['acceptance.me']).toEqual({ state: 'accepted', by: 'me' });
+    expect(c['acceptance.kept']).toBeUndefined();
+    expect(c['acceptance.gone']).toBe(DELETE_FIELD);
+  });
+});

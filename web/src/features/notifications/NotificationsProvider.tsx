@@ -13,6 +13,7 @@ export interface AppNotification {
   title: string;
   body: string;
   link: string;
+  actor: string;
   read: boolean;
   createdAtMs: number;
 }
@@ -56,6 +57,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
                 title: String(x['title'] ?? ''),
                 body: String(x['body'] ?? ''),
                 link: String(x['link'] ?? ''),
+                actor: String(x['actor'] ?? ''),
                 read: x['read'] === true,
                 createdAtMs: ts?.toMillis?.() ?? Date.now(),
               };
