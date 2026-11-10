@@ -151,7 +151,7 @@ describe('recurrence', () => {
         'UTC',
       ),
     ).toBeNull();
-    // a month-day that can never occur within the search window with a huge interval
+    // a very long interval still finds its next run (52 months on: June 2030, last day)
     expect(
       nextOccurrence(
         {
@@ -162,7 +162,7 @@ describe('recurrence', () => {
         utc('2026-03-01T00:00:00Z'),
         'UTC',
       ),
-    ).toBeNull();
+    ).toBe(utc('2030-06-30T09:00:00Z'));
   });
   it('parseRecurrence validates and normalises', () => {
     expect(parseRecurrence({ kind: 'daily' })).toEqual({ kind: 'daily', every: 1 });

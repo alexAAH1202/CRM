@@ -203,8 +203,18 @@ describe('event planning for an automation', () => {
     expect(data(set[0]!)['fireAt'].toISOString()).toBe('2026-03-15T21:00:00.000Z'); // Mon 16 Mar 08:00 Melbourne
     expect(data(set[0]!)).toMatchObject({ kind: 'recurring', itemId: null });
   });
-  it('a recurring schedule that can never fire registers nothing', () => {
+  it('a recurring schedule that can never fire registers nothing; a very long one still does', () => {
     const never = auto('rc', {
+      type: 'recurring',
+      scope: 'board',
+      schedule: {
+        recurrence: { kind: 'monthly', every: 1, dayOfMonth: 1 },
+        atTime: '25:00',
+        startDate: '2026-02-01',
+      },
+    });
+    expect(plan(never, 'rc').every((o) => o.kind === 'delete')).toBe(true);
+    const rare = auto('rc', {
       type: 'recurring',
       scope: 'board',
       schedule: {
@@ -213,7 +223,7 @@ describe('event planning for an automation', () => {
         startDate: '2026-02-01',
       },
     });
-    expect(plan(never, 'rc').every((o) => o.kind === 'delete')).toBe(true);
+    expect(plan(rare, 'rc').some((o) => o.kind === 'set')).toBe(true);
   });
 });
 

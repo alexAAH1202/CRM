@@ -289,6 +289,48 @@ describe('triggers', () => {
 });
 
 describe('conditions', () => {
+  it('calculated columns are worked out before conditions are checked', () => {
+    const setNote = [{ type: 'setValue', columnId: note.id, value: 'ran' }] as Action[];
+    const r = run({
+      automations: [
+        auto('a', { type: 'itemCreated' }, setNote, {
+          conditions: [{ id: 'c', columnId: calc.id, op: 'eq', value: 1 }],
+        }),
+      ],
+      items: [item('i')],
+      event: { kind: 'created', itemId: 'i' },
+    });
+    expect(r.runs.filter((x) => x.status === 'ok')).toHaveLength(1);
+  });
+
+  it('a list-wide schedule fills {item} with the list name, never a blank', () => {
+    const r = run({
+      automations: [
+        auto(
+          's',
+          {
+            type: 'recurring',
+            scope: 'board',
+            schedule: {
+              recurrence: { kind: 'daily', every: 1 },
+              atTime: '09:00',
+              startDate: '2026-03-01',
+            },
+          } as Trigger,
+          [
+            { type: 'notify', to: 'owner', uid: null, message: '{item}' },
+            { type: 'createItem', name: '{item}', groupId: null, subitem: false },
+          ] as Action[],
+        ),
+      ],
+      items: [],
+      event: { kind: 'scheduled', automationId: 's', itemId: null },
+    });
+    const note = r.ops.find((o) => o.path.includes('/notifications/'))!;
+    expect(dataOf(note)['title']).toBe('Board');
+    expect(dataOf(sets(r.ops, '/items/')[0]!)['name']).toBe('Board');
+  });
+
   it('every condition must match the item after the change', () => {
     const a = auto('a', { type: 'itemCreated' }, [{ type: 'archive' }], {
       conditions: [

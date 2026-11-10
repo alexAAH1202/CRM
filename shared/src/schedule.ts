@@ -8,6 +8,7 @@ export const ZOOM_PX: Record<Zoom, number> = { day: 36, week: 14, month: 5 };
 
 /** Wide enough to fill a screen at any zoom, so there's always room to drag bars later. */
 export const MIN_DAYS = 120;
+const MAX_SPAN_DAYS = 5 * 366;
 
 export interface GanttRange {
   start: string;
@@ -24,6 +25,12 @@ export function ganttRange(spans: readonly DateSpan[], today: string): GanttRang
     if (s.start < min) min = s.start;
     if (s.end > max) max = s.end;
   }
+  // A mistyped year (2205 for 2025) mustn't make a chart tens of thousands of days wide:
+  // keep to five years either side of today (bars beyond are simply off the chart).
+  const floor = addDays(today, -MAX_SPAN_DAYS) as string;
+  const ceil = addDays(today, MAX_SPAN_DAYS) as string;
+  if (min < floor) min = floor;
+  if (max > ceil) max = ceil;
   const start = addDays(min, -3) as string;
   const end = addDays(max, 14) as string;
   const days = Math.max(MIN_DAYS, (diffDays(end, start) ?? 0) + 1);

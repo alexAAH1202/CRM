@@ -23,6 +23,7 @@ import type { ItemLike } from './itemLike';
 import { DELETE_FIELD, SERVER_TIME, type DocData, type WriteOp } from './ops';
 import { keyBetween } from './ordering';
 import { itemLink, notificationOp } from './updates';
+import { applyComputed } from './computed';
 import { matchesFilter } from './viewConfig';
 
 export interface EngineItem extends ItemLike {
@@ -325,7 +326,10 @@ export function runAutomations(input: EngineInput): EngineResult {
         const groupId = isDup ? target.groupId : (act.groupId ?? target.groupId);
         const name = isDup
           ? `${target.name} (copy)`
-          : act.name.replaceAll('{item}', target.name).slice(0, 500);
+          : act.name
+              .replaceAll('{item}', targetId === BOARD_TARGET ? input.boardName : target.name)
+              .slice(0, 500)
+              .trim() || a.name;
         const values = isDup ? { ...target.values } : { ...defaultItemValues(columns) };
         const id = input.newId('item');
         const order = keyBetween(
@@ -385,9 +389,13 @@ export function runAutomations(input: EngineInput): EngineResult {
               nid: input.newId('notification'),
               actor,
               type: 'automation',
-              title: act.message
-                .replaceAll('{item}', targetId === BOARD_TARGET ? '' : target.name || 'an item')
-                .trim(),
+              title:
+                act.message
+                  .replaceAll(
+                    '{item}',
+                    targetId === BOARD_TARGET ? input.boardName : target.name || 'an item',
+                  )
+                  .trim() || a.name,
               body: `${input.boardName} · ${a.name}`,
               link:
                 targetId === BOARD_TARGET
@@ -402,6 +410,31 @@ export function runAutomations(input: EngineInput): EngineResult {
 
   const ctx = { today: input.today, me: actor, memberName: input.memberName };
 
+  /**
+   * Conditions see calculated columns (Formula, Progress, Created…) worked out, as the table does:
+   * they store nothing, so the raw item would always look empty.
+   */
+  const conditionsMet = (a: Automation, target: Work): boolean => {
+    if (a.conditions.length === 0) return true;
+    const needsComputed = a.conditions.some((f) => {
+      const c = col(f.columnId);
+      return !!c && isComputedType(c.type);
+    });
+    const subject = needsComputed
+      ? (applyComputed(
+          [target, ...[...working.values()].filter((x) => x.parentId === target.id && live(x))],
+          columns,
+          {
+            today: input.today,
+            memberName: input.memberName,
+            itemName: (id) => working.get(id)?.name,
+            groupName: (id) => groups.find((g) => g.id === id)?.name,
+          },
+        )[0] as Work)
+      : target;
+    return a.conditions.every((f) => matchesFilter(subject, columns, f, ctx));
+  };
+
   while (queue.length > 0) {
     const q = queue.shift() as Queued;
     for (const a of input.automations) {
@@ -411,11 +444,7 @@ export function runAutomations(input: EngineInput): EngineResult {
       const target = working.get(targetId);
       if (!target || !live(target)) continue;
       // A board-wide schedule has no item, so item conditions don't apply to it.
-      if (
-        targetId !== BOARD_TARGET &&
-        !a.conditions.every((f) => matchesFilter(target, columns, f, ctx))
-      )
-        continue;
+      if (targetId !== BOARD_TARGET && !conditionsMet(a, target)) continue;
 
       // Loop guard: an automation never runs twice in one chain of cause and effect, and
       // chains stop at a fixed depth.
