@@ -433,7 +433,7 @@ service cloud.firestore {
           function validItem(d) {
             return d.keys().hasOnly([
                   'name', 'groupId', 'order', 'parentId', 'itemNumber', 'values',
-                  'assigneeUids', 'reminderKeys', 'archived', 'deletedAt', 'acceptance',
+                  'assigneeUids', 'reminderKeys', 'archived', 'deletedAt', 'acceptance', 'onCalendar',
                   'createdBy', 'createdAt', 'updatedBy', 'updatedAt'])
               && isString(d.name, 0, 500)
               && isString(d.groupId, 1, 64)
@@ -446,6 +446,7 @@ service cloud.firestore {
               && d.archived is bool
               // Assignment acceptance, keyed by uid (D99).
               && (!('acceptance' in d) || (d.acceptance is map && d.acceptance.size() <= 100))
+              && (!('onCalendar' in d) || d.onCalendar is bool)
               && (d.deletedAt == null || d.deletedAt is timestamp)
               && d.updatedBy == request.auth.uid
               // Delta sync (decision D5) depends on this.

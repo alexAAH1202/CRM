@@ -80,6 +80,7 @@ function world() {
       archived: false,
       deletedAt: null,
       createdBy: 'alex',
+      onCalendar: true,
       ...data,
       updatedAt: new Date((t += 1000)),
     });
@@ -94,6 +95,7 @@ describe('Google Calendar due dates', () => {
     w.item('Bills', { values: { [due.id]: '2026-03-21' }, createdBy: 'andrew' });
     w.item('Mine', { values: { [due.id]: '2026-03-22' } });
     w.item('No date', {});
+    w.item('Not added', { values: { [due.id]: '2026-03-23' }, onCalendar: false });
     w.sync();
     expect(w.cal.on('Sorted – Andrew').sort()).toEqual(['Bills 2026-03-21', 'Essay 2026-03-20']);
     expect(w.cal.on('Sorted – Alex')).toEqual(['Mine 2026-03-22']);

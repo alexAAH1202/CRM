@@ -31,6 +31,8 @@ export interface BoardItem {
   assigneeUids: string[];
   /** Per assignee: waiting to accept, accepted or declined (D99). */
   acceptance?: Record<string, { state: 'pending' | 'accepted' | 'rejected'; by: string }>;
+  /** Added to Google Calendar (the helper puts its due date there). */
+  onCalendar?: boolean;
   archived: boolean;
   deleted: boolean;
   /** When it was deleted (null if it isn't). Deleted items stay recoverable until they're purged. */

@@ -6,7 +6,8 @@ import { cx } from '../../lib/cx';
 import { friendlyError } from '../../lib/firestore/errors';
 import { toast } from '../../stores/toast';
 import { useCurrentUser } from '../auth/AuthProvider';
-import { renameItem, setCell } from '../boards/api';
+import { renameItem, setCell, setOnCalendar } from '../boards/api';
+import { CalendarButton } from './CalendarButton';
 import { ActivityList } from '../activity/ActivityList';
 import { UpdatesTab } from '../updates/UpdatesTab';
 import { CellEnvProvider, useBoardCellEnv } from './cellEnv';
@@ -86,6 +87,13 @@ export function ItemPanel({
     <SidePanel open onClose={onClose} title={`#${item.itemNumber} ${item.name || 'Untitled'}`}>
       <CellEnvProvider value={env}>
         <AcceptanceBar wid={wid} bid={board.id} item={item} memberName={memberName} />
+        {canEdit && (
+          <CalendarButton
+            item={item}
+            columns={board.columns}
+            onToggle={(on) => setOnCalendar(wid, board.id, item.id, user.uid, on).catch(fail)}
+          />
+        )}
         <div
           role="tablist"
           aria-label="Item sections"

@@ -976,3 +976,7 @@ me` query per board I can see (only matching items are billed, plus one read per
   of the item path, so nothing is stored per event; calendar ids are kept in Script Properties.
 - Limits: items on a list that is deleted outright keep their events (delete them in Calendar);
   reminder times are each person's own calendar notification settings.
+
+- Opt-in (7f.2): only items someone has added with **Add to calendar** (`onCalendar: true` on the
+  item) go on a calendar. The sync bookmark was renamed so every item is checked once more, which
+  takes the earlier automatic events off again.
