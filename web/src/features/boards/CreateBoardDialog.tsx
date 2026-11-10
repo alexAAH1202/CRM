@@ -72,7 +72,10 @@ export function CreateBoardDialog({ open, onClose }: { open: boolean; onClose: (
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void submit()} disabled={busy}>
+          <Button
+            onClick={() => void submit()}
+            disabled={busy || (listType === 'custom' && sections.length === 0)}
+          >
             Create list
           </Button>
         </>

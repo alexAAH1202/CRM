@@ -189,8 +189,15 @@ export function updateBoard(
 
 /** One-off upgrade of an older list (adds the Group column); harmless to repeat. */
 export function upgradeBoard(wid: string, board: Board) {
-  const ops = planUpgradeBoard(wid, board.id, board);
-  return ops.length ? commitOps('board:upgrade', ops) : Promise.resolve();
+  if (planUpgradeBoard(wid, board.id, board).length === 0) return Promise.resolve();
+  // Read the server's copy inside a transaction, so a stale cached copy or someone else's
+  // simultaneous column change is never overwritten (and two editors don't both add it).
+  return runOpsTransaction('board:upgrade', async (get) => {
+    const snap = await get(doc(db, paths.board(wid, board.id)));
+    const d = snap.data() as { columns?: Column[]; schemaVersion?: number } | undefined;
+    if (!d || !Array.isArray(d.columns)) return [];
+    return planUpgradeBoard(wid, board.id, { columns: d.columns, schemaVersion: d.schemaVersion });
+  });
 }
 
 export function saveColumns(wid: string, bid: string, columns: Column[]) {

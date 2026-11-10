@@ -6,6 +6,7 @@ import {
   MAX_OFFSET_DAYS,
   MAX_CONDITIONS,
   newFilter,
+  filterableColumns,
   NAME_COLUMN_ID,
   OP_LABELS,
   opsFor,
@@ -713,7 +714,7 @@ export function AutomationBuilder({
                   }}
                 >
                   <option value={NAME_COLUMN_ID}>Name</option>
-                  {board.columns.map((c) => (
+                  {filterableColumns(board.columns).map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.title}
                     </option>

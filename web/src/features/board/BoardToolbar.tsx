@@ -12,6 +12,7 @@ import {
   MAX_FILTERS,
   NAME_COLUMN_ID,
   newFilter,
+  filterableColumns,
   OP_LABELS,
   opNeedsValue,
   opsFor,
@@ -253,7 +254,7 @@ function FilterPanel({
                   }}
                 >
                   <option value={NAME_COLUMN_ID}>Item name</option>
-                  {columns.map((c) => (
+                  {filterableColumns(columns).map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.title}
                     </option>
@@ -336,7 +337,7 @@ function SortPanel({ columns, config, onChange }: Pick<Props, 'columns' | 'confi
             onChange={(e) => set(i, { columnId: e.target.value })}
           >
             <option value={NAME_COLUMN_ID}>Item name</option>
-            {columns.map((c) => (
+            {filterableColumns(columns).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.title}
               </option>
@@ -369,8 +370,9 @@ function SortPanel({ columns, config, onChange }: Pick<Props, 'columns' | 'confi
         onClick={() => {
           const used = new Set(rules.map((r) => r.columnId));
           const next =
-            [NAME_COLUMN_ID, ...columns.map((c) => c.id)].find((id) => !used.has(id)) ??
-            NAME_COLUMN_ID;
+            [NAME_COLUMN_ID, ...filterableColumns(columns).map((c) => c.id)].find(
+              (id) => !used.has(id),
+            ) ?? NAME_COLUMN_ID;
           onChange({ sort: [...rules, { columnId: next, dir: 'asc' }] });
         }}
       >
