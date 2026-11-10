@@ -3,6 +3,7 @@ import { backupDue, lastBackups, type BackupResult } from './backup';
 import { loadConfig } from './config';
 import { runDigest, type DigestSummary } from './digest';
 import { syncAllFolders } from './drive';
+import { calendarStatus } from './calendar';
 import { FirestoreClient } from './firestore';
 import { runHousekeeping, type HousekeepingReport } from './housekeeping';
 import type { Platform } from './platform';
@@ -58,6 +59,7 @@ export interface MaintenanceStatus {
   } | null;
   digest: { at: string; sent: number; failed: number } | null;
   lastBackupAt: string | null;
+  calendar: { at: string; items: number; failed: number; error: string | null } | null;
 }
 
 const parse = <T>(s: string | null): T | null => {
@@ -86,5 +88,9 @@ export function maintenanceStatus(p: Platform, workspaceId: string): Maintenance
     },
     digest: d && { at: d.at, sent: d.sent, failed: d.failed },
     lastBackupAt: last ? new Date(last).toISOString() : null,
+    calendar: (() => {
+      const c = calendarStatus(p);
+      return c && { at: c.at, items: c.items, failed: c.failed, error: c.error ?? null };
+    })(),
   };
 }
