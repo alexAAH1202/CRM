@@ -52,7 +52,7 @@ export interface WhoAmI {
 }
 
 /** Bump when the helper code changes in a way the app should notice. */
-export const HELPER_VERSION = '7d.1';
+export const HELPER_VERSION = '7e.1';
 
 export interface HelperActions {
   ping: { request: Record<string, never>; response: { pong: true; at: string; version: string } };
@@ -90,6 +90,11 @@ export interface HelperActions {
   uploadChunk: {
     request: { workspaceId: string; uploadId: string; offset: number; data: string };
     response: { done: false; next: number } | { done: true; file: UploadedFile };
+  };
+  /** Editor: a blank Google Doc in the workspace's Drive folder, editable by members. */
+  createDoc: {
+    request: { workspaceId: string; name: string };
+    response: UploadedFile;
   };
   /** Member: make the workspace folder's Drive sharing match the members list. */
   syncFolderSharing: {

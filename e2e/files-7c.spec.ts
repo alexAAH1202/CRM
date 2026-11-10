@@ -170,3 +170,44 @@ test('a new member’s join asks the helper to share the Drive folder; admins ca
   ).toBeVisible();
   expect(log.filter((l) => l.action === 'syncFolderSharing')).toHaveLength(1);
 });
+
+test('New document: the helper makes a Google Doc, it is attached and opened', async ({
+  browser,
+}) => {
+  const ada = await signedInPage(browser, 'ada@example.com', 'Ada Lovelace');
+  await mockHelper(ada);
+  await ada.route('https://helper.test/**', async (route) => {
+    const body = JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>;
+    if (body['action'] !== 'createDoc') return route.fallback();
+    return route.fulfill({
+      status: 200,
+      headers: cors,
+      body: JSON.stringify({
+        ok: true,
+        data: {
+          driveFileId: 'doc123',
+          name: String(body['name']),
+          mimeType: 'application/vnd.google-apps.document',
+          size: 0,
+          url: 'https://docs.google.com/document/d/doc123/edit',
+        },
+      }),
+    });
+  });
+  await ada
+    .context()
+    .route('https://docs.google.com/**', (r) => r.fulfill({ status: 200, body: 'doc' }));
+  await boardWithFiles(ada);
+  await ada.getByRole('button', { name: 'Edit Files for Electricity' }).click();
+  const dlg = ada.getByRole('dialog', { name: 'Files for Electricity' });
+  const opened = ada.context().waitForEvent('page');
+  await dlg.getByRole('button', { name: 'New document' }).click();
+  await expect(dlg.getByRole('link', { name: 'Electricity' })).toHaveAttribute(
+    'href',
+    'https://docs.google.com/document/d/doc123/edit',
+  );
+  await expect
+    .poll(async () => (await opened).url())
+    .toContain('docs.google.com/document/d/doc123');
+  expect(permissionErrors(ada)).toEqual([]);
+});

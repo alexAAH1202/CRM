@@ -923,3 +923,14 @@ me` query per board I can see (only matching items are billed, plus one read per
 - Rules only check that `acceptance` is a small map: any editor may write it, so "only the assignee
   answers for themselves" is enforced by the app, not the database (a household is a trusted group,
   and the rules expression budget is tight). Automations that assign people don't ask for acceptance.
+
+### D100. New documents are Google Docs made by the helper
+
+- A Files cell's **New document** asks the helper (`createDoc`) for a blank Google Doc, named after
+  the item, in the household's Drive folder. It is attached to the cell like an upload and opens
+  in a new tab.
+- The folder only gives members _view_ access, so the helper also makes every member who can edit
+  (admins and members, not viewers) an editor of that one document. People who join later can
+  view it through the folder; the creator can share it further from Docs.
+- Google Docs rather than Word files: Word Online needs a Microsoft 365 setup, and Docs can still
+  download as .docx.
