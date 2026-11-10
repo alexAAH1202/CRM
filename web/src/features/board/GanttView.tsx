@@ -57,12 +57,23 @@ export function GanttView(p: ViewProps) {
       layout.flatMap((g) => {
         if (g.rows.length === 0) return [];
         const out: Line[] = [{ type: 'group', key: `g:${g.key}`, name: g.name, color: g.color }];
-        for (const r of g.rows)
-          for (const item of [r.item, ...r.subitems])
+        // Earliest first (no dates last), unless the view has its own sort.
+        const start = (it: (typeof g.rows)[number]['item']) =>
+          (col && spanOf(col, it.values[col.id])?.start) || '9999-99-99';
+        const byDate = <T extends (typeof g.rows)[number]['item']>(a: T, b: T) =>
+          start(a).localeCompare(start(b));
+        const rows = config.sort.length
+          ? g.rows
+          : [...g.rows].sort((a, b) => byDate(a.item, b.item));
+        for (const r of rows)
+          for (const item of [
+            r.item,
+            ...(config.sort.length ? r.subitems : [...r.subitems].sort(byDate)),
+          ])
             out.push({ type: 'item', key: item.id, item });
         return out;
       }),
-    [layout],
+    [layout, col, config.sort.length],
   );
 
   // Spans of every item on the board (not only the ones shown), for dependency logic.
