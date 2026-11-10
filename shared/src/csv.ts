@@ -37,7 +37,9 @@ export interface CsvInput {
  * text is guarded against formula injection.
  */
 export function boardToCsv(input: CsvInput): string {
-  const { columns, groups, memberName } = input;
+  const { groups, memberName } = input;
+  // The fixed "Group" column already says which group each item is in.
+  const columns = input.columns.filter((c) => c.type !== 'group');
   const groupName = (id: string) => groups.find((g) => g.id === id)?.name ?? '';
   const live = input.items.filter((i) => !i.deleted && (input.includeArchived || !i.archived));
   const byParent = new Map<string, ItemLike[]>();

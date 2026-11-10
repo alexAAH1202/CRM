@@ -146,10 +146,20 @@ export function planUpgradeBoard(
   board: { columns: readonly Column[]; schemaVersion?: number },
 ): WriteOp[] {
   if ((board.schemaVersion ?? 1) >= BOARD_SCHEMA_VERSION) return [];
-  const columns = board.columns.some((c) => c.type === 'group')
-    ? [...board.columns]
-    : [makeColumn('group', 'Group'), ...board.columns];
-  return planUpdateBoard(wid, bid, { columns, schemaVersion: BOARD_SCHEMA_VERSION });
+  return planUpdateBoard(wid, bid, {
+    columns: withGroupColumn(board.columns),
+    schemaVersion: BOARD_SCHEMA_VERSION,
+  });
+}
+
+/**
+ * Adds the Group column first if the list has none. If a column is already titled "Group", the
+ * new one is "List group", so formulas that say {Group} keep pointing at the old column.
+ */
+export function withGroupColumn(columns: readonly Column[]): Column[] {
+  if (columns.some((c) => c.type === 'group')) return [...columns];
+  const taken = columns.some((c) => c.title.trim().toLowerCase() === 'group');
+  return [makeColumn('group', taken ? 'List group' : 'Group'), ...columns];
 }
 
 /** Board-level edits (name, description, columns, groups, visibility, archived). */
@@ -501,7 +511,7 @@ export function planDuplicateBoard(input: {
         order: input.order,
         visibility: source.board.visibility,
         memberIds: private_ ? [...new Set([uid, ...source.board.memberIds])] : [],
-        columns: source.board.columns,
+        columns: withGroupColumn(source.board.columns),
         groups: source.board.groups,
         schemaVersion: BOARD_SCHEMA_VERSION,
         archived: false,

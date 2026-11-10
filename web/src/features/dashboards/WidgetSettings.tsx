@@ -1,4 +1,5 @@
 import {
+  isComputedType,
   GROUPABLE_TYPES,
   WIDGET_META,
   parseWidgetConfig,
@@ -52,12 +53,7 @@ export function WidgetSettings({
   const statusCols = cols.filter((x) => x.type === 'status');
   const groupCols = cols.filter((x) => GROUPABLE_TYPES.includes(x.type));
   const timelineCols = cols.filter((x) => x.type === 'timeline');
-  const storedCols = cols.filter(
-    (x) =>
-      !['formula', 'progress', 'itemId', 'createdAt', 'updatedAt', 'createdBy', 'time'].includes(
-        x.type,
-      ),
-  );
+  const storedCols = cols.filter((x) => !isComputedType(x.type) && x.type !== 'time');
   const statusCol = statusCols.find((x) => x.id === c.statusColumnId);
   const meta = WIDGET_META[type];
 

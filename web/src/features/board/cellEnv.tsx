@@ -74,7 +74,7 @@ export function useBoardCellEnv(
             items: [{ id: item.id, name: item.name }],
             groupName: board.groups.find((g) => g.id === groupId)?.name ?? '',
           },
-        });
+        }).catch((err: unknown) => toast.error(friendlyError(err)));
       },
     }),
     [items, wid, board, uid],

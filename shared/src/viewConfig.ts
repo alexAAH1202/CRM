@@ -200,8 +200,16 @@ export function isFilterIncomplete(f: Filter): boolean {
   return Number.isNaN(v);
 }
 
+/**
+ * Columns a filter, sort or automation condition can use. The Group column stores nothing (it
+ * shows the item's group, which is already how the list is divided), so it's left out.
+ */
+export function filterableColumns(columns: readonly Column[]): Column[] {
+  return columns.filter((c) => c.type !== 'group');
+}
+
 export function newFilter(columns: readonly Column[]): Filter {
-  const first = columns[0];
+  const first = filterableColumns(columns)[0];
   if (!first) return { id: shortId(), columnId: NAME_COLUMN_ID, op: 'contains', value: '' };
   return { id: shortId(), columnId: first.id, op: opsFor(first.type)[0] ?? 'isEmpty' };
 }

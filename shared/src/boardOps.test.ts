@@ -243,3 +243,26 @@ describe('2b planners', () => {
     expect(ops[2]!.kind === 'update' && ops[2]!.data[`values.${t.id}`]).toBe(DELETE_FIELD);
   });
 });
+
+describe('Group column', () => {
+  it('upgrades an old list once, adding Group first and avoiding a title clash', async () => {
+    const { planUpgradeBoard, withGroupColumn } = await import('./boardOps');
+    const { makeColumn } = await import('./columns');
+    const own = makeColumn('text', 'Group');
+    const cols = withGroupColumn([own]);
+    expect(cols.map((c) => [c.type, c.title])).toEqual([
+      ['group', 'List group'],
+      ['text', 'Group'],
+    ]);
+    expect(withGroupColumn(cols)).toHaveLength(2);
+    expect(planUpgradeBoard('w', 'b', { columns: [], schemaVersion: 2 })).toEqual([]);
+    const [op] = planUpgradeBoard('w', 'b', { columns: [] });
+    expect((op as unknown as { data: { schemaVersion: number } }).data.schemaVersion).toBe(2);
+  });
+
+  it('custom groups: trimmed, de-duplicated, capped', async () => {
+    const { customSections } = await import('./templates');
+    expect(customSections(' A, b ,a,, B\nC').map((s) => s.name)).toEqual(['A', 'b', 'C']);
+    expect(customSections(',,')).toEqual([]);
+  });
+});
