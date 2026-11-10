@@ -312,8 +312,8 @@ export function syncFolderSharing(
   p.cachePut(gapKey, '1', SYNC_MIN_GAP_SECONDS);
 
   const folder = ensureWorkspaceFolder(p, cfg, db, wid);
-  const members = db
-    .query({ parent: `workspaces/${wid}`, collection: 'members', limit: 200 })
+  const memberDocs = db.query({ parent: `workspaces/${wid}`, collection: 'members', limit: 200 });
+  const members = memberDocs
     .map((d) => d.data['email'])
     .filter((e): e is string => typeof e === 'string');
 
@@ -346,7 +346,50 @@ export function syncFolderSharing(
     if (res.status === 204 || res.status === 200 || res.status === 404) removed++;
     else p.log(`Drive unshare ${perm.id} failed: ${res.status}`);
   }
+  removed += revokeDocEditors(p, folder, editorEmails(memberDocs));
   return { shared: members.length, added, removed, skipped: false };
+}
+
+/** Lower-cased emails of members who may edit (admins and members, not viewers). */
+function editorEmails(memberDocs: ReadonlyArray<{ data: Record<string, unknown> }>): Set<string> {
+  return new Set(
+    memberDocs
+      .filter((d) => d.data['role'] !== 'viewer')
+      .map((d) => d.data['email'])
+      .filter((e): e is string => typeof e === 'string')
+      .map((e) => e.toLowerCase()),
+  );
+}
+
+/**
+ * New documents give each editor their own edit access (D100). Take it away again from anyone
+ * who has left or become a viewer, so leaving the household really does end their access.
+ */
+function revokeDocEditors(p: Platform, folder: string, editors: ReadonlySet<string>): number {
+  const q = `'${folder}' in parents and mimeType='${GOOGLE_DOC}' and trashed=false`;
+  const docs =
+    driveJson<{ files?: Array<{ id: string }> }>(p, 'list documents', {
+      url: `${DRIVE}/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=100`,
+    }).files ?? [];
+  let removed = 0;
+  for (const f of docs) {
+    const perms =
+      driveJson<{ permissions?: Permission[] }>(p, 'list document permissions', {
+        url: `${DRIVE}/files/${f.id}/permissions?fields=${encodeURIComponent('permissions(id,type,role,emailAddress)')}&pageSize=100`,
+      }).permissions ?? [];
+    for (const perm of perms) {
+      if (perm.type !== 'user' || perm.role !== 'writer' || !perm.emailAddress) continue;
+      if (editors.has(perm.emailAddress.toLowerCase())) continue;
+      const res = p.http({
+        url: `${DRIVE}/files/${f.id}/permissions/${perm.id}`,
+        method: 'DELETE',
+        oauth: true,
+      });
+      if (res.status === 204 || res.status === 200 || res.status === 404) removed++;
+      else p.log(`Document unshare ${perm.id} failed: ${res.status}`);
+    }
+  }
+  return removed;
 }
 
 /** Every workspace (used by the daily housekeeping run as a safety net). */
@@ -398,12 +441,10 @@ export function createDoc(
   });
   if (typeof made.id !== 'string')
     throw new HelperError('internal', 'Google Drive refused the request.');
-  const editors = db
-    .query({ parent: `workspaces/${wid}`, collection: 'members', limit: 200 })
-    .filter((d) => d.data['role'] !== 'viewer')
-    .map((d) => d.data['email'])
-    .filter((e): e is string => typeof e === 'string');
-  for (const email of new Set(editors.map((e) => e.toLowerCase()))) {
+  const editors = editorEmails(
+    db.query({ parent: `workspaces/${wid}`, collection: 'members', limit: 200 }),
+  );
+  for (const email of editors) {
     const res = p.http({
       url: `${DRIVE}/files/${made.id}/permissions?sendNotificationEmail=false`,
       method: 'POST',

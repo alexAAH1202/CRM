@@ -74,11 +74,8 @@ actions['uploadStart'] = {
 actions['createDoc'] = {
   auth: 'member',
   writes: true,
-  run: (ctx, req) => {
-    if (ctx.role === 'viewer')
-      throw new HelperError('forbidden', 'Viewers can’t create documents.');
-    return createDoc(ctx.p, ctx.cfg, ctx.db, ctx.caller as Caller, ctx.workspaceId as string, req);
-  },
+  run: (ctx, req) =>
+    createDoc(ctx.p, ctx.cfg, ctx.db, ctx.caller as Caller, ctx.workspaceId as string, req),
 };
 actions['uploadChunk'] = {
   auth: 'member',

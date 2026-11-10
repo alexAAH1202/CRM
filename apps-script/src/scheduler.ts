@@ -30,6 +30,8 @@ const RETRY_DELAY_MS = 10 * 60 * 1000;
 const MAX_ITEMS_PER_BOARD = 600;
 const MAX_TARGETS_PER_FIRE = 100;
 const HOUR = 3600 * 1000;
+/** Kept under Firestore's 500-writes-per-commit limit. */
+const COMMIT_LIMIT = 450;
 
 export interface RunSummary {
   due: number;
@@ -64,6 +66,8 @@ interface BoardState {
   groups: Group[];
   automations: Automation[];
   memberUids: Set<string>;
+  /** Members who can still edit and can see this list (a scheduled automation acts as its owner). */
+  editorUids: Set<string>;
   names: Map<string, string>;
   items: Map<string, EngineItem> | null;
 }
@@ -128,6 +132,17 @@ function loadBoard(db: FirestoreClient, wid: string, bid: string): BoardState | 
     groups: (Array.isArray(board.data['groups']) ? board.data['groups'] : []) as Group[],
     automations,
     memberUids: new Set(members.map((m) => m.id)),
+    editorUids: new Set(
+      members
+        .filter((m) => {
+          const role = m.data['role'];
+          if (role === 'admin') return true;
+          if (role !== 'member') return false;
+          const ids = Array.isArray(board.data['memberIds']) ? board.data['memberIds'] : [];
+          return board.data['visibility'] !== 'private' || ids.includes(m.id);
+        })
+        .map((m) => m.id),
+    ),
     names: new Map(members.map((m) => [m.id, String(m.data['displayName'] ?? m.id)])),
     items: null,
   };
@@ -298,6 +313,9 @@ function processEvent(p: Platform, db: FirestoreClient, b: BoardState, ev: Parse
 
   // The automation was deleted, switched off, or changed to something that isn't scheduled.
   if (!auto || !auto.enabled || !isScheduledAutomation(auto)) return remove();
+  // It acts as its owner, so it stops when they leave or can no longer edit this list (the helper
+  // isn't bound by the rules, so this is where that is enforced).
+  if (!b.editorUids.has(auto.ownerUid)) return remove();
   const t = auto.trigger;
   const now = p.nowMs();
 
@@ -314,7 +332,12 @@ function processEvent(p: Platform, db: FirestoreClient, b: BoardState, ev: Parse
     }
   } else {
     if ((t.type !== 'dateArrives' && t.type !== 'overdue') || !ev.itemId) return remove();
-    const item = itemsOf(db, b).get(ev.itemId);
+    // A big list may not fit in the bulk read: look the item up directly before giving up on it.
+    let item = itemsOf(db, b).get(ev.itemId);
+    if (!item) {
+      const d = db.getDoc(`workspaces/${b.wid}/boards/${b.bid}/items/${ev.itemId}`);
+      if (d) item = toEngineItem(d);
+    }
     if (!item || item.deleted || item.archived) return remove();
     const f = itemFireAt(t, item, b.columns, b.tz);
     // The date changed (or went) since this event was registered: put it right instead of firing.
@@ -433,8 +456,16 @@ function processEvent(p: Platform, db: FirestoreClient, b: BoardState, ev: Parse
       });
     }
 
+    // Firestore takes at most 500 writes per commit. The event and counter go in the first,
+    // guarded commit; anything over goes in follow-up commits.
+    const head = ops
+      .slice(-2)
+      .filter((o) => o.path === ev.doc.path || o.path.endsWith('/meta/counter'));
+    const body = ops.filter((o) => !head.includes(o));
     try {
-      db.commit(ops, preconditions);
+      db.commit([...head, ...body.slice(0, COMMIT_LIMIT - head.length)], preconditions);
+      for (let i = COMMIT_LIMIT - head.length; i < body.length; i += COMMIT_LIMIT)
+        db.commit(body.slice(i, i + COMMIT_LIMIT));
     } catch (e) {
       if (!(e instanceof PreconditionFailed)) throw e;
       // Either someone else already handled this event (then we're done), or the counter moved (try again).
@@ -524,7 +555,7 @@ export function rebuildSchedule(
         out.removed++;
       }
     }
-    if (ops.length) db.commit(ops);
+    for (let i = 0; i < ops.length; i += COMMIT_LIMIT) db.commit(ops.slice(i, i + COMMIT_LIMIT));
   }
   return out;
 }

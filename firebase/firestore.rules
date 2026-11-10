@@ -370,6 +370,9 @@ service cloud.firestore {
           && canSeeDashboard(resource.data)
           && validDashboard(request.resource.data)
           && !changedKeys().hasAny(['createdBy', 'createdAt'])
+          // As with lists, only the creator or an admin changes who can see it.
+          && (!changedKeys().hasAny(['visibility', 'memberIds'])
+              || isAdmin(wid) || resource.data.createdBy == request.auth.uid)
           && (request.resource.data.visibility == 'main'
               || request.auth.uid in request.resource.data.memberIds
               || isAdmin(wid));
@@ -419,8 +422,9 @@ service cloud.firestore {
           && (!changedKeys().hasAny(['visibility', 'memberIds'])
               || isAdmin(wid) || resource.data.createdBy == request.auth.uid);
 
-        allow delete: if isAdmin(wid)
-          || (canEdit(wid) && resource.data.createdBy == request.auth.uid);
+        // Admins only: a list's items, comments and automations go with it, and only admins may
+        // hard-delete those (the app offers "Delete permanently" to admins only).
+        allow delete: if isAdmin(wid);
 
         // ------------------------------------------------------ items
 
@@ -456,12 +460,21 @@ service cloud.firestore {
             && request.resource.data.createdAt == request.time
             && request.resource.data.deletedAt == null;
 
-          allow update: if canEditBoard(wid, bid)
+          allow update: if (canEditBoard(wid, bid)
             && validItem(request.resource.data)
             && !changedKeys().hasAny(['createdBy', 'createdAt', 'itemNumber'])
             && (!changedKeys().hasAny(['deletedAt'])
                 || request.resource.data.deletedAt == null
-                || request.resource.data.deletedAt == request.time);
+                || request.resource.data.deletedAt == request.time))
+            // Anyone who can see the list (viewers too) may accept or decline their own
+            // assignment, and change nothing else (D99).
+            || (canSeeBoard(wid, bid)
+              && changedKeys().hasOnly(['acceptance', 'updatedBy', 'updatedAt'])
+              && request.resource.data.acceptance is map
+              && request.resource.data.acceptance.diff(resource.data.get('acceptance', {}))
+                   .affectedKeys().hasOnly([request.auth.uid])
+              && request.resource.data.updatedBy == request.auth.uid
+              && request.resource.data.updatedAt == request.time);
 
           // Hard delete: Admins only (normal deletes are tombstones).
           allow delete: if isAdmin(wid);
@@ -673,8 +686,10 @@ service cloud.firestore {
           && request.auth.uid == recipient
           && isMember(wid);
 
-        // Any editor may notify another member (mentions, assignments).
-        allow create: if canEdit(wid)
+        // Any editor may notify another member (mentions, assignments); a viewer only to answer
+        // an assignment.
+        allow create: if (canEdit(wid)
+            || (isMember(wid) && request.resource.data.type == 'assignment'))
           && exists(memberPath(wid, recipient))
           && request.resource.data.keys().hasOnly(
                ['type', 'title', 'body', 'link', 'actor', 'read', 'createdAt'])

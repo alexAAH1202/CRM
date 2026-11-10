@@ -9,7 +9,10 @@ interface Perm {
 
 /** A small fake of the Drive REST calls the helper makes (folders, resumable upload, permissions). */
 export class FakeDrive {
-  folders = new Map<string, { name: string; parents: string[]; trashed: boolean }>();
+  folders = new Map<
+    string,
+    { name: string; parents: string[]; trashed: boolean; mimeType?: string }
+  >();
   perms = new Map<string, Perm[]>();
   sessions = new Map<string, { size: number; received: Buffer[]; meta: Record<string, unknown> }>();
   files = new Map<
@@ -70,6 +73,13 @@ export class FakeDrive {
     if (/\/drive\/v3\/files\?q=/.test(u) && m === 'GET') {
       const q = decodeURIComponent(/q=([^&]*)/.exec(u)![1]!);
       const parent = /'([^']+)' in parents/.exec(q)?.[1];
+      const mime = /mimeType='([^']+)'/.exec(q)?.[1];
+      if (mime)
+        return res(200, {
+          files: [...this.folders]
+            .filter(([, f]) => f.mimeType === mime && f.parents.includes(parent!) && !f.trashed)
+            .map(([id]) => ({ id })),
+        });
       if (q.includes("name='Backups'")) {
         const hit = [...this.folders].find(
           ([, f]) => f.name === 'Backups' && f.parents.includes(parent!) && !f.trashed,
@@ -90,9 +100,18 @@ export class FakeDrive {
       return res(200, {});
     }
     if (/\/drive\/v3\/files(\?|$)/.test(u) && m === 'POST') {
-      const b = JSON.parse(req.body ?? '{}') as { name: string; parents: string[] };
+      const b = JSON.parse(req.body ?? '{}') as {
+        name: string;
+        parents: string[];
+        mimeType?: string;
+      };
       const id = `folder${++this.n}`;
-      this.folders.set(id, { name: b.name, parents: b.parents, trashed: false });
+      this.folders.set(id, {
+        name: b.name,
+        parents: b.parents,
+        trashed: false,
+        mimeType: b.mimeType,
+      });
       return res(200, { id });
     }
     return res(404, { error: `no route ${m} ${u}` });

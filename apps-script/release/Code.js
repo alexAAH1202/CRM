@@ -1646,7 +1646,7 @@ var Sorted = (() => {
       this.code = code;
     }
   };
-  var HELPER_VERSION = "7e.1";
+  var HELPER_VERSION = "7e.2";
 
   // ../shared/src/scheduleOps.ts
   function eventId(automationId, itemId) {
@@ -2179,7 +2179,8 @@ var Sorted = (() => {
     if (!opts.force && p.cacheGet(gapKey)) return { shared: 0, added: 0, removed: 0, skipped: true };
     p.cachePut(gapKey, "1", SYNC_MIN_GAP_SECONDS);
     const folder = ensureWorkspaceFolder(p, cfg, db, wid);
-    const members = db.query({ parent: `workspaces/${wid}`, collection: "members", limit: 200 }).map((d) => d.data["email"]).filter((e) => typeof e === "string");
+    const memberDocs = db.query({ parent: `workspaces/${wid}`, collection: "members", limit: 200 });
+    const members = memberDocs.map((d) => d.data["email"]).filter((e) => typeof e === "string");
     const perms = driveJson(p, "list permissions", {
       url: `${DRIVE}/files/${folder}/permissions?fields=${encodeURIComponent("permissions(id,type,role,emailAddress)")}&pageSize=100`
     }).permissions ?? [];
@@ -2206,7 +2207,37 @@ var Sorted = (() => {
       if (res.status === 204 || res.status === 200 || res.status === 404) removed++;
       else p.log(`Drive unshare ${perm.id} failed: ${res.status}`);
     }
+    removed += revokeDocEditors(p, folder, editorEmails(memberDocs));
     return { shared: members.length, added, removed, skipped: false };
+  }
+  function editorEmails(memberDocs) {
+    return new Set(
+      memberDocs.filter((d) => d.data["role"] !== "viewer").map((d) => d.data["email"]).filter((e) => typeof e === "string").map((e) => e.toLowerCase())
+    );
+  }
+  function revokeDocEditors(p, folder, editors) {
+    const q = `'${folder}' in parents and mimeType='${GOOGLE_DOC}' and trashed=false`;
+    const docs = driveJson(p, "list documents", {
+      url: `${DRIVE}/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=100`
+    }).files ?? [];
+    let removed = 0;
+    for (const f of docs) {
+      const perms = driveJson(p, "list document permissions", {
+        url: `${DRIVE}/files/${f.id}/permissions?fields=${encodeURIComponent("permissions(id,type,role,emailAddress)")}&pageSize=100`
+      }).permissions ?? [];
+      for (const perm of perms) {
+        if (perm.type !== "user" || perm.role !== "writer" || !perm.emailAddress) continue;
+        if (editors.has(perm.emailAddress.toLowerCase())) continue;
+        const res = p.http({
+          url: `${DRIVE}/files/${f.id}/permissions/${perm.id}`,
+          method: "DELETE",
+          oauth: true
+        });
+        if (res.status === 204 || res.status === 200 || res.status === 404) removed++;
+        else p.log(`Document unshare ${perm.id} failed: ${res.status}`);
+      }
+    }
+    return removed;
   }
   function syncAllFolders(p, cfg, db) {
     const workspaces = db.query({ collection: "workspaces", limit: 100 });
@@ -2238,8 +2269,10 @@ var Sorted = (() => {
     });
     if (typeof made.id !== "string")
       throw new HelperError("internal", "Google Drive refused the request.");
-    const editors = db.query({ parent: `workspaces/${wid}`, collection: "members", limit: 200 }).filter((d) => d.data["role"] !== "viewer").map((d) => d.data["email"]).filter((e) => typeof e === "string");
-    for (const email of new Set(editors.map((e) => e.toLowerCase()))) {
+    const editors = editorEmails(
+      db.query({ parent: `workspaces/${wid}`, collection: "members", limit: 200 })
+    );
+    for (const email of editors) {
       const res = p.http({
         url: `${DRIVE}/files/${made.id}/permissions?sendNotificationEmail=false`,
         method: "POST",
@@ -2897,6 +2930,7 @@ var Sorted = (() => {
   var MAX_ITEMS_PER_BOARD = 600;
   var MAX_TARGETS_PER_FIRE = 100;
   var HOUR = 3600 * 1e3;
+  var COMMIT_LIMIT = 450;
   var EVENT_PATH = /^workspaces\/([^/]+)\/boards\/([^/]+)\/scheduledEvents\/([^/]+)$/;
   function parseEvent(doc) {
     const m = EVENT_PATH.exec(doc.path);
@@ -2948,6 +2982,15 @@ var Sorted = (() => {
       groups: Array.isArray(board.data["groups"]) ? board.data["groups"] : [],
       automations,
       memberUids: new Set(members.map((m) => m.id)),
+      editorUids: new Set(
+        members.filter((m) => {
+          const role = m.data["role"];
+          if (role === "admin") return true;
+          if (role !== "member") return false;
+          const ids = Array.isArray(board.data["memberIds"]) ? board.data["memberIds"] : [];
+          return board.data["visibility"] !== "private" || ids.includes(m.id);
+        }).map((m) => m.id)
+      ),
       names: new Map(members.map((m) => [m.id, String(m.data["displayName"] ?? m.id)])),
       items: null
     };
@@ -3079,6 +3122,7 @@ var Sorted = (() => {
     ]);
     const remove = () => safeCommit(db, [{ kind: "delete", path: ev.doc.path }], pre) ? "skipped" : "conflict";
     if (!auto || !auto.enabled || !isScheduledAutomation(auto)) return remove();
+    if (!b.editorUids.has(auto.ownerUid)) return remove();
     const t = auto.trigger;
     const now = p.nowMs();
     let targets;
@@ -3090,7 +3134,11 @@ var Sorted = (() => {
       }
     } else {
       if (t.type !== "dateArrives" && t.type !== "overdue" || !ev.itemId) return remove();
-      const item = itemsOf(db, b).get(ev.itemId);
+      let item = itemsOf(db, b).get(ev.itemId);
+      if (!item) {
+        const d = db.getDoc(`workspaces/${b.wid}/boards/${b.bid}/items/${ev.itemId}`);
+        if (d) item = toEngineItem(d);
+      }
       if (!item || item.deleted || item.archived) return remove();
       const f = itemFireAt(t, item, b.columns, b.tz);
       if (!f || f.dateValue !== ev.dateValue) {
@@ -3198,8 +3246,12 @@ var Sorted = (() => {
           }
         });
       }
+      const head = ops.slice(-2).filter((o) => o.path === ev.doc.path || o.path.endsWith("/meta/counter"));
+      const body = ops.filter((o) => !head.includes(o));
       try {
-        db.commit(ops, preconditions);
+        db.commit([...head, ...body.slice(0, COMMIT_LIMIT - head.length)], preconditions);
+        for (let i = COMMIT_LIMIT - head.length; i < body.length; i += COMMIT_LIMIT)
+          db.commit(body.slice(i, i + COMMIT_LIMIT));
       } catch (e) {
         if (!(e instanceof PreconditionFailed)) throw e;
         const fresh = db.getDoc(ev.doc.path);
@@ -3258,7 +3310,7 @@ var Sorted = (() => {
           out.removed++;
         }
       }
-      if (ops.length) db.commit(ops);
+      for (let i = 0; i < ops.length; i += COMMIT_LIMIT) db.commit(ops.slice(i, i + COMMIT_LIMIT));
     }
     return out;
   }
@@ -3336,11 +3388,7 @@ var Sorted = (() => {
   actions["createDoc"] = {
     auth: "member",
     writes: true,
-    run: (ctx, req) => {
-      if (ctx.role === "viewer")
-        throw new HelperError("forbidden", "Viewers can’t create documents.");
-      return createDoc(ctx.p, ctx.cfg, ctx.db, ctx.caller, ctx.workspaceId, req);
-    }
+    run: (ctx, req) => createDoc(ctx.p, ctx.cfg, ctx.db, ctx.caller, ctx.workspaceId, req)
   };
   actions["uploadChunk"] = {
     auth: "member",

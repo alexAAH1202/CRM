@@ -135,10 +135,11 @@ describe('boards: writing', () => {
     );
   });
 
-  it('delete: admins or the creator', async () => {
+  it('delete: admins only (its items go with it, and only admins hard-delete those)', async () => {
     await setDoc(doc(db(env, 'bob'), `${B}/b3`), newBoard('bob'));
     await assertFails(deleteDoc(doc(db(env, 'bob'), `${B}/${MAIN_BOARD}`)));
-    await assertSucceeds(deleteDoc(doc(db(env, 'bob'), `${B}/b3`)));
+    await assertFails(deleteDoc(doc(db(env, 'bob'), `${B}/b3`)));
+    await assertSucceeds(deleteDoc(doc(db(env, 'alice'), `${B}/b3`)));
     await assertSucceeds(deleteDoc(doc(db(env, 'alice'), `${B}/${MAIN_BOARD}`)));
   });
 });
