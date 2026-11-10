@@ -52,7 +52,7 @@ export interface WhoAmI {
 }
 
 /** Bump when the helper code changes in a way the app should notice. */
-export const HELPER_VERSION = '7e.4';
+export const HELPER_VERSION = '7f.1';
 
 export interface HelperActions {
   ping: { request: Record<string, never>; response: { pong: true; at: string; version: string } };
@@ -79,6 +79,8 @@ export interface HelperActions {
       } | null;
       digest: { at: string; sent: number; failed: number } | null;
       lastBackupAt: string | null;
+      /** Last Google Calendar sync (absent from helpers older than 7f.1). */
+      calendar?: { at: string; items: number; failed: number; error: string | null } | null;
     };
   };
   /** Member: start an upload to the workspace's Drive folder. */

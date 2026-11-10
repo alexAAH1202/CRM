@@ -212,6 +212,21 @@ export function HelperStatus() {
             </span>
           </li>
           <li>
+            <span className="font-semibold">Google Calendar:</span>{' '}
+            {maint.calendar
+              ? `last checked ${when(maint.calendar.at)}`
+              : 'hasn’t run yet (it checks every 10 minutes)'}
+            {maint.calendar?.error && (
+              <span className="block text-danger" role="alert">
+                Problem: {maint.calendar.error}
+              </span>
+            )}
+            <span className="block text-xs text-muted">
+              Due dates go on each person’s “Sorted – name” calendar: the people assigned, or
+              whoever created the item.
+            </span>
+          </li>
+          <li>
             <span className="font-semibold">Daily emails:</span>{' '}
             {maint.digest
               ? `last run ${when(maint.digest.at)}, ${maint.digest.sent} sent${maint.digest.failed ? `, ${maint.digest.failed} failed` : ''}`

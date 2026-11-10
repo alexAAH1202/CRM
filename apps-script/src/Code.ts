@@ -10,6 +10,9 @@ import { runMorning, runNightly } from './nightly';
 import { gasPlatform } from './gas';
 import { handleRequest } from './router';
 import { runDueEvents } from './scheduler';
+import { syncCalendars } from './calendar';
+import { loadConfig } from './config';
+import { FirestoreClient } from './firestore';
 
 function json(body: unknown): GoogleAppsScript.Content.TextOutput {
   return ContentService.createTextOutput(JSON.stringify(body)).setMimeType(
@@ -39,8 +42,20 @@ export function runScheduler(): void {
     const sum = runDueEvents(gasPlatform());
     if (sum.due > 0) console.log(`Scheduler: ${JSON.stringify(sum)}`);
   } catch (e) {
-    // Never throw out of a trigger: Apps Script would email a failure notice for every run.
     console.error(`Scheduler failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
+  }
+  // Due dates into each person's Google Calendar (never throws).
+  try {
+    const p = gasPlatform();
+    const cal = syncCalendars(p, new FirestoreClient(p, loadConfig(p).projectId), {
+      deadline: Date.now() + 2 * 60_000,
+    });
+    if (cal.items > 0 || cal.error) console.log(`Calendars: ${JSON.stringify(cal)}`);
+  } catch (e) {
+    // Never throw out of a trigger: Apps Script would email a failure notice for every run.
+    console.error(
+      `Calendar sync failed: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`,
+    );
   }
 }
 export function runHousekeeping(): void {

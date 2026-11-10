@@ -961,3 +961,18 @@ me` query per board I can see (only matching items are billed, plus one read per
   and looks an item up directly before treating it as deleted.
 - Folder sync also removes document edit access (D100) from people who left or became viewers.
 - Not changed: notifications of people who have left are not purged (no safe query for them yet).
+
+### D103. Due dates in Google Calendar
+
+- The helper (running as the script owner) keeps one Google Calendar per member,
+  "Sorted – <name>", in the owner's account, shared with that member (edit access) so it appears
+  in their own Google Calendar. A calendar is only created once someone has something due.
+- An item with a due date (the Date column called "Due…", else the first Date column, else the
+  end of the first Timeline) is an all-day event on the calendar of each person assigned to it, or
+  of its creator when nobody is. Done (a "Done"-like status), archived, deleted or undated items
+  have no event; reassigning moves it.
+- Runs with the 10-minute scheduler and only reads items changed since the last run (a
+  collection-group query on `items.updatedAt`, which needed a field override). Event ids are a hash
+  of the item path, so nothing is stored per event; calendar ids are kept in Script Properties.
+- Limits: items on a list that is deleted outright keep their events (delete them in Calendar);
+  reminder times are each person's own calendar notification settings.

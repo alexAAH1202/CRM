@@ -325,6 +325,13 @@ the `main` branch). Use the same Google account as before.
 
 #### B4.6. Updating the helper later
 
+- Version 7f.1 adds **Google Calendar due dates**. When you deploy it, Google asks you once to
+  allow **Calendar** access: approve it (Apps Script may only ask the first time a trigger runs;
+  if so, open the editor, choose `runScheduler` and press **Run** once to see the prompt).
+  Each person then gets an email that a "Sorted – name" calendar was shared with them: open it
+  and click **Add calendar**. In Google Calendar, set that calendar's notifications (for example
+  "1 day before") under its settings.
+
 - Version 7e.1 adds **New document** (Google Docs in the household's Drive folder). It needs
   no new trigger or permission: redeploy as below.
 

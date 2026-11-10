@@ -29,6 +29,7 @@
 - **Time tracking** column: press ▶ to time something, or add time you already spent. **Timesheet**
   (sidebar) totals it by person or item, with CSV export.
 - **My work**: everything assigned to you, by due date. **Search**: Ctrl/⌘+K.
+- **Google Calendar**: anything with a due date shows as an all-day event on your own "Sorted – your name" calendar (items assigned to you, or that you created when nobody is assigned). It disappears when the item is Done. Choose alert times in Google Calendar.
 - **Groups**: every list has a **Group** column. Change it to move an item to another group (or drag the item). When you make a list you choose its groups: the template's own, Tasks, Bills, Study, Project, or your own.
 - **New documents**: in a Files cell, **New document** makes a Google Doc named after the item, attaches it and opens it. Everyone in the household who can edit can edit it (it downloads as Word from File → Download).
 - **Accepting tasks**: when someone assigns you an item you get a notification with **Accept** / **Reject** (or mark it read). The item shows who has accepted, who has declined and who it is still waiting on.
