@@ -906,3 +906,9 @@ me` query per board I can see (only matching items are billed, plus one read per
   ("do it, move the date, or let it go?").
 - **Today's plan**: pick up to three things; stored on your user profile as `settings.todayPlan
 { date, picks[≤3] }` (rules allow only that shape, only for yourself) and forgotten the next day.
+
+### D98. The Timeline view lists items earliest first
+
+- Within each group, items are ordered by their start date (undated items last); subitems stay under
+  their parent and are ordered the same way. If the view has a sort of its own, that sort is used
+  instead. Only the Timeline view does this; the table keeps your hand-made order.
