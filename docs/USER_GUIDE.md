@@ -29,6 +29,7 @@
 - **Time tracking** column: press ▶ to time something, or add time you already spent. **Timesheet**
   (sidebar) totals it by person or item, with CSV export.
 - **My work**: everything assigned to you, by due date. **Search**: Ctrl/⌘+K.
+- **Accepting tasks**: when someone assigns you an item you get a notification with **Accept** / **Reject** (or mark it read). The item shows who has accepted, who has declined and who it is still waiting on.
 - **Dashboards**: numbers, progress, charts, overdue items and more from up to five lists.
 - **Daily email**: bell → ⚙ → "Email me a daily summary".
 

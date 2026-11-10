@@ -203,6 +203,32 @@ export function planUpdateItem(
   return [{ kind: 'update', path: boardPaths.item(wid, bid, iid), data }];
 }
 
+export type AcceptanceState = 'pending' | 'accepted' | 'rejected';
+export interface AcceptanceEntry {
+  state: AcceptanceState;
+  /** Who assigned them. */
+  by: string;
+}
+
+/**
+ * Field updates for item.acceptance when the assignees change: someone newly assigned by another
+ * person is waiting to accept; assigning yourself counts as accepted; removed people are cleared.
+ */
+export function acceptanceChanges(
+  before: readonly string[],
+  after: readonly string[],
+  editor: string,
+): DocData {
+  const had = new Set(before);
+  const has = new Set(after);
+  const out: DocData = {};
+  for (const u of has)
+    if (!had.has(u))
+      out[`acceptance.${u}`] = { state: u === editor ? 'accepted' : 'pending', by: editor };
+  for (const u of had) if (!has.has(u)) out[`acceptance.${u}`] = DELETE_FIELD;
+  return out;
+}
+
 /** Sets (or clears) one cell, keeping assigneeUids in step with People columns. */
 export function planSetCell(input: {
   wid: string;
@@ -222,7 +248,12 @@ export function planSetCell(input: {
   };
   if (input.column.type === 'people') {
     const next = { ...input.currentValues, [input.column.id]: v };
-    data['assigneeUids'] = computeAssignees(input.columns, next);
+    const after = computeAssignees(input.columns, next);
+    data['assigneeUids'] = after;
+    Object.assign(
+      data,
+      acceptanceChanges(computeAssignees(input.columns, input.currentValues), after, input.uid),
+    );
   }
   return [{ kind: 'update', path: boardPaths.item(input.wid, input.bid, input.iid), data }];
 }

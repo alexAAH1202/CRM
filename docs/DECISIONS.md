@@ -912,3 +912,14 @@ me` query per board I can see (only matching items are billed, plus one read per
 - Within each group, items are ordered by their start date (undated items last); subitems stay under
   their parent and are ordered the same way. If the view has a sort of its own, that sort is used
   instead. Only the Timeline view does this; the table keeps your hand-made order.
+
+### D99. Assignments wait for acceptance
+
+- Items carry `acceptance: { [uid]: { state: 'pending' | 'accepted' | 'rejected', by } }`, kept in
+  step with the People columns by `planSetCell`: someone assigned by another person is _pending_,
+  assigning yourself counts as _accepted_, and people removed from the item are cleared.
+- The assignee answers from the notification (Accept / Reject, or just mark it read) or from the
+  item panel's banner. Answering marks the notification read and notifies whoever assigned them.
+- Rules only check that `acceptance` is a small map: any editor may write it, so "only the assignee
+  answers for themselves" is enforced by the app, not the database (a household is a trusted group,
+  and the rules expression budget is tight). Automations that assign people don't ask for acceptance.

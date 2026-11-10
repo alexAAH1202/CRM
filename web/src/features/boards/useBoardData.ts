@@ -53,6 +53,10 @@ function toItem(d: QueryDocumentSnapshot<DocumentData>): BoardItem {
     itemNumber: typeof x['itemNumber'] === 'number' ? x['itemNumber'] : 0,
     values: (x['values'] as Record<string, unknown>) ?? {},
     assigneeUids: Array.isArray(x['assigneeUids']) ? (x['assigneeUids'] as string[]) : [],
+    acceptance:
+      x['acceptance'] && typeof x['acceptance'] === 'object'
+        ? (x['acceptance'] as BoardItem['acceptance'])
+        : {},
     archived: x['archived'] === true,
     deleted: x['deletedAt'] != null,
     deletedAtMs: x['deletedAt'] instanceof Timestamp ? x['deletedAt'].toMillis() : null,

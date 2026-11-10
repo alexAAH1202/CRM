@@ -4,6 +4,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  planRespondToAssignment,
   boardPaths,
   buildTemplate,
   makeColumn,
@@ -163,6 +164,30 @@ describe('board planners against the rules', () => {
     );
     await assertFails(
       commitOps(db(env, 'carol'), planSetCell({ ...base, uid: 'carol', value: 'done' })),
+    );
+    // assigning someone records acceptance; they can answer
+    const who = makeColumn('people');
+    await assertSucceeds(
+      commitOps(
+        db(env, 'bob'),
+        planSetCell({ ...base, columns: [who], column: who, uid: 'bob', value: ['alice'] }),
+      ),
+    );
+    await assertSucceeds(
+      commitOps(
+        db(env, 'alice'),
+        planRespondToAssignment({
+          wid: WID,
+          bid: MAIN_BOARD,
+          iid: 'i1',
+          uid: 'alice',
+          responderName: 'Alice',
+          response: 'accepted',
+          assigner: 'bob',
+          itemName: 'x',
+          newId: () => 'resp1',
+        }),
+      ),
     );
     await assertSucceeds(commitOps(db(env, 'bob'), planDeleteItem(WID, MAIN_BOARD, 'i1', 'bob')));
   });
