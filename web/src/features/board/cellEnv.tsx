@@ -1,8 +1,8 @@
-import type { Column } from '@app/shared';
+import { keysBetween, type Column, type Group } from '@app/shared';
 import { createContext, useContext, useMemo } from 'react';
 import { friendlyError } from '../../lib/firestore/errors';
 import { toast } from '../../stores/toast';
-import { saveColumns, setCell } from '../boards/api';
+import { moveItemsToGroup, saveColumns, setCell } from '../boards/api';
 import type { Board, BoardItem } from '../boards/types';
 
 /** What cells need from the board beyond their own item (kept in context, not prop-drilled). */
@@ -18,6 +18,10 @@ export interface CellEnv {
    * before the cell value can reference the new tag).
    */
   saveColumnAndSet: (column: Column, item: BoardItem, value: unknown) => void;
+  /** The board's groups (for the Group column). */
+  groups: readonly Group[];
+  /** Moves an item (and its subitems) to the end of another group. */
+  moveToGroup: (item: BoardItem, groupId: string) => void;
 }
 
 const Ctx = createContext<CellEnv | null>(null);
@@ -48,6 +52,29 @@ export function useBoardCellEnv(
         saveColumns(wid, board.id, columns)
           .then(() => setCell({ wid, board: { ...board, columns }, item, uid, column, value }))
           .catch((err: unknown) => toast.error(friendlyError(err)));
+      },
+      groups: board.groups,
+      moveToGroup: (item: BoardItem, groupId: string) => {
+        if (item.groupId === groupId) return;
+        let last: string | null = null;
+        const childIds: string[] = [];
+        for (const it of items.values()) {
+          if (it.deleted) continue;
+          if (it.parentId === item.id) childIds.push(it.id);
+          else if (!it.parentId && it.groupId === groupId && (last === null || it.order > last))
+            last = it.order;
+        }
+        moveItemsToGroup({
+          wid,
+          bid: board.id,
+          uid,
+          groupId,
+          moves: [{ id: item.id, childIds, order: keysBetween(last, null, 1)[0]! }],
+          log: {
+            items: [{ id: item.id, name: item.name }],
+            groupName: board.groups.find((g) => g.id === groupId)?.name ?? '',
+          },
+        });
       },
     }),
     [items, wid, board, uid],

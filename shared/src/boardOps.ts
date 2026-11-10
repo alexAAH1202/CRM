@@ -2,6 +2,7 @@ import { BOARD_SCHEMA_VERSION, type BoardDoc, type BoardVisibility, type Group }
 import {
   computeAssignees,
   isComputedType,
+  makeColumn,
   normalizeValue,
   type Column,
   type DependencyValue,
@@ -138,6 +139,19 @@ export function planCreateBoard(input: {
   return ops;
 }
 
+/** Brings an older list up to date: version 2 adds the Group column (first, after Item). */
+export function planUpgradeBoard(
+  wid: string,
+  bid: string,
+  board: { columns: readonly Column[]; schemaVersion?: number },
+): WriteOp[] {
+  if ((board.schemaVersion ?? 1) >= BOARD_SCHEMA_VERSION) return [];
+  const columns = board.columns.some((c) => c.type === 'group')
+    ? [...board.columns]
+    : [makeColumn('group', 'Group'), ...board.columns];
+  return planUpdateBoard(wid, bid, { columns, schemaVersion: BOARD_SCHEMA_VERSION });
+}
+
 /** Board-level edits (name, description, columns, groups, visibility, archived). */
 export function planUpdateBoard(
   wid: string,
@@ -152,6 +166,7 @@ export function planUpdateBoard(
     archived: boolean;
     order: string;
     folderId: string | null;
+    schemaVersion: number;
   }>,
 ): WriteOp[] {
   return [

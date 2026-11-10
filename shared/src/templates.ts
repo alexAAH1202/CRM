@@ -422,22 +422,95 @@ export interface BuiltTemplate {
   items: Array<{ name: string; groupId: string; values: Record<string, unknown> }>;
 }
 
-/** Instantiates a template with fresh ids; item values are keyed by real column ids. */
-export function buildTemplate(id: TemplateId): BuiltTemplate {
+/** The sections a new list can start with (its groups, shown in the Group column). */
+export const LIST_TYPES = [
+  { id: 'template', name: 'As the template', sections: [] },
+  {
+    id: 'tasks',
+    name: 'Tasks',
+    sections: [
+      { name: 'To do', color: 'blue' },
+      { name: 'Doing', color: 'orange' },
+      { name: 'Done', color: 'green' },
+    ],
+  },
+  {
+    id: 'bills',
+    name: 'Bills',
+    sections: [
+      { name: 'Upcoming', color: 'blue' },
+      { name: 'Paid', color: 'green' },
+      { name: 'Overdue', color: 'red' },
+    ],
+  },
+  {
+    id: 'study',
+    name: 'Study',
+    sections: [
+      { name: 'Not started', color: 'gray' },
+      { name: 'In progress', color: 'orange' },
+      { name: 'Submitted', color: 'green' },
+    ],
+  },
+  {
+    id: 'project',
+    name: 'Project',
+    sections: [
+      { name: 'Planning', color: 'purple' },
+      { name: 'In progress', color: 'orange' },
+      { name: 'Waiting', color: 'yellow' },
+      { name: 'Done', color: 'green' },
+    ],
+  },
+  { id: 'custom', name: 'Custom', sections: [] },
+] as const satisfies ReadonlyArray<{
+  id: string;
+  name: string;
+  sections: ReadonlyArray<{ name: string; color: LabelColor }>;
+}>;
+export type ListTypeId = (typeof LIST_TYPES)[number]['id'];
+const CUSTOM_COLORS: LabelColor[] = ['blue', 'orange', 'green', 'purple', 'red', 'yellow', 'gray'];
+
+/** Section names typed by hand ("A, B, C"): trimmed, de-duplicated, at most 12. */
+export function customSections(text: string): Array<{ name: string; color: LabelColor }> {
+  const seen = new Set<string>();
+  return text
+    .split(/[,\n]/)
+    .map((s) => s.trim().slice(0, 60))
+    .filter((s) => s && !seen.has(s.toLowerCase()) && seen.add(s.toLowerCase()))
+    .slice(0, 12)
+    .map((name, i) => ({ name, color: CUSTOM_COLORS[i % CUSTOM_COLORS.length]! }));
+}
+
+/**
+ * Instantiates a template with fresh ids; item values are keyed by real column ids. Every list
+ * gets a Group column first. `sections` replaces the template's groups (its items go in the first).
+ */
+export function buildTemplate(
+  id: TemplateId,
+  sections?: ReadonlyArray<{ name: string; color: LabelColor }>,
+): BuiltTemplate {
   const spec = SPECS.find((s) => s.id === id);
   if (!spec) throw new Error(`Unknown template ${id}`);
   const colIds = new Map<string, Column>();
-  const columns = spec.columns.map((c) => {
-    const col = makeColumn(c.type, c.title, c.settings ?? {});
-    colIds.set(c.key, col);
-    return col;
-  });
+  const columns = [
+    makeColumn('group', 'Group'),
+    ...spec.columns.map((c) => {
+      const col = makeColumn(c.type, c.title, c.settings ?? {});
+      colIds.set(c.key, col);
+      return col;
+    }),
+  ];
   const groupIds = new Map<string, string>();
-  const groups: Group[] = spec.groups.map((g) => {
-    const gid = shortId();
-    groupIds.set(g.key, gid);
-    return { id: gid, name: g.name, color: g.color };
-  });
+  const custom = sections && sections.length > 0;
+  const groups: Group[] = custom
+    ? sections.map((g) => ({ id: shortId(), name: g.name, color: g.color }))
+    : spec.groups.map((g) => {
+        const gid = shortId();
+        groupIds.set(g.key, gid);
+        return { id: gid, name: g.name, color: g.color };
+      });
+  if (custom) for (const g of spec.groups) groupIds.set(g.key, groups[0]!.id);
   const items = spec.items.map((it) => {
     const values: Record<string, unknown> = {};
     for (const col of columns) {

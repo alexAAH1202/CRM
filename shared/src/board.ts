@@ -23,7 +23,8 @@ export interface BoardDoc {
   createdBy: string;
 }
 
-export const BOARD_SCHEMA_VERSION = 1;
+/** 2: every list has a Group column (D101). */
+export const BOARD_SCHEMA_VERSION = 2;
 
 export const GROUP_COLORS: LabelColor[] = [
   'blue',

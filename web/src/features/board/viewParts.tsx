@@ -43,8 +43,13 @@ export function useVisibleItems(p: ViewProps) {
     [today, user.uid, memberName],
   );
   const env = useMemo<ComputedEnv>(
-    () => ({ today, memberName, itemName: (id) => items.get(id)?.name }),
-    [today, memberName, items],
+    () => ({
+      today,
+      memberName,
+      itemName: (id) => items.get(id)?.name,
+      groupName: (id) => board.groups.find((g) => g.id === id)?.name,
+    }),
+    [today, memberName, items, board.groups],
   );
   const computed = useMemo(
     () => applyComputed([...items.values()], board.columns, env),

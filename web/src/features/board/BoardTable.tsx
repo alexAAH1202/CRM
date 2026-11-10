@@ -189,8 +189,13 @@ export function BoardTable({
   // Formula, progress, item ID and created/updated columns are worked out here, on every
   // render of the data — never stored (spec: "compute on render, cache nothing").
   const computedEnv = useMemo<ComputedEnv>(
-    () => ({ today, memberName, itemName: (id) => items.get(id)?.name }),
-    [today, memberName, items],
+    () => ({
+      today,
+      memberName,
+      itemName: (id) => items.get(id)?.name,
+      groupName: (id) => board.groups.find((g) => g.id === id)?.name,
+    }),
+    [today, memberName, items, board.groups],
   );
   const shownItems = useMemo(
     () => applyComputed([...items.values()], board.columns, computedEnv),

@@ -290,9 +290,11 @@ var Sorted = (() => {
     "itemId",
     "createdAt",
     "updatedAt",
-    "createdBy"
+    "createdBy",
+    "group"
   ];
   var COMPUTED_TYPES = [
+    "group",
     "formula",
     "progress",
     "itemId",
@@ -387,6 +389,12 @@ var Sorted = (() => {
       width: 130,
       description: "When the item last changed",
       group: "Calculated"
+    },
+    group: {
+      label: "Group",
+      width: 150,
+      description: "Which group the item is in; change it to move the item",
+      group: "Choices & people"
     },
     createdBy: {
       label: "Created by",
@@ -557,6 +565,7 @@ var Sorted = (() => {
       case "updatedAt":
         return isIsoDate(v) ? v : null;
       case "createdBy":
+      case "group":
         return typeof v === "string" && v !== "" ? v : null;
       case "formula":
         if (typeof v === "number") return Number.isFinite(v) ? v : null;
@@ -763,6 +772,7 @@ var Sorted = (() => {
     switch (col.type) {
       case "text":
       case "longText":
+      case "group":
         return matchText(typeof v === "string" ? v : "", f);
       case "link":
         return matchText(v ? v.text || v.url : "", f);

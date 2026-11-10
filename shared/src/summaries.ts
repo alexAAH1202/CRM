@@ -34,6 +34,7 @@ export function summaryOptions(type: ColumnType): SummaryKind[] {
     case 'createdAt':
     case 'updatedAt':
     case 'createdBy':
+    case 'group':
       return ['none'];
     case 'status':
     case 'dropdown':

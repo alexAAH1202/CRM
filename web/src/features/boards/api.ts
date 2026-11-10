@@ -46,6 +46,8 @@ import {
   type Group,
   type TemplateId,
   type WriteOp,
+  type LabelColor,
+  planUpgradeBoard,
 } from '@app/shared';
 import { collection, doc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
@@ -151,6 +153,8 @@ export async function createBoard(input: {
   uid: string;
   name: string;
   template: TemplateId;
+  /** The list's starting sections; empty keeps the template's own groups. */
+  sections?: ReadonlyArray<{ name: string; color: LabelColor }>;
   visibility: BoardVisibility;
   memberIds: string[];
   lastOrder: string | null;
@@ -168,7 +172,7 @@ export async function createBoard(input: {
       visibility: input.visibility,
       memberIds: input.memberIds,
       order: keyBetween(input.lastOrder, null),
-      template: buildTemplate(input.template),
+      template: buildTemplate(input.template, input.sections),
       newItemId: () => newId(itemsPath),
     }),
   );
@@ -181,6 +185,12 @@ export function updateBoard(
   patch: Parameters<typeof planUpdateBoard>[2],
 ) {
   return commitOps('board:update', planUpdateBoard(wid, bid, patch));
+}
+
+/** One-off upgrade of an older list (adds the Group column); harmless to repeat. */
+export function upgradeBoard(wid: string, board: Board) {
+  const ops = planUpgradeBoard(wid, board.id, board);
+  return ops.length ? commitOps('board:upgrade', ops) : Promise.resolve();
 }
 
 export function saveColumns(wid: string, bid: string, columns: Column[]) {

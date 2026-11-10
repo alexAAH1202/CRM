@@ -11,6 +11,7 @@ export function downloadBoardCsv(
     today: todayIso(),
     memberName,
     itemName: (id) => items.get(id)?.name,
+    groupName: (id) => board.groups.find((g) => g.id === id)?.name,
   });
   const csv = boardToCsv({
     columns: board.columns,
