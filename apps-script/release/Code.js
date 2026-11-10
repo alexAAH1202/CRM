@@ -2901,7 +2901,7 @@ var Sorted = (() => {
       this.code = code;
     }
   };
-  var HELPER_VERSION = "7f.1";
+  var HELPER_VERSION = "7f.2";
 
   // ../shared/src/scheduleOps.ts
   function eventId(automationId, itemId) {
@@ -3881,7 +3881,7 @@ var Sorted = (() => {
   // src/calendar.ts
   var API = "https://www.googleapis.com/calendar/v3";
   var APP_URL2 = "https://life-management-de315.web.app";
-  var LAST_PROP = "CAL_LAST_SYNC";
+  var LAST_PROP = "CAL_LAST_SYNC_V2";
   var STATUS_PROP = "CAL_STATUS";
   var MAX_ITEMS_PER_RUN = 200;
   var ITEM_PATH = /^workspaces\/([^/]+)\/boards\/([^/]+)\/items\/([^/]+)$/;
@@ -3894,6 +3894,7 @@ var Sorted = (() => {
     return typeof item["createdBy"] === "string" && item["createdBy"] ? [item["createdBy"]] : [];
   }
   function wantedEvent(columns, item) {
+    if (item["onCalendar"] !== true) return null;
     if (item["deletedAt"] != null || item["archived"] === true) return null;
     const values = item["values"] ?? {};
     if (isDone(columns, values)) return null;

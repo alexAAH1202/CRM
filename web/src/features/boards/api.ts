@@ -597,6 +597,11 @@ function commitWithAutomations(
   return commitOps(label, plan(ops, { startNumber: null, counterExists: true }));
 }
 
+/** Adds an item to (or takes it off) Google Calendar; the helper does the rest within ~10 minutes. */
+export function setOnCalendar(wid: string, bid: string, iid: string, uid: string, on: boolean) {
+  return commitOps('item:calendar', planUpdateItem(wid, bid, iid, uid, { onCalendar: on }));
+}
+
 export function renameItem(wid: string, bid: string, iid: string, uid: string, name: string) {
   const before = runtimeFor(bid)?.items.get(iid)?.name;
   const after = name.trim();

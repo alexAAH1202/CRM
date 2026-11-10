@@ -57,6 +57,7 @@ function toItem(d: QueryDocumentSnapshot<DocumentData>): BoardItem {
       x['acceptance'] && typeof x['acceptance'] === 'object'
         ? (x['acceptance'] as BoardItem['acceptance'])
         : {},
+    onCalendar: x['onCalendar'] === true,
     archived: x['archived'] === true,
     deleted: x['deletedAt'] != null,
     deletedAtMs: x['deletedAt'] instanceof Timestamp ? x['deletedAt'].toMillis() : null,

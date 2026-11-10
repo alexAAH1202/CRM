@@ -221,7 +221,14 @@ export function planUpdateItem(
   bid: string,
   iid: string,
   uid: string,
-  patch: Partial<{ name: string; groupId: string; order: string; archived: boolean }>,
+  patch: Partial<{
+    name: string;
+    groupId: string;
+    order: string;
+    archived: boolean;
+    /** Put on Google Calendar by the helper (D103). */
+    onCalendar: boolean;
+  }>,
 ): WriteOp[] {
   const data: DocData = { ...patch, ...stamp(uid) };
   if (typeof patch.name === 'string') data['name'] = patch.name.trim();

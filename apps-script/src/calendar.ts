@@ -1,7 +1,7 @@
 /**
  * Google Calendar due dates (D103). Each household member gets a calendar in the script owner's
  * account, "Sorted – <name>", shared with them (edit access) so it shows in their own Google
- * Calendar. Every item with a due date becomes an all-day event on the calendar of each person
+ * Calendar. Every item someone has added to the calendar ("Add to calendar") with a due date becomes an all-day event on the calendar of each person
  * assigned to it, or of whoever created it when nobody is. Done, archived, deleted or undated
  * items have no event.
  *
@@ -15,7 +15,9 @@ import type { HttpResponse, Platform } from './platform';
 
 const API = 'https://www.googleapis.com/calendar/v3';
 const APP_URL = 'https://life-management-de315.web.app';
-const LAST_PROP = 'CAL_LAST_SYNC';
+// v2: items go on the calendar only when added (onCalendar); the new key re-checks every item
+// once, which takes earlier automatic events off again.
+const LAST_PROP = 'CAL_LAST_SYNC_V2';
 const STATUS_PROP = 'CAL_STATUS';
 const MAX_ITEMS_PER_RUN = 200;
 const ITEM_PATH = /^workspaces\/([^/]+)\/boards\/([^/]+)\/items\/([^/]+)$/;
@@ -55,6 +57,7 @@ export function wantedEvent(
   columns: readonly Column[],
   item: Record<string, unknown>,
 ): { date: string; title: string } | null {
+  if (item['onCalendar'] !== true) return null; // only items someone added
   if (item['deletedAt'] != null || item['archived'] === true) return null;
   const values = (item['values'] ?? {}) as Record<string, unknown>;
   if (isDone(columns, values)) return null;
