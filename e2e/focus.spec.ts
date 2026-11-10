@@ -20,6 +20,15 @@ async function setup(p: Page) {
   await p.getByRole('radio', { name: /Household chores/ }).click();
   await p.getByRole('button', { name: 'Create list' }).click();
   await expect(p.getByRole('grid')).toBeVisible();
+  // Focus only shows what's assigned to you.
+  for (const item of ['Clean out the fridge', 'Vacuum and mop', 'Dishes']) {
+    await p.getByRole('button', { name: `Edit Who for ${item}` }).click();
+    await p
+      .getByRole('dialog', { name: new RegExp(`Who for ${item}`) })
+      .getByRole('button', { name: /Ada Lovelace/ })
+      .click();
+    await p.keyboard.press('Escape');
+  }
 }
 
 test('countdowns, focus mode, steps, plan for today, done and not now', async ({ browser }) => {
@@ -40,6 +49,8 @@ test('countdowns, focus mode, steps, plan for today, done and not now', async ({
   const card = ada.getByRole('region', { name: 'Do this next' });
   await expect(card.getByRole('heading', { name: 'Clean out the fridge' })).toBeVisible();
   await expect(card).toContainText('1 day late');
+  // unassigned items stay out of Focus
+  await expect(ada.getByText('Feed the pets')).toHaveCount(0);
 
   // ---- break it down: steps become subitems; the first shows as the tiny step
   const steps = card.getByRole('form', { name: 'Break it down' });

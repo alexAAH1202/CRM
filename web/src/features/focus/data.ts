@@ -31,8 +31,8 @@ export function toBoardItem(id: string, x: DocumentData): BoardItem {
 }
 
 /**
- * Things for you to do: what's assigned to you, plus anything nobody is assigned to (many
- * households never assign). One read of each list per visit, kept for a minute.
+ * Things for you to do: only items assigned to you. One read of each list per visit, kept for a
+ * minute.
  */
 const cache = new Map<string, { at: number; data: FocusData }>();
 export async function loadFocus(
@@ -59,8 +59,8 @@ export async function loadFocus(
         for (const d of snap.docs) {
           const item = toBoardItem(d.id, d.data());
           if (item.deleted || item.archived || item.parentId) continue;
-          // yours, or nobody's (many households never assign anything)
-          if (item.assigneeUids.length > 0 && !item.assigneeUids.includes(uid)) continue;
+          // only what's assigned to you
+          if (!item.assigneeUids.includes(uid)) continue;
           const c = toCandidate(b.id, item, board.columns);
           data.candidates.push(c);
           data.lookup.set(c.key, { board, item });
