@@ -13,7 +13,7 @@ test('typing an item name and clicking away saves it; Escape cancels', async ({ 
 
   const add = ada.getByLabel('Add item to To do');
   await add.fill('Test Test');
-  await expect(ada.getByText('Enter to add')).toBeVisible();
+  await expect(ada.getByText('Enter to add')).toHaveCount(0);
   await ada.getByRole('heading', { name: 'Blank list' }).click(); // click away
   await expect(ada.getByRole('button', { name: /^Rename Test Test$/ })).toBeVisible();
   await expect(add).toHaveValue('');

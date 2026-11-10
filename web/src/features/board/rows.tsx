@@ -747,14 +747,6 @@ function AddInput({
           indent ? 'pl-12' : 'px-3',
         )}
       />
-      {v.trim() !== '' && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-xs text-muted"
-        >
-          Enter to add
-        </span>
-      )}
     </div>
   );
 }

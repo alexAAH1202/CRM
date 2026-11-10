@@ -37,7 +37,7 @@ Press **?** anywhere for keyboard shortcuts.
 
 ## When getting started is the hard part
 
-- **Focus** (sidebar) shows just one thing to do, with how soon it's due. Pick up to three for
+- **Focus** (sidebar) shows just one thing to do from the items assigned to you, with how soon it's due. Pick up to three for
   **today's plan** and they come first.
 - Feels big? **Break it down** into small steps; the first one is all you need to look at.
 - Press **5 / 15 / 25 min** to work on it for a set time; you'll hear when it's up.
