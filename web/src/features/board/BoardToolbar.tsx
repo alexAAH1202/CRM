@@ -166,6 +166,7 @@ export function FilterValue({
   if (type === 'date' || type === 'timeline' || type === 'createdAt' || type === 'updatedAt') {
     return (
       <input
+        autoComplete="off"
         type="date"
         aria-label="Date"
         className={input}
@@ -183,6 +184,7 @@ export function FilterValue({
   if (numeric) {
     return (
       <input
+        autoComplete="off"
         type="number"
         aria-label="Number"
         className={cx(input, 'w-28')}
@@ -193,6 +195,7 @@ export function FilterValue({
   }
   return (
     <input
+      autoComplete="off"
       aria-label="Text"
       className={cx(input, 'min-w-0 flex-1')}
       placeholder="Value"
@@ -525,6 +528,7 @@ export function BoardToolbar({
         <Search size={14} aria-hidden className="text-muted" />
         <span className="sr-only">Search items</span>
         <input
+          autoComplete="off"
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           placeholder="Search"

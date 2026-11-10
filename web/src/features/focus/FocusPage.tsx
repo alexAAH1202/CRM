@@ -404,6 +404,7 @@ export default function FocusPage() {
                 <p className="text-sm font-bold">Feels big? Break it into small steps.</p>
                 {newSteps.map((v, i) => (
                   <input
+                    autoComplete="off"
                     key={i}
                     aria-label={`Step ${i + 1}`}
                     placeholder={

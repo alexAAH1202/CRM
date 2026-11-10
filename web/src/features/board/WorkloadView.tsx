@@ -151,6 +151,7 @@ export function WorkloadView(p: ViewProps) {
         <label className="flex flex-col gap-1.5 text-sm font-semibold">
           Hours per week
           <input
+            autoComplete="off"
             type="number"
             min={1}
             max={MAX_CAPACITY_HOURS}
@@ -198,6 +199,7 @@ export function WorkloadView(p: ViewProps) {
                     <label className="flex items-center gap-1 text-xs font-normal text-muted">
                       <span>Capacity</span>
                       <input
+                        autoComplete="off"
                         type="number"
                         min={1}
                         max={MAX_CAPACITY_HOURS}

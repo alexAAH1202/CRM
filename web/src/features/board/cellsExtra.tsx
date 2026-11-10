@@ -141,6 +141,7 @@ export function ContactCell({ column, item, itemName, canEdit, onChange }: CellP
             }}
           >
             <input
+              autoComplete="off"
               autoFocus
               type={isEmail ? 'email' : 'tel'}
               aria-label={column.title}
@@ -268,6 +269,7 @@ export function TagsCell({
             }}
           >
             <input
+              autoComplete="off"
               aria-label={`New ${noun}`}
               placeholder={`New ${noun}…`}
               maxLength={40}
@@ -498,6 +500,7 @@ export function FilesCell({ column, item, itemName, canEdit, onChange }: CellPro
             }}
           >
             <input
+              autoComplete="off"
               aria-label="File address"
               placeholder="Paste a link (https://…)"
               value={url}
@@ -505,6 +508,7 @@ export function FilesCell({ column, item, itemName, canEdit, onChange }: CellPro
               className={field}
             />
             <input
+              autoComplete="off"
               aria-label="File name"
               placeholder="Name (optional)"
               maxLength={200}
@@ -685,6 +689,7 @@ export function DependencyCell({ column, item, itemName, canEdit, onChange }: Ce
           <strong className="text-fg">{itemName}</strong> can start once these are finished:
         </p>
         <input
+          autoComplete="off"
           aria-label="Search items"
           placeholder="Search items…"
           value={query}
@@ -744,6 +749,7 @@ export function DependencyCell({ column, item, itemName, canEdit, onChange }: Ce
                   <label className="flex shrink-0 items-center gap-1 text-xs text-muted">
                     lag
                     <input
+                      autoComplete="off"
                       type="number"
                       aria-label={`Days after ${c.name} finishes`}
                       min={-MAX_LAG_DAYS}

@@ -128,6 +128,7 @@ function DayCell({
       </div>
       {adding && (
         <input
+          autoComplete="off"
           autoFocus
           aria-label={`New item on ${format(d, 'd MMMM')}`}
           placeholder="Name, Enter"

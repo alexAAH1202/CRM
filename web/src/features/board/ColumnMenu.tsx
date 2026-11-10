@@ -323,6 +323,7 @@ export function ColumnHeader({
   if (renaming) {
     return (
       <input
+        autoComplete="off"
         autoFocus
         defaultValue={column.title}
         aria-label="Column name"

@@ -235,6 +235,7 @@ export default function TimesheetPage() {
           <label className="flex flex-col gap-1 text-sm font-semibold">
             From
             <input
+              autoComplete="off"
               type="date"
               value={from}
               onChange={(e) => (setFrom(e.target.value), setPreset('all'))}
@@ -244,6 +245,7 @@ export default function TimesheetPage() {
           <label className="flex flex-col gap-1 text-sm font-semibold">
             To
             <input
+              autoComplete="off"
               type="date"
               value={to}
               onChange={(e) => (setTo(e.target.value), setPreset('all'))}

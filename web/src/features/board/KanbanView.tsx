@@ -152,6 +152,7 @@ function Lane({
       {canEdit &&
         (adding ? (
           <input
+            autoComplete="off"
             autoFocus
             aria-label={`New item in ${name}`}
             placeholder="Item name, then Enter"
