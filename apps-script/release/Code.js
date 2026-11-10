@@ -211,8 +211,8 @@ var Sorted = (() => {
     const t = s;
     return !!t && typeof t.id === "string" && t.id.length > 0 && t.id.length <= 64 && typeof t.uid === "string" && t.uid.length > 0 && t.uid.length <= 128 && typeof t.start === "number" && typeof t.end === "number" && Number.isFinite(t.start) && Number.isFinite(t.end) && t.start >= MIN_START && t.end > t.start;
   };
-  function normalizeTimeValue(v) {
-    const raw = v?.sessions;
+  function normalizeTimeValue(v2) {
+    const raw = v2?.sessions;
     if (!Array.isArray(raw)) return null;
     const seen = /* @__PURE__ */ new Set();
     const out = [];
@@ -234,17 +234,25 @@ var Sorted = (() => {
     return out.length ? { sessions: out.sort((a, b) => a.start - b.start) } : null;
   }
   var durationOf = (s) => s.end - s.start;
-  function totalMs(v) {
-    return (v?.sessions ?? []).reduce((n, s) => n + durationOf(s), 0);
+  function totalMs(v2) {
+    return (v2?.sessions ?? []).reduce((n, s) => n + durationOf(s), 0);
+  }
+  function formatDuration(ms) {
+    const total = Math.max(0, Math.round(ms / 1e3));
+    if (total < 60) return total === 0 ? "0m" : `${total}s`;
+    const minutes = Math.round(total / 60);
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h === 0 ? `${m}m` : m === 0 ? `${h}h` : `${h}h ${m}m`;
   }
 
   // ../shared/src/dates.ts
   var ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
   var MS_PER_DAY = 864e5;
-  function isIsoDate(v) {
-    if (typeof v !== "string" || !ISO_RE.test(v)) return false;
-    const d = /* @__PURE__ */ new Date(`${v}T00:00:00Z`);
-    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+  function isIsoDate(v2) {
+    if (typeof v2 !== "string" || !ISO_RE.test(v2)) return false;
+    const d = /* @__PURE__ */ new Date(`${v2}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v2;
   }
   function toDayNumber(iso) {
     if (!isIsoDate(iso)) return null;
@@ -264,6 +272,38 @@ var Sorted = (() => {
   }
   function weekdayOf(dayNumber) {
     return ((dayNumber + 4) % 7 + 7) % 7;
+  }
+  function workdaysBetween(a, b) {
+    let x = toDayNumber(a);
+    let y = toDayNumber(b);
+    if (x === null || y === null) return null;
+    let sign = 1;
+    if (y < x) {
+      [x, y] = [y, x];
+      sign = -1;
+    }
+    const total = y - x + 1;
+    const fullWeeks = Math.floor(total / 7);
+    let count2 = fullWeeks * 5;
+    for (let d = x + fullWeeks * 7; d <= y; d++) {
+      const w = weekdayOf(d);
+      if (w !== 0 && w !== 6) count2++;
+    }
+    return sign * count2;
+  }
+  function dateParts(iso) {
+    if (!isIsoDate(iso)) return null;
+    return {
+      year: Number(iso.slice(0, 4)),
+      month: Number(iso.slice(5, 7)),
+      day: Number(iso.slice(8, 10))
+    };
+  }
+  function todayIso(now = /* @__PURE__ */ new Date()) {
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   }
 
   // ../shared/src/columns.ts
@@ -463,61 +503,61 @@ var Sorted = (() => {
     }
     return base;
   }
-  function normalizeValue(col, v) {
+  function normalizeValue(col, v2) {
     switch (col.type) {
       case "text":
       case "longText":
-        return typeof v === "string" && v.trim() !== "" ? v : null;
+        return typeof v2 === "string" && v2.trim() !== "" ? v2 : null;
       case "status": {
         const labels = col.settings.labels ?? [];
-        return typeof v === "string" && labels.some((l) => l.id === v) ? v : null;
+        return typeof v2 === "string" && labels.some((l) => l.id === v2) ? v2 : null;
       }
       case "dropdown": {
         const ids = new Set((col.settings.options ?? []).map((o) => o.id));
-        const arr = Array.isArray(v) ? v.filter((x) => typeof x === "string" && ids.has(x)) : [];
+        const arr = Array.isArray(v2) ? v2.filter((x) => typeof x === "string" && ids.has(x)) : [];
         return arr.length ? arr : null;
       }
       case "people": {
-        const arr = Array.isArray(v) ? v.filter((x) => typeof x === "string" && x !== "") : [];
+        const arr = Array.isArray(v2) ? v2.filter((x) => typeof x === "string" && x !== "") : [];
         return arr.length ? [...new Set(arr)] : null;
       }
       case "date":
-        return isIsoDate(v) ? v : null;
+        return isIsoDate(v2) ? v2 : null;
       case "timeline": {
-        const t = v;
+        const t = v2;
         if (!t || !isIsoDate(t.start) || !isIsoDate(t.end)) return null;
         return t.start <= t.end ? { start: t.start, end: t.end } : { start: t.end, end: t.start };
       }
       case "numbers":
-        return typeof v === "number" && Number.isFinite(v) ? v : null;
+        return typeof v2 === "number" && Number.isFinite(v2) ? v2 : null;
       case "checkbox":
-        return v === true ? true : null;
+        return v2 === true ? true : null;
       case "link": {
-        const l = v;
+        const l = v2;
         if (!l || typeof l.url !== "string") return null;
         const url = normalizeUrl(l.url);
         return url ? { url, text: typeof l.text === "string" ? l.text : "" } : null;
       }
       case "tags": {
         const ids = new Set((col.settings.options ?? []).map((o) => o.id));
-        const arr = Array.isArray(v) ? v.filter((x) => typeof x === "string" && ids.has(x)) : [];
+        const arr = Array.isArray(v2) ? v2.filter((x) => typeof x === "string" && ids.has(x)) : [];
         return arr.length ? [...new Set(arr)] : null;
       }
       case "rating":
-        return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= RATING_MAX ? v : null;
+        return typeof v2 === "number" && Number.isInteger(v2) && v2 >= 1 && v2 <= RATING_MAX ? v2 : null;
       case "email": {
-        const t = typeof v === "string" ? v.trim() : "";
+        const t = typeof v2 === "string" ? v2.trim() : "";
         return t.length <= 254 && EMAIL_RE.test(t) ? t : null;
       }
       case "phone": {
-        const t = typeof v === "string" ? v.trim() : "";
+        const t = typeof v2 === "string" ? v2.trim() : "";
         return PHONE_RE.test(t) && (t.match(/\d/g)?.length ?? 0) >= 3 ? t : null;
       }
       case "files": {
-        if (!Array.isArray(v)) return null;
+        if (!Array.isArray(v2)) return null;
         const seen = /* @__PURE__ */ new Set();
         const out = [];
-        for (const f of v) {
+        for (const f of v2) {
           if (!f || typeof f.url !== "string") continue;
           const url = normalizeUrl(f.url);
           if (!url || seen.has(url)) continue;
@@ -540,12 +580,12 @@ var Sorted = (() => {
         return out.length ? out : null;
       }
       case "time":
-        return normalizeTimeValue(v);
+        return normalizeTimeValue(v2);
       case "dependency": {
-        if (!Array.isArray(v)) return null;
+        if (!Array.isArray(v2)) return null;
         const seen = /* @__PURE__ */ new Set();
         const out = [];
-        for (const d of v) {
+        for (const d of v2) {
           const id = typeof d === "string" ? d : d?.id;
           if (typeof id !== "string" || id === "" || id.length > 128 || seen.has(id)) continue;
           const rawLag = typeof d === "object" && d !== null ? d.lag : 0;
@@ -558,19 +598,19 @@ var Sorted = (() => {
       }
       // Computed columns: the value is whatever was worked out for display (never stored).
       case "progress":
-        return typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : null;
+        return typeof v2 === "number" && Number.isFinite(v2) ? Math.max(0, Math.min(100, v2)) : null;
       case "itemId":
-        return typeof v === "number" && Number.isFinite(v) ? v : null;
+        return typeof v2 === "number" && Number.isFinite(v2) ? v2 : null;
       case "createdAt":
       case "updatedAt":
-        return isIsoDate(v) ? v : null;
+        return isIsoDate(v2) ? v2 : null;
       case "createdBy":
       case "group":
-        return typeof v === "string" && v !== "" ? v : null;
+        return typeof v2 === "string" && v2 !== "" ? v2 : null;
       case "formula":
-        if (typeof v === "number") return Number.isFinite(v) ? v : null;
-        if (typeof v === "boolean") return v;
-        return typeof v === "string" && v !== "" ? v : null;
+        if (typeof v2 === "number") return Number.isFinite(v2) ? v2 : null;
+        if (typeof v2 === "boolean") return v2;
+        return typeof v2 === "string" && v2 !== "" ? v2 : null;
     }
   }
   var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -585,10 +625,70 @@ var Sorted = (() => {
     const out = /* @__PURE__ */ new Set();
     for (const c of columns) {
       if (c.type !== "people") continue;
-      const v = normalizeValue(c, values[c.id]);
-      if (Array.isArray(v)) v.forEach((u) => out.add(u));
+      const v2 = normalizeValue(c, values[c.id]);
+      if (Array.isArray(v2)) v2.forEach((u) => out.add(u));
     }
     return [...out].sort();
+  }
+  function formatNumber(n, s) {
+    const decimals = Math.min(Math.max(s.decimals ?? 0, 0), 6);
+    const str3 = n.toLocaleString("en-AU", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+    const unit = s.unit ?? "";
+    if (!unit) return str3;
+    return s.unitPosition === "suffix" ? `${str3} ${unit}` : `${unit}${str3}`;
+  }
+  function formatComputedNumber(n, s) {
+    if (typeof s.decimals === "number" && s.decimals >= 0) return formatNumber(n, s);
+    const str3 = n.toLocaleString("en-AU", { maximumFractionDigits: 4 });
+    const unit = s.unit ?? "";
+    if (!unit) return str3;
+    return s.unitPosition === "suffix" ? `${str3} ${unit}` : `${unit}${str3}`;
+  }
+  function valueToText(col, raw, peopleName = (u) => u) {
+    const ctx = typeof peopleName === "function" ? { peopleName } : peopleName;
+    const who = ctx.peopleName ?? ((u) => u);
+    const v2 = normalizeValue(col, raw);
+    if (v2 === null) return "";
+    switch (col.type) {
+      case "status":
+        return col.settings.labels?.find((l) => l.id === v2)?.name ?? "";
+      case "dropdown":
+      case "tags":
+        return v2.map((id) => col.settings.options?.find((o) => o.id === id)?.name ?? "").filter(Boolean).join(", ");
+      case "people":
+        return v2.map(who).join(", ");
+      case "createdBy":
+        return who(v2);
+      case "group":
+        return v2;
+      case "timeline":
+        return `${v2.start} – ${v2.end}`;
+      case "numbers":
+        return formatNumber(v2, col.settings);
+      case "rating":
+        return `${v2}/${RATING_MAX}`;
+      case "progress":
+        return `${Math.round(v2)}%`;
+      case "itemId":
+        return `${col.settings.prefix ?? ""}${v2}`;
+      case "formula":
+        return typeof v2 === "number" ? formatComputedNumber(v2, col.settings) : typeof v2 === "boolean" ? v2 ? "TRUE" : "FALSE" : typeof v2 === "string" ? v2 : "";
+      case "checkbox":
+        return "Yes";
+      case "link":
+        return v2.text || v2.url;
+      case "files":
+        return v2.map((f) => f.name).join(", ");
+      case "time":
+        return formatDuration(totalMs(v2));
+      case "dependency":
+        return v2.map((d) => ctx.itemName?.(d.id) ?? "").filter(Boolean).join(", ");
+      default:
+        return String(v2);
+    }
   }
   function defaultItemValues(columns) {
     const out = {};
@@ -596,8 +696,8 @@ var Sorted = (() => {
       if (isComputedType(col.type)) continue;
       const raw = col.type === "status" ? col.settings.defaultLabelId : col.settings.defaultValue;
       if (raw === void 0 || raw === null) continue;
-      const v = normalizeValue(col, raw);
-      if (v !== null) out[col.id] = v;
+      const v2 = normalizeValue(col, raw);
+      if (v2 !== null) out[col.id] = v2;
     }
     return out;
   }
@@ -664,8 +764,8 @@ var Sorted = (() => {
     const out = {};
     for (const col of columns) {
       if (isComputedType(col.type)) continue;
-      const v = normalizeValue(col, values[col.id]);
-      if (v !== null) out[col.id] = v;
+      const v2 = normalizeValue(col, values[col.id]);
+      if (v2 !== null) out[col.id] = v2;
     }
     return out;
   }
@@ -690,8 +790,8 @@ var Sorted = (() => {
     })).slice(0, 3);
     const widths = {};
     if (r["colWidths"] && typeof r["colWidths"] === "object") {
-      for (const [k, v] of Object.entries(r["colWidths"])) {
-        if (typeof v === "number" && Number.isFinite(v)) widths[k] = clampWidth(v);
+      for (const [k, v2] of Object.entries(r["colWidths"])) {
+        if (typeof v2 === "number" && Number.isFinite(v2)) widths[k] = clampWidth(v2);
       }
     }
     return {
@@ -723,40 +823,40 @@ var Sorted = (() => {
   }
   function parseViewOptions(raw) {
     const r = raw && typeof raw === "object" ? raw : {};
-    const str2 = (v) => typeof v === "string" && v.length > 0 && v.length <= 64 ? v : null;
-    const hours = (v, fallback) => typeof v === "number" && Number.isFinite(v) && v >= 1 && v <= MAX_CAPACITY_HOURS ? v : fallback;
+    const str3 = (v2) => typeof v2 === "string" && v2.length > 0 && v2.length <= 64 ? v2 : null;
+    const hours = (v2, fallback) => typeof v2 === "number" && Number.isFinite(v2) && v2 >= 1 && v2 <= MAX_CAPACITY_HOURS ? v2 : fallback;
     const byUid = {};
     if (r["capacityByUid"] && typeof r["capacityByUid"] === "object") {
-      for (const [k, v] of Object.entries(r["capacityByUid"])) {
+      for (const [k, v2] of Object.entries(r["capacityByUid"])) {
         if (k.length <= 64 && Object.keys(byUid).length < 50)
-          byUid[k] = hours(v, DEFAULT_CAPACITY_HOURS);
+          byUid[k] = hours(v2, DEFAULT_CAPACITY_HOURS);
       }
     }
-    const oneOf = (v, all, d) => all.includes(v) ? v : d;
+    const oneOf = (v2, all, d) => all.includes(v2) ? v2 : d;
     return {
-      laneColumnId: str2(r["laneColumnId"]),
+      laneColumnId: str3(r["laneColumnId"]),
       cardOrder: parseCardOrder(r["cardOrder"]),
-      dateColumnId: str2(r["dateColumnId"]),
+      dateColumnId: str3(r["dateColumnId"]),
       calendarMode: r["calendarMode"] === "week" ? "week" : "month",
-      ganttColumnId: str2(r["ganttColumnId"]),
+      ganttColumnId: str3(r["ganttColumnId"]),
       zoom: oneOf(r["zoom"], ["day", "week", "month"], "week"),
-      effortColumnId: str2(r["effortColumnId"]),
-      peopleColumnId: str2(r["peopleColumnId"]),
+      effortColumnId: str3(r["effortColumnId"]),
+      peopleColumnId: str3(r["peopleColumnId"]),
       capacity: hours(r["capacity"], DEFAULT_CAPACITY_HOURS),
       capacityByUid: byUid,
       chartType: oneOf(r["chartType"], ["bar", "stacked", "pie", "line"], "bar"),
-      groupColumnId: str2(r["groupColumnId"]),
-      stackColumnId: str2(r["stackColumnId"]),
+      groupColumnId: str3(r["groupColumnId"]),
+      stackColumnId: str3(r["stackColumnId"]),
       measure: oneOf(r["measure"], ["count", "sum", "avg"], "count"),
-      valueColumnId: str2(r["valueColumnId"])
+      valueColumnId: str3(r["valueColumnId"])
     };
   }
   function clampWidth(w) {
     return Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, Math.round(w)));
   }
   var ME = "me";
-  function isEmptyValue(v) {
-    return v === null || v === void 0;
+  function isEmptyValue(v2) {
+    return v2 === null || v2 === void 0;
   }
   function filterValueDate(f) {
     return typeof f.value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(f.value) ? f.value : null;
@@ -765,20 +865,20 @@ var Sorted = (() => {
     if (f.columnId === NAME_COLUMN_ID) return matchText(item.name, f);
     const col = columns.find((c) => c.id === f.columnId);
     if (!col) return true;
-    const v = normalizeValue(col, item.values[col.id]);
-    const empty = isEmptyValue(v);
+    const v2 = normalizeValue(col, item.values[col.id]);
+    const empty = isEmptyValue(v2);
     if (f.op === "isEmpty") return empty;
     if (f.op === "notEmpty") return !empty;
     switch (col.type) {
       case "text":
       case "longText":
       case "group":
-        return matchText(typeof v === "string" ? v : "", f);
+        return matchText(typeof v2 === "string" ? v2 : "", f);
       case "link":
-        return matchText(v ? v.text || v.url : "", f);
+        return matchText(v2 ? v2.text || v2.url : "", f);
       case "status": {
         const want = Array.isArray(f.value) ? f.value : [];
-        const has = typeof v === "string" && want.includes(v);
+        const has = typeof v2 === "string" && want.includes(v2);
         return f.op === "noneOf" ? !has : has;
       }
       case "dropdown":
@@ -786,55 +886,55 @@ var Sorted = (() => {
       case "people":
       case "createdBy": {
         const want = (Array.isArray(f.value) ? f.value : []).map((x) => x === ME ? ctx.me : x);
-        const have = Array.isArray(v) ? v : typeof v === "string" ? [v] : [];
+        const have = Array.isArray(v2) ? v2 : typeof v2 === "string" ? [v2] : [];
         const any = have.some((x) => want.includes(x));
         return f.op === "noneOf" ? !any : any;
       }
       case "email":
       case "phone":
-        return matchText(typeof v === "string" ? v : "", f);
+        return matchText(typeof v2 === "string" ? v2 : "", f);
       case "files":
-        return matchText((v ?? []).map((x) => x.name).join(" "), f);
+        return matchText((v2 ?? []).map((x) => x.name).join(" "), f);
       case "dependency":
         return true;
       case "time": {
         const n = typeof f.value === "number" ? f.value : Number(f.value);
-        if (!v || Number.isNaN(n)) return false;
-        const hours = totalMs(v) / 36e5;
+        if (!v2 || Number.isNaN(n)) return false;
+        const hours = totalMs(v2) / 36e5;
         return f.op === "eq" ? Math.abs(hours - n) < 5e-3 : f.op === "gt" ? hours > n : hours < n;
       }
       case "rating":
       case "progress":
       case "itemId": {
         const n = typeof f.value === "number" ? f.value : Number(f.value);
-        if (typeof v !== "number" || Number.isNaN(n)) return false;
-        return f.op === "eq" ? v === n : f.op === "gt" ? v > n : v < n;
+        if (typeof v2 !== "number" || Number.isNaN(n)) return false;
+        return f.op === "eq" ? v2 === n : f.op === "gt" ? v2 > n : v2 < n;
       }
       case "formula": {
         if (f.op === "eq" || f.op === "gt" || f.op === "lt") {
           const n = typeof f.value === "number" ? f.value : Number(f.value);
-          if (typeof v !== "number" || Number.isNaN(n)) return false;
-          return f.op === "eq" ? v === n : f.op === "gt" ? v > n : v < n;
+          if (typeof v2 !== "number" || Number.isNaN(n)) return false;
+          return f.op === "eq" ? v2 === n : f.op === "gt" ? v2 > n : v2 < n;
         }
         return matchText(
-          typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "",
+          typeof v2 === "string" ? v2 : typeof v2 === "number" || typeof v2 === "boolean" ? String(v2) : "",
           f
         );
       }
       case "createdAt":
       case "updatedAt": {
         const d = filterValueDate(f);
-        if (!d || typeof v !== "string") return false;
-        return f.op === "on" ? v === d : f.op === "before" ? v < d : v > d;
+        if (!d || typeof v2 !== "string") return false;
+        return f.op === "on" ? v2 === d : f.op === "before" ? v2 < d : v2 > d;
       }
       case "date": {
-        if (f.op === "overdue") return typeof v === "string" && v < ctx.today;
+        if (f.op === "overdue") return typeof v2 === "string" && v2 < ctx.today;
         const d = filterValueDate(f);
-        if (!d || typeof v !== "string") return false;
-        return f.op === "on" ? v === d : f.op === "before" ? v < d : v > d;
+        if (!d || typeof v2 !== "string") return false;
+        return f.op === "on" ? v2 === d : f.op === "before" ? v2 < d : v2 > d;
       }
       case "timeline": {
-        const t = v;
+        const t = v2;
         if (!t) return false;
         if (f.op === "overdue") return t.end < ctx.today;
         const d = filterValueDate(f);
@@ -842,11 +942,11 @@ var Sorted = (() => {
       }
       case "numbers": {
         const n = typeof f.value === "number" ? f.value : Number(f.value);
-        if (typeof v !== "number" || Number.isNaN(n)) return false;
-        return f.op === "eq" ? v === n : f.op === "gt" ? v > n : v < n;
+        if (typeof v2 !== "number" || Number.isNaN(n)) return false;
+        return f.op === "eq" ? v2 === n : f.op === "gt" ? v2 > n : v2 < n;
       }
       case "checkbox":
-        return f.op === "checked" ? v === true : v !== true;
+        return f.op === "checked" ? v2 === true : v2 !== true;
     }
   }
   function matchText(text, f) {
@@ -866,6 +966,1138 @@ var Sorted = (() => {
       default:
         return true;
     }
+  }
+
+  // ../shared/src/formula/types.ts
+  var FormulaError = class extends Error {
+    constructor(message, pos) {
+      super(message);
+      this.pos = pos;
+      this.name = "FormulaError";
+    }
+  };
+
+  // ../shared/src/formula/functions.ts
+  var v = Infinity;
+  var FUNCTION_LIST = [
+    {
+      name: "IF",
+      min: 2,
+      max: 3,
+      signature: "IF(test, then, else)",
+      doc: "then if test is true, otherwise else (blank if omitted).",
+      group: "Logic"
+    },
+    {
+      name: "AND",
+      min: 1,
+      max: v,
+      signature: "AND(a, b, …)",
+      doc: "True when every argument is true.",
+      group: "Logic"
+    },
+    {
+      name: "OR",
+      min: 1,
+      max: v,
+      signature: "OR(a, b, …)",
+      doc: "True when any argument is true.",
+      group: "Logic"
+    },
+    {
+      name: "NOT",
+      min: 1,
+      max: 1,
+      signature: "NOT(a)",
+      doc: "Flips true and false.",
+      group: "Logic"
+    },
+    {
+      name: "IFERROR",
+      min: 2,
+      max: 2,
+      signature: "IFERROR(value, fallback)",
+      doc: "fallback when value is an error.",
+      group: "Logic"
+    },
+    {
+      name: "ISBLANK",
+      min: 1,
+      max: 1,
+      signature: "ISBLANK(value)",
+      doc: "True when the value is empty.",
+      group: "Logic"
+    },
+    {
+      name: "SUM",
+      min: 1,
+      max: v,
+      signature: "SUM(a, b, …)",
+      doc: "Adds numbers; blanks are skipped.",
+      group: "Math"
+    },
+    {
+      name: "AVG",
+      min: 1,
+      max: v,
+      signature: "AVG(a, b, …)",
+      doc: "Average of the numbers; blanks are skipped.",
+      group: "Math"
+    },
+    {
+      name: "MIN",
+      min: 1,
+      max: v,
+      signature: "MIN(a, b, …)",
+      doc: "Smallest number.",
+      group: "Math"
+    },
+    { name: "MAX", min: 1, max: v, signature: "MAX(a, b, …)", doc: "Largest number.", group: "Math" },
+    {
+      name: "ROUND",
+      min: 1,
+      max: 2,
+      signature: "ROUND(number, digits)",
+      doc: "Rounds to the given decimal places (0 if omitted).",
+      group: "Math"
+    },
+    {
+      name: "ABS",
+      min: 1,
+      max: 1,
+      signature: "ABS(number)",
+      doc: "Drops the minus sign.",
+      group: "Math"
+    },
+    {
+      name: "FLOOR",
+      min: 1,
+      max: 1,
+      signature: "FLOOR(number)",
+      doc: "Rounds down to a whole number.",
+      group: "Math"
+    },
+    {
+      name: "CEILING",
+      min: 1,
+      max: 1,
+      signature: "CEILING(number)",
+      doc: "Rounds up to a whole number.",
+      group: "Math"
+    },
+    {
+      name: "MOD",
+      min: 2,
+      max: 2,
+      signature: "MOD(number, divisor)",
+      doc: "Remainder after dividing.",
+      group: "Math"
+    },
+    {
+      name: "POWER",
+      min: 2,
+      max: 2,
+      signature: "POWER(base, exponent)",
+      doc: "base raised to exponent (same as base ^ exponent).",
+      group: "Math"
+    },
+    { name: "SQRT", min: 1, max: 1, signature: "SQRT(number)", doc: "Square root.", group: "Math" },
+    {
+      name: "VALUE",
+      min: 1,
+      max: 1,
+      signature: "VALUE(text)",
+      doc: 'Turns text like "12.5" into a number.',
+      group: "Math"
+    },
+    {
+      name: "CONCATENATE",
+      min: 1,
+      max: v,
+      signature: "CONCATENATE(a, b, …)",
+      doc: "Joins values into one piece of text (same as a & b).",
+      group: "Text"
+    },
+    {
+      name: "LEN",
+      min: 1,
+      max: 1,
+      signature: "LEN(text)",
+      doc: "Number of characters.",
+      group: "Text"
+    },
+    { name: "UPPER", min: 1, max: 1, signature: "UPPER(text)", doc: "UPPER CASE.", group: "Text" },
+    { name: "LOWER", min: 1, max: 1, signature: "LOWER(text)", doc: "lower case.", group: "Text" },
+    {
+      name: "TRIM",
+      min: 1,
+      max: 1,
+      signature: "TRIM(text)",
+      doc: "Removes extra spaces.",
+      group: "Text"
+    },
+    {
+      name: "LEFT",
+      min: 1,
+      max: 2,
+      signature: "LEFT(text, count)",
+      doc: "First characters (1 if count omitted).",
+      group: "Text"
+    },
+    {
+      name: "RIGHT",
+      min: 1,
+      max: 2,
+      signature: "RIGHT(text, count)",
+      doc: "Last characters (1 if count omitted).",
+      group: "Text"
+    },
+    {
+      name: "MID",
+      min: 3,
+      max: 3,
+      signature: "MID(text, start, count)",
+      doc: "count characters from position start (1 = first).",
+      group: "Text"
+    },
+    {
+      name: "SUBSTITUTE",
+      min: 3,
+      max: 3,
+      signature: "SUBSTITUTE(text, old, new)",
+      doc: "Replaces every old with new.",
+      group: "Text"
+    },
+    {
+      name: "CONTAINS",
+      min: 2,
+      max: 2,
+      signature: "CONTAINS(text, search)",
+      doc: "True if text includes search (ignores case).",
+      group: "Text"
+    },
+    { name: "TODAY", min: 0, max: 0, signature: "TODAY()", doc: "Today’s date.", group: "Date" },
+    {
+      name: "DAYS",
+      min: 2,
+      max: 2,
+      signature: "DAYS(later, earlier)",
+      doc: "Days from earlier to later (negative if later is before earlier).",
+      group: "Date"
+    },
+    {
+      name: "WORKDAYS",
+      min: 2,
+      max: 2,
+      signature: "WORKDAYS(start, end)",
+      doc: "Working days (Mon–Fri) from start to end, both included.",
+      group: "Date"
+    },
+    {
+      name: "ADD_DAYS",
+      min: 2,
+      max: 2,
+      signature: "ADD_DAYS(date, days)",
+      doc: "The date this many days later (or earlier if negative).",
+      group: "Date"
+    },
+    {
+      name: "YEAR",
+      min: 1,
+      max: 1,
+      signature: "YEAR(date)",
+      doc: "The year of a date.",
+      group: "Date"
+    },
+    {
+      name: "MONTH",
+      min: 1,
+      max: 1,
+      signature: "MONTH(date)",
+      doc: "The month of a date (1–12).",
+      group: "Date"
+    },
+    {
+      name: "DAY",
+      min: 1,
+      max: 1,
+      signature: "DAY(date)",
+      doc: "The day of the month.",
+      group: "Date"
+    },
+    {
+      name: "START",
+      min: 1,
+      max: 1,
+      signature: "START(timeline)",
+      doc: "The start date of a Timeline column.",
+      group: "Date"
+    },
+    {
+      name: "END",
+      min: 1,
+      max: 1,
+      signature: "END(timeline)",
+      doc: "The end date of a Timeline column.",
+      group: "Date"
+    }
+  ];
+  var FUNCTIONS = new Map(
+    FUNCTION_LIST.map((f) => [f.name, f])
+  );
+  var ALIASES = { AVERAGE: "AVG", CONCAT: "CONCATENATE" };
+  function canonicalFunctionName(name) {
+    const up = name.toUpperCase();
+    return ALIASES[up] ?? up;
+  }
+
+  // ../shared/src/formula/tokenizer.ts
+  var MAX_FORMULA_LENGTH = 1e3;
+  var TWO_CHAR_OPS = /* @__PURE__ */ new Set(["<>", "<=", ">=", "!="]);
+  var ONE_CHAR_OPS = /* @__PURE__ */ new Set(["+", "-", "*", "/", "^", "&", "=", "<", ">"]);
+  var isDigit = (c) => c !== void 0 && c >= "0" && c <= "9";
+  var isIdentStart = (c) => c !== void 0 && /[A-Za-z_]/.test(c);
+  var isIdentPart = (c) => c !== void 0 && /[A-Za-z0-9_.]/.test(c);
+  function tokenize(src) {
+    if (src.length > MAX_FORMULA_LENGTH) {
+      throw new FormulaError(`Formulas can be at most ${MAX_FORMULA_LENGTH} characters`, 0);
+    }
+    const out = [];
+    let i = 0;
+    while (i < src.length) {
+      const c = src[i];
+      if (/\s/.test(c)) {
+        i++;
+        continue;
+      }
+      const pos = i;
+      if (isDigit(c) || c === "." && isDigit(src[i + 1])) {
+        let j = i;
+        while (isDigit(src[j])) j++;
+        if (src[j] === ".") {
+          j++;
+          while (isDigit(src[j])) j++;
+        }
+        const text = src.slice(i, j);
+        const v2 = Number(text);
+        if (!Number.isFinite(v2)) throw new FormulaError(`Invalid number "${text}"`, pos);
+        out.push({ t: "num", v: v2, pos });
+        i = j;
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        let j = i + 1;
+        let text = "";
+        for (; ; ) {
+          if (j >= src.length) throw new FormulaError("This text is missing its closing quote", pos);
+          const d = src[j];
+          if (d === c) {
+            if (src[j + 1] === c) {
+              text += c;
+              j += 2;
+              continue;
+            }
+            j++;
+            break;
+          }
+          text += d;
+          j++;
+        }
+        out.push({ t: "str", v: text, pos });
+        i = j;
+        continue;
+      }
+      if (c === "{") {
+        const end = src.indexOf("}", i + 1);
+        if (end < 0) throw new FormulaError("This column name is missing its closing }", pos);
+        const name = src.slice(i + 1, end).trim();
+        if (!name) throw new FormulaError("Put a column name between { }", pos);
+        out.push({ t: "ref", v: name, pos });
+        i = end + 1;
+        continue;
+      }
+      if (isIdentStart(c)) {
+        let j = i + 1;
+        while (isIdentPart(src[j])) j++;
+        out.push({ t: "ident", v: src.slice(i, j), pos });
+        i = j;
+        continue;
+      }
+      const two = src.slice(i, i + 2);
+      if (TWO_CHAR_OPS.has(two)) {
+        out.push({ t: "op", v: two === "!=" ? "<>" : two, pos });
+        i += 2;
+        continue;
+      }
+      if (ONE_CHAR_OPS.has(c)) {
+        out.push({ t: "op", v: c, pos });
+        i++;
+        continue;
+      }
+      if (c === "(") out.push({ t: "(", pos });
+      else if (c === ")") out.push({ t: ")", pos });
+      else if (c === ",") out.push({ t: ",", pos });
+      else throw new FormulaError(`Unexpected character "${c}"`, pos);
+      i++;
+    }
+    out.push({ t: "eof", pos: src.length });
+    return out;
+  }
+
+  // ../shared/src/formula/parser.ts
+  var MAX_DEPTH = 60;
+  var Parser = class {
+    constructor(tokens) {
+      this.tokens = tokens;
+      __publicField(this, "i", 0);
+      __publicField(this, "depth", 0);
+      __publicField(this, "refs", /* @__PURE__ */ new Set());
+      __publicField(this, "functions", /* @__PURE__ */ new Set());
+    }
+    peek() {
+      return this.tokens[this.i];
+    }
+    next() {
+      return this.tokens[this.i++];
+    }
+    isOp(...ops) {
+      const t = this.peek();
+      return t.t === "op" && ops.includes(t.v);
+    }
+    parse() {
+      const node = this.comparison();
+      const t = this.peek();
+      if (t.t !== "eof") {
+        if (t.t === ")") throw new FormulaError("There is a ) without a matching (", t.pos);
+        throw new FormulaError("Unexpected text after the end of the formula", t.pos);
+      }
+      return node;
+    }
+    enter(pos) {
+      if (++this.depth > MAX_DEPTH) throw new FormulaError("This formula is nested too deeply", pos);
+    }
+    comparison() {
+      let left = this.concat();
+      while (this.isOp("=", "<>", "<", "<=", ">", ">=")) {
+        const t = this.next();
+        left = { k: "bin", op: t.v, l: left, r: this.concat(), pos: t.pos };
+      }
+      return left;
+    }
+    concat() {
+      let left = this.additive();
+      while (this.isOp("&")) {
+        const t = this.next();
+        left = { k: "bin", op: "&", l: left, r: this.additive(), pos: t.pos };
+      }
+      return left;
+    }
+    additive() {
+      let left = this.term();
+      while (this.isOp("+", "-")) {
+        const t = this.next();
+        left = { k: "bin", op: t.v, l: left, r: this.term(), pos: t.pos };
+      }
+      return left;
+    }
+    term() {
+      let left = this.unary();
+      while (this.isOp("*", "/")) {
+        const t = this.next();
+        left = { k: "bin", op: t.v, l: left, r: this.unary(), pos: t.pos };
+      }
+      return left;
+    }
+    unary() {
+      const t = this.peek();
+      if (t.t === "op" && (t.v === "-" || t.v === "+")) {
+        this.next();
+        this.enter(t.pos);
+        const e = this.unary();
+        this.depth--;
+        return t.v === "-" ? { k: "neg", e, pos: t.pos } : e;
+      }
+      return this.power();
+    }
+    power() {
+      const base = this.primary();
+      if (this.isOp("^")) {
+        const t = this.next();
+        this.enter(t.pos);
+        const exp = this.unary();
+        this.depth--;
+        return { k: "bin", op: "^", l: base, r: exp, pos: t.pos };
+      }
+      return base;
+    }
+    primary() {
+      const t = this.next();
+      switch (t.t) {
+        case "num":
+          return { k: "num", v: t.v, pos: t.pos };
+        case "str":
+          return { k: "str", v: t.v, pos: t.pos };
+        case "ref":
+          this.refs.add(t.v.toLowerCase());
+          return { k: "ref", name: t.v, pos: t.pos };
+        case "(": {
+          this.enter(t.pos);
+          const e = this.comparison();
+          this.depth--;
+          const close = this.next();
+          if (close.t !== ")") throw new FormulaError("This ( is missing its closing )", t.pos);
+          return e;
+        }
+        case "ident":
+          return this.identifier(t);
+        case "eof":
+          throw new FormulaError("The formula ends too soon — something is missing", t.pos);
+        case "op":
+          throw new FormulaError(`Unexpected "${t.v}" — a value was expected here`, t.pos);
+        case ")":
+          throw new FormulaError("Unexpected ) — a value was expected here", t.pos);
+        case ",":
+          throw new FormulaError("Unexpected comma — a value was expected here", t.pos);
+      }
+    }
+    identifier(t) {
+      const up = t.v.toUpperCase();
+      if (up === "TRUE" || up === "FALSE") {
+        if (this.peek().t === "(") throw new FormulaError(`${up} is a value, not a function`, t.pos);
+        return { k: "bool", v: up === "TRUE", pos: t.pos };
+      }
+      if (this.peek().t !== "(") {
+        throw new FormulaError(
+          `"${t.v}" isn't a column or value. Put column names in { }, like {${t.v}}`,
+          t.pos
+        );
+      }
+      const name = canonicalFunctionName(t.v);
+      const spec = FUNCTIONS.get(name);
+      if (!spec) throw new FormulaError(`Unknown function ${t.v.toUpperCase()}`, t.pos);
+      const open = this.next();
+      this.enter(open.pos);
+      const args = [];
+      if (this.peek().t !== ")") {
+        for (; ; ) {
+          args.push(this.comparison());
+          const sep = this.next();
+          if (sep.t === ",") continue;
+          if (sep.t === ")") break;
+          throw new FormulaError(`Expected a comma or ) in ${name}(…)`, sep.pos);
+        }
+      } else {
+        this.next();
+      }
+      this.depth--;
+      if (args.length < spec.min || args.length > spec.max) {
+        const want = spec.max === Infinity ? `at least ${spec.min}` : spec.min === spec.max ? `${spec.min}` : `${spec.min} to ${spec.max}`;
+        throw new FormulaError(
+          `${name} takes ${want} argument${spec.max === 1 && spec.min === 1 ? "" : "s"} (you gave ${args.length})`,
+          t.pos
+        );
+      }
+      this.functions.add(name);
+      return { k: "call", name, args, pos: t.pos };
+    }
+  };
+  function parseFormula(source) {
+    let src = source;
+    const trimmed = src.trimStart();
+    if (trimmed.startsWith("=")) {
+      const lead = src.length - trimmed.length;
+      src = " ".repeat(lead + 1) + trimmed.slice(1);
+    }
+    if (src.trim() === "")
+      return { ok: false, message: "Type a formula, for example {Budget} * 2", pos: 0 };
+    try {
+      const parser = new Parser(tokenize(src));
+      const ast = parser.parse();
+      return { ok: true, ast, refs: [...parser.refs], functions: [...parser.functions] };
+    } catch (e) {
+      if (e instanceof FormulaError) return { ok: false, message: e.message, pos: e.pos ?? 0 };
+      throw e;
+    }
+  }
+
+  // ../shared/src/formula/values.ts
+  var EMPTY = { t: "empty" };
+  function err(msg2) {
+    return { t: "err", msg: msg2 };
+  }
+  function num(n) {
+    if (!Number.isFinite(n)) return err("The result is not a finite number");
+    return { t: "num", v: Number(n.toPrecision(12)) };
+  }
+  var str = (v2) => ({ t: "str", v: v2 });
+  var bool = (v2) => ({ t: "bool", v: v2 });
+  var date = (v2) => ({ t: "date", v: v2 });
+  function typeName(v2) {
+    switch (v2.t) {
+      case "num":
+        return "a number";
+      case "str":
+        return `text "${v2.v.length > 20 ? `${v2.v.slice(0, 20)}…` : v2.v}"`;
+      case "bool":
+        return "a true/false value";
+      case "date":
+        return "a date";
+      case "range":
+        return "a date range";
+      case "empty":
+        return "an empty value";
+      case "err":
+        return "an error";
+    }
+  }
+  function check(v2) {
+    if (v2.t === "err") throw new FormulaError(v2.msg);
+    return v2;
+  }
+  function toNum(v2) {
+    check(v2);
+    switch (v2.t) {
+      case "num":
+        return v2.v;
+      case "empty":
+        return 0;
+      case "bool":
+        return v2.v ? 1 : 0;
+      case "str": {
+        const t = v2.v.trim();
+        const n = Number(t);
+        if (t !== "" && Number.isFinite(n)) return n;
+        throw new FormulaError(`Expected a number but got ${typeName(v2)}`);
+      }
+      default:
+        throw new FormulaError(`Expected a number but got ${typeName(v2)}`);
+    }
+  }
+  function fmtNum(n) {
+    return String(Number(n.toPrecision(12)));
+  }
+  function toStr(v2) {
+    check(v2);
+    switch (v2.t) {
+      case "str":
+        return v2.v;
+      case "num":
+        return fmtNum(v2.v);
+      case "bool":
+        return v2.v ? "TRUE" : "FALSE";
+      case "date":
+        return v2.v;
+      case "range":
+        return `${v2.start} – ${v2.end}`;
+      default:
+        return "";
+    }
+  }
+  function toBool(v2) {
+    check(v2);
+    switch (v2.t) {
+      case "bool":
+        return v2.v;
+      case "num":
+        return v2.v !== 0;
+      case "empty":
+        return false;
+      case "str": {
+        const t = v2.v.trim().toLowerCase();
+        if (t === "true") return true;
+        if (t === "false" || t === "") return false;
+        throw new FormulaError(`Expected true or false but got ${typeName(v2)}`);
+      }
+      default:
+        throw new FormulaError(`Expected true or false but got ${typeName(v2)}`);
+    }
+  }
+  function toDate(v2) {
+    check(v2);
+    if (v2.t === "date") return v2.v;
+    if (v2.t === "empty") return null;
+    if (v2.t === "str" && isIsoDate(v2.v.trim())) return v2.v.trim();
+    if (v2.t === "str" && v2.v.trim() === "") return null;
+    throw new FormulaError(`Expected a date but got ${typeName(v2)}`);
+  }
+  function isBlank(v2) {
+    return v2.t === "empty" || v2.t === "str" && v2.v === "";
+  }
+
+  // ../shared/src/formula/evaluate.ts
+  function roundTo(x, digits) {
+    if (!Number.isFinite(x) || Math.abs(x) >= 1e15) return x;
+    const d = Math.trunc(digits);
+    const abs = Math.abs(x);
+    const shifted = Math.round(Number(`${abs}e${d}`));
+    const back = Number(`${shifted}e${-d}`);
+    return x < 0 ? -back : back;
+  }
+  function wholeNumber(v2, what) {
+    const n = toNum(v2);
+    if (!Number.isInteger(n)) throw new FormulaError(`${what} must be a whole number`);
+    return n;
+  }
+  function numbers(args) {
+    const out = [];
+    for (const a of args) {
+      if (a.t === "err") throw new FormulaError(a.msg);
+      if (isBlank(a)) continue;
+      out.push(toNum(a));
+    }
+    return out;
+  }
+  function arithmetic(op, l, r) {
+    if (op === "+" || op === "-") {
+      const ld = l.t === "date";
+      const rd = r.t === "date";
+      if (ld || rd) {
+        if (op === "-" && ld && rd) return num(diffDays(l.v, r.v) ?? NaN);
+        if (op === "+" && ld && rd) throw new FormulaError("Can't add two dates together");
+        if (ld) {
+          const out2 = addDays(l.v, op === "+" ? toNum(r) : -toNum(r));
+          return out2 ? date(out2) : err("That date is out of range");
+        }
+        if (op === "-") throw new FormulaError("Can't subtract a date from a number");
+        const out = addDays(r.v, toNum(l));
+        return out ? date(out) : err("That date is out of range");
+      }
+    }
+    const a = toNum(l);
+    const b = toNum(r);
+    switch (op) {
+      case "+":
+        return num(a + b);
+      case "-":
+        return num(a - b);
+      case "*":
+        return num(a * b);
+      case "/":
+        if (b === 0) throw new FormulaError("Division by zero");
+        return num(a / b);
+      case "^":
+        return num(a ** b);
+    }
+  }
+  function cmp(l, r) {
+    if (l.t === "err" || r.t === "err")
+      throw new FormulaError((l.t === "err" ? l : r).msg);
+    const asDate = (v2) => v2.t === "date" ? v2.v : v2.t === "str" && isIsoDate(v2.v) ? v2.v : null;
+    const lDate = asDate(l);
+    const rDate = asDate(r);
+    if (lDate && rDate) return lDate < rDate ? -1 : lDate > rDate ? 1 : 0;
+    if (l.t === "empty" && r.t === "empty") return 0;
+    if (l.t === "empty")
+      return r.t === "date" ? -1 : cmp(
+        r.t === "num" ? { t: "num", v: 0 } : r.t === "bool" ? { t: "bool", v: false } : { t: "str", v: "" },
+        r
+      );
+    if (r.t === "empty")
+      return l.t === "date" ? 1 : cmp(
+        l,
+        l.t === "num" ? { t: "num", v: 0 } : l.t === "bool" ? { t: "bool", v: false } : { t: "str", v: "" }
+      );
+    if (l.t === "num" && r.t === "num") return l.v < r.v ? -1 : l.v > r.v ? 1 : 0;
+    if (l.t === "bool" && r.t === "bool") return Number(l.v) - Number(r.v);
+    if (l.t === "str" && r.t === "str") {
+      const a = l.v.toLowerCase();
+      const b = r.v.toLowerCase();
+      return a < b ? -1 : a > b ? 1 : 0;
+    }
+    if (l.t === "num" && r.t === "str" && r.v.trim() !== "" && Number.isFinite(Number(r.v)))
+      return cmp(l, { t: "num", v: Number(r.v) });
+    if (l.t === "str" && r.t === "num" && l.v.trim() !== "" && Number.isFinite(Number(l.v)))
+      return cmp({ t: "num", v: Number(l.v) }, r);
+    return null;
+  }
+  function binary(op, l, r) {
+    switch (op) {
+      case "+":
+      case "-":
+      case "*":
+      case "/":
+      case "^":
+        return arithmetic(op, l, r);
+      case "&":
+        return str(toStr(l) + toStr(r));
+      default: {
+        const c = cmp(l, r);
+        if (c === null) {
+          if (op === "=") return bool(false);
+          if (op === "<>") return bool(true);
+          throw new FormulaError("Can't compare these two different kinds of value");
+        }
+        switch (op) {
+          case "=":
+            return bool(c === 0);
+          case "<>":
+            return bool(c !== 0);
+          case "<":
+            return bool(c < 0);
+          case "<=":
+            return bool(c <= 0);
+          case ">":
+            return bool(c > 0);
+          default:
+            return bool(c >= 0);
+        }
+      }
+    }
+  }
+  function call(name, args, env) {
+    const a = args;
+    switch (name) {
+      // Logic (IF / IFERROR are lazy and handled in evalNode)
+      case "AND":
+        return bool(a.map(toBool).every(Boolean));
+      case "OR":
+        return bool(a.map(toBool).some(Boolean));
+      case "NOT":
+        return bool(!toBool(a[0]));
+      case "ISBLANK":
+        return bool(isBlank(a[0]));
+      // Math
+      case "SUM":
+        return num(numbers(a).reduce((s, n) => s + n, 0));
+      case "AVG": {
+        const n = numbers(a);
+        return n.length ? num(n.reduce((s, x) => s + x, 0) / n.length) : EMPTY;
+      }
+      case "MIN": {
+        const n = numbers(a);
+        return n.length ? num(Math.min(...n)) : EMPTY;
+      }
+      case "MAX": {
+        const n = numbers(a);
+        return n.length ? num(Math.max(...n)) : EMPTY;
+      }
+      case "ROUND": {
+        const digits = a[1] === void 0 ? 0 : wholeNumber(a[1], "The number of digits");
+        if (digits < -10 || digits > 10)
+          throw new FormulaError("ROUND digits must be between -10 and 10");
+        return num(roundTo(toNum(a[0]), digits));
+      }
+      case "ABS":
+        return num(Math.abs(toNum(a[0])));
+      case "FLOOR":
+        return num(Math.floor(toNum(a[0])));
+      case "CEILING":
+        return num(Math.ceil(toNum(a[0])));
+      case "MOD": {
+        const d = toNum(a[1]);
+        if (d === 0) throw new FormulaError("Division by zero");
+        const n = toNum(a[0]);
+        return num(n - d * Math.floor(n / d));
+      }
+      case "POWER":
+        return num(toNum(a[0]) ** toNum(a[1]));
+      case "SQRT": {
+        const n = toNum(a[0]);
+        if (n < 0) throw new FormulaError("Can't take the square root of a negative number");
+        return num(Math.sqrt(n));
+      }
+      case "VALUE": {
+        const v2 = a[0];
+        if (v2.t === "num") return v2;
+        if (isBlank(v2)) return EMPTY;
+        return num(toNum(v2));
+      }
+      // Text
+      case "CONCATENATE":
+        return str(a.map(toStr).join(""));
+      case "LEN":
+        return num([...toStr(a[0])].length);
+      case "UPPER":
+        return str(toStr(a[0]).toUpperCase());
+      case "LOWER":
+        return str(toStr(a[0]).toLowerCase());
+      case "TRIM":
+        return str(
+          toStr(a[0]).trim().replace(/\s+/g, " ")
+        );
+      case "LEFT":
+      case "RIGHT": {
+        const chars = [...toStr(a[0])];
+        const n = a[1] === void 0 ? 1 : wholeNumber(a[1], "The count");
+        if (n < 0) throw new FormulaError("The count must be zero or more");
+        return str((name === "LEFT" ? chars.slice(0, n) : n === 0 ? [] : chars.slice(-n)).join(""));
+      }
+      case "MID": {
+        const chars = [...toStr(a[0])];
+        const start = wholeNumber(a[1], "The start position");
+        const n = wholeNumber(a[2], "The count");
+        if (start < 1) throw new FormulaError("The start position must be 1 or more");
+        if (n < 0) throw new FormulaError("The count must be zero or more");
+        return str(chars.slice(start - 1, start - 1 + n).join(""));
+      }
+      case "SUBSTITUTE": {
+        const text = toStr(a[0]);
+        const from = toStr(a[1]);
+        return str(from === "" ? text : text.split(from).join(toStr(a[2])));
+      }
+      case "CONTAINS":
+        return bool(
+          toStr(a[0]).toLowerCase().includes(toStr(a[1]).toLowerCase())
+        );
+      // Date
+      case "TODAY":
+        return date(env.today);
+      case "DAYS": {
+        const x = toDate(a[0]);
+        const y = toDate(a[1]);
+        if (x === null || y === null) return EMPTY;
+        return num(diffDays(x, y) ?? NaN);
+      }
+      case "WORKDAYS": {
+        const x = toDate(a[0]);
+        const y = toDate(a[1]);
+        if (x === null || y === null) return EMPTY;
+        return num(workdaysBetween(x, y) ?? NaN);
+      }
+      case "ADD_DAYS": {
+        const d = toDate(a[0]);
+        if (d === null) return EMPTY;
+        const out = addDays(d, wholeNumber(a[1], "The number of days"));
+        return out ? date(out) : err("That date is out of range");
+      }
+      case "YEAR":
+      case "MONTH":
+      case "DAY": {
+        const d = toDate(a[0]);
+        if (d === null) return EMPTY;
+        const p = dateParts(d);
+        if (!p) return err("Not a valid date");
+        return num(name === "YEAR" ? p.year : name === "MONTH" ? p.month : p.day);
+      }
+      case "START":
+      case "END": {
+        const v2 = a[0];
+        if (v2.t === "err") throw new FormulaError(v2.msg);
+        if (v2.t === "empty") return EMPTY;
+        if (v2.t === "range") return date(name === "START" ? v2.start : v2.end);
+        if (v2.t === "date") return v2;
+        throw new FormulaError(`${name} needs a Timeline column`);
+      }
+    }
+    throw new FormulaError(`Unknown function ${name}`);
+  }
+  function evalNode(n, env) {
+    switch (n.k) {
+      case "num":
+        return num(n.v);
+      case "str":
+        return str(n.v);
+      case "bool":
+        return bool(n.v);
+      case "ref":
+        return env.ref(n.name);
+      case "neg":
+        return num(-toNum(evalNode(n.e, env)));
+      case "bin":
+        return binary(n.op, evalNode(n.l, env), evalNode(n.r, env));
+      case "call": {
+        if (n.name === "IF") {
+          const test = toBool(evalNode(n.args[0], env));
+          const branch = test ? n.args[1] : n.args[2];
+          return branch ? evalNode(branch, env) : EMPTY;
+        }
+        if (n.name === "IFERROR") {
+          try {
+            const v2 = evalNode(n.args[0], env);
+            if (v2.t === "err") return evalNode(n.args[1], env);
+            return v2;
+          } catch (e) {
+            if (e instanceof FormulaError) return evalNode(n.args[1], env);
+            throw e;
+          }
+        }
+        return call(
+          n.name,
+          n.args.map((x) => evalNode(x, env)),
+          env
+        );
+      }
+    }
+  }
+  function evaluate(ast, env) {
+    try {
+      return evalNode(ast, env);
+    } catch (e) {
+      if (e instanceof FormulaError) return err(e.message);
+      if (e instanceof RangeError) return err("This formula is too complicated to calculate");
+      throw e;
+    }
+  }
+
+  // ../shared/src/formula/validate.ts
+  var norm = (t) => t.trim().toLowerCase();
+  function titleIndex(columns) {
+    const m = /* @__PURE__ */ new Map();
+    for (const c of columns) if (!m.has(norm(c.title))) m.set(norm(c.title), c);
+    return m;
+  }
+
+  // ../shared/src/computed.ts
+  var FORMULA_ERROR_KEY = "__formulaError";
+  function toCell(v2) {
+    switch (v2.t) {
+      case "num":
+        return v2.v;
+      case "str":
+        return v2.v === "" ? null : v2.v;
+      case "bool":
+        return v2.v;
+      case "date":
+        return v2.v;
+      case "range":
+        return `${v2.start} – ${v2.end}`;
+      case "empty":
+        return null;
+      case "err":
+        return { [FORMULA_ERROR_KEY]: v2.msg };
+    }
+  }
+  function defaultProgressSettings(columns) {
+    const status = columns.find((c) => c.type === "status");
+    const labels = status?.settings.labels ?? [];
+    const done = labels.find((l) => l.id === "done") ?? labels.at(-1);
+    return {
+      source: "subitems",
+      statusColumnId: status?.id ?? null,
+      doneLabelIds: done ? [done.id] : [],
+      checkboxColumnIds: []
+    };
+  }
+  function computeProgress(item, subitems, columns, settings) {
+    const s = settings ?? defaultProgressSettings(columns);
+    if (s.source === "checkboxes") {
+      const boxes = s.checkboxColumnIds.map((id) => columns.find((c) => c.id === id && c.type === "checkbox")).filter((c) => !!c);
+      if (boxes.length === 0) return null;
+      const done2 = boxes.filter((c) => normalizeValue(c, item.values[c.id]) === true).length;
+      return done2 / boxes.length * 100;
+    }
+    const live = subitems.filter((k) => !k.deleted && !k.archived);
+    if (live.length === 0) return null;
+    const status = columns.find((c) => c.id === s.statusColumnId && c.type === "status") ?? columns.find((c) => c.type === "status");
+    if (!status) return null;
+    const labels = status.settings.labels ?? [];
+    const doneIds = new Set(
+      s.doneLabelIds.length ? s.doneLabelIds : [(labels.find((l) => l.id === "done") ?? labels.at(-1))?.id ?? ""]
+    );
+    const done = live.filter(
+      (k) => doneIds.has(normalizeValue(status, k.values[status.id]))
+    ).length;
+    return done / live.length * 100;
+  }
+  function applyComputed(items, columns, env) {
+    const computedCols = columns.filter((c) => isComputedType(c.type));
+    if (computedCols.length === 0) return items;
+    const byTitle = titleIndex(columns);
+    const children = /* @__PURE__ */ new Map();
+    for (const it of items) {
+      if (!it.parentId) continue;
+      const l = children.get(it.parentId) ?? [];
+      l.push(it);
+      children.set(it.parentId, l);
+    }
+    const parsed = new Map(
+      columns.filter((c) => c.type === "formula").map((c) => [c.id, parseFormula(c.settings.formula ?? "")])
+    );
+    const textCtx = { peopleName: env.memberName, itemName: env.itemName };
+    return items.map((item) => {
+      const memo = /* @__PURE__ */ new Map();
+      const visiting = /* @__PURE__ */ new Set();
+      const stored = (col) => {
+        const v2 = normalizeValue(col, item.values[col.id]);
+        if (v2 === null) return col.type === "checkbox" ? bool(false) : EMPTY;
+        switch (col.type) {
+          case "numbers":
+          case "rating":
+            return num(v2);
+          case "time":
+            return num(totalMs(v2) / 36e5);
+          // hours
+          case "date":
+            return date(v2);
+          case "timeline":
+            return { t: "range", start: v2.start, end: v2.end };
+          case "checkbox":
+            return bool(true);
+          case "link":
+            return str(v2.text || v2.url);
+          case "text":
+          case "longText":
+          case "email":
+          case "phone":
+            return str(v2);
+          default: {
+            const t = valueToText(col, v2, textCtx);
+            return t === "" ? EMPTY : str(t);
+          }
+        }
+      };
+      const valueOf = (col) => {
+        const cached = memo.get(col.id);
+        if (cached) return cached;
+        if (visiting.has(col.id)) return err(`Circular reference: {${col.title}} depends on itself`);
+        visiting.add(col.id);
+        let out;
+        switch (col.type) {
+          case "formula": {
+            const p = parsed.get(col.id);
+            if (!p) out = EMPTY;
+            else if (!p.ok) out = (col.settings.formula ?? "").trim() === "" ? EMPTY : err(p.message);
+            else
+              out = evaluate(p.ast, {
+                today: env.today,
+                ref: (name) => {
+                  const target = byTitle.get(name.trim().toLowerCase());
+                  return target ? valueOf(target) : err(`Unknown column {${name}}`);
+                }
+              });
+            break;
+          }
+          case "progress": {
+            const pct = computeProgress(
+              item,
+              children.get(item.id) ?? [],
+              columns,
+              col.settings.progress
+            );
+            out = pct === null ? EMPTY : num(pct);
+            break;
+          }
+          case "itemId":
+            out = item.itemNumber > 0 ? num(item.itemNumber) : EMPTY;
+            break;
+          case "createdAt":
+            out = item.createdAtMs ? date(todayIso(new Date(item.createdAtMs))) : EMPTY;
+            break;
+          case "updatedAt":
+            out = item.updatedAtMs ? date(todayIso(new Date(item.updatedAtMs))) : EMPTY;
+            break;
+          case "createdBy":
+            out = item.createdBy ? str(env.memberName(item.createdBy)) : EMPTY;
+            break;
+          case "group": {
+            const g = env.groupName?.(item.groupId);
+            out = g ? str(g) : EMPTY;
+            break;
+          }
+          default:
+            out = stored(col);
+        }
+        visiting.delete(col.id);
+        memo.set(col.id, out);
+        return out;
+      };
+      const values = { ...item.values };
+      for (const col of computedCols) {
+        const v2 = valueOf(col);
+        values[col.id] = col.type === "createdBy" ? item.createdBy ?? null : toCell(v2);
+      }
+      return { ...item, values };
+    });
   }
 
   // ../shared/src/views.ts
@@ -910,8 +2142,8 @@ var Sorted = (() => {
     const d = i.data ?? {};
     const data = {};
     for (const k of ["column", "from", "to", "group", "text"]) {
-      const v = clip(d[k]);
-      if (v !== void 0) data[k] = v;
+      const v2 = clip(d[k]);
+      if (v2 !== void 0) data[k] = v2;
     }
     if (typeof d.count === "number") data["count"] = Math.trunc(d.count);
     return {
@@ -1054,10 +2286,13 @@ var Sorted = (() => {
   function nextOccurrence(s, afterMs, tz) {
     if (toDayNumber(s.startDate) === null || !isValidTime(s.atTime)) return null;
     const today = toDayNumber(localDateIn(afterMs, tz));
-    for (let n = Math.max(today - 1, toDayNumber(s.startDate)); n < today + 800; n++) {
-      const date = fromDayNumber(n);
-      if (!matches(s.recurrence, date, s.startDate)) continue;
-      const at = zonedToUtcMs(date, s.atTime, tz);
+    const from = Math.max(today - 1, toDayNumber(s.startDate));
+    const r = s.recurrence;
+    const horizon = (r.kind === "monthly" ? r.every * 31 : r.kind === "weekly" ? r.every * 7 : r.every) + 62;
+    for (let n = from; n < from + horizon; n++) {
+      const date2 = fromDayNumber(n);
+      if (!matches(s.recurrence, date2, s.startDate)) continue;
+      const at = zonedToUtcMs(date2, s.atTime, tz);
       if (at !== null && at > afterMs) return at;
     }
     return null;
@@ -1072,7 +2307,7 @@ var Sorted = (() => {
   // ../shared/src/automations.ts
   var MAX_ACTIONS = 5;
   var MAX_CONDITIONS = 5;
-  var MAX_DEPTH = 3;
+  var MAX_DEPTH2 = 3;
   var MAX_CREATED = 10;
   var MAX_NOTIFY = 10;
   function isScheduledTrigger(t) {
@@ -1082,43 +2317,43 @@ var Sorted = (() => {
     return isScheduledTrigger(a.trigger);
   }
   var TOKEN_ME = "@me";
-  function resolveDateToken(v, today) {
-    if (typeof v !== "string") return null;
-    const m = /^@today(?:([+-])(\d{1,4}))?$/.exec(v);
+  function resolveDateToken(v2, today) {
+    if (typeof v2 !== "string") return null;
+    const m = /^@today(?:([+-])(\d{1,4}))?$/.exec(v2);
     if (!m) return null;
     if (!m[1]) return today;
     const n = Number(m[2]);
     return addDays(today, m[1] === "-" ? -n : n);
   }
-  function isDateToken(v) {
-    return typeof v === "string" && /^@today(?:[+-]\d{1,4})?$/.test(v);
+  function isDateToken(v2) {
+    return typeof v2 === "string" && /^@today(?:[+-]\d{1,4})?$/.test(v2);
   }
-  var str = (v, max = 200) => typeof v === "string" && v.length > 0 && v.length <= max ? v : null;
+  var str2 = (v2, max = 200) => typeof v2 === "string" && v2.length > 0 && v2.length <= max ? v2 : null;
   function parseTrigger(raw) {
     const r = raw && typeof raw === "object" ? raw : {};
     switch (r["type"]) {
       case "itemCreated":
         return { type: "itemCreated" };
       case "columnChanged":
-        return { type: "columnChanged", columnId: str(r["columnId"], 64) };
+        return { type: "columnChanged", columnId: str2(r["columnId"], 64) };
       case "statusChangedTo": {
-        const columnId = str(r["columnId"], 64);
-        const labelId = str(r["labelId"], 64);
+        const columnId = str2(r["columnId"], 64);
+        const labelId = str2(r["labelId"], 64);
         return columnId && labelId ? { type: "statusChangedTo", columnId, labelId } : null;
       }
       case "personAssigned":
-        return { type: "personAssigned", columnId: str(r["columnId"], 64), uid: str(r["uid"], 128) };
+        return { type: "personAssigned", columnId: str2(r["columnId"], 64), uid: str2(r["uid"], 128) };
       case "movedToGroup": {
-        const groupId = str(r["groupId"], 64);
+        const groupId = str2(r["groupId"], 64);
         return groupId ? { type: "movedToGroup", groupId } : null;
       }
       case "subitemsAllDone": {
-        const columnId = str(r["columnId"], 64);
-        const labelId = str(r["labelId"], 64);
+        const columnId = str2(r["columnId"], 64);
+        const labelId = str2(r["labelId"], 64);
         return columnId && labelId ? { type: "subitemsAllDone", columnId, labelId } : null;
       }
       case "dateArrives": {
-        const columnId = str(r["columnId"], 64);
+        const columnId = str2(r["columnId"], 64);
         const off = r["offsetDays"];
         if (!columnId || typeof off !== "number" || !Number.isInteger(off) || Math.abs(off) > MAX_OFFSET_DAYS)
           return null;
@@ -1131,7 +2366,7 @@ var Sorted = (() => {
         };
       }
       case "overdue": {
-        const columnId = str(r["columnId"], 64);
+        const columnId = str2(r["columnId"], 64);
         return columnId ? { type: "overdue", columnId, atTime: isValidTime(r["atTime"]) ? r["atTime"] : "09:00" } : null;
       }
       case "recurring": {
@@ -1156,19 +2391,19 @@ var Sorted = (() => {
     const r = raw && typeof raw === "object" ? raw : {};
     switch (r["type"]) {
       case "setValue": {
-        const columnId = str(r["columnId"], 64);
+        const columnId = str2(r["columnId"], 64);
         return columnId ? { type: "setValue", columnId, value: r["value"] ?? null } : null;
       }
       case "moveToGroup": {
-        const groupId = str(r["groupId"], 64);
+        const groupId = str2(r["groupId"], 64);
         return groupId ? { type: "moveToGroup", groupId } : null;
       }
       case "createItem": {
-        const name = str(r["name"], 200);
+        const name = str2(r["name"], 200);
         return name ? {
           type: "createItem",
           name,
-          groupId: str(r["groupId"], 64),
+          groupId: str2(r["groupId"], 64),
           subitem: r["subitem"] === true
         } : null;
       }
@@ -1178,9 +2413,9 @@ var Sorted = (() => {
         return { type: "archive" };
       case "notify": {
         const to = ["assignees", "owner", "actor", "person"].find((x) => x === r["to"]);
-        const message = str(r["message"], 200);
+        const message = str2(r["message"], 200);
         if (!to || !message) return null;
-        const uid = str(r["uid"], 128);
+        const uid = str2(r["uid"], 128);
         if (to === "person" && !uid) return null;
         return { type: "notify", to, uid: to === "person" ? uid : null, message };
       }
@@ -1226,7 +2461,7 @@ var Sorted = (() => {
     return (Array.isArray(after) ? after : []).filter((u) => !had.has(u));
   }
   function runAutomations(input) {
-    const maxDepth = input.maxDepth ?? MAX_DEPTH;
+    const maxDepth = input.maxDepth ?? MAX_DEPTH2;
     const { columns, groups, actor } = input;
     const working = /* @__PURE__ */ new Map();
     for (const [id, it] of input.items) working.set(id, it);
@@ -1411,7 +2646,7 @@ var Sorted = (() => {
           const isDup = act.type === "duplicate";
           const parentId = isDup ? target.parentId : act.subitem ? targetId : null;
           const groupId = isDup ? target.groupId : act.groupId ?? target.groupId;
-          const name = isDup ? `${target.name} (copy)` : act.name.replaceAll("{item}", target.name).slice(0, 500);
+          const name = isDup ? `${target.name} (copy)` : act.name.replaceAll("{item}", targetId === BOARD_TARGET ? input.boardName : target.name).slice(0, 500).trim() || a.name;
           const values = isDup ? { ...target.values } : { ...defaultItemValues(columns) };
           const id = input.newId("item");
           const order = keyBetween(
@@ -1462,7 +2697,10 @@ var Sorted = (() => {
                 nid: input.newId("notification"),
                 actor,
                 type: "automation",
-                title: act.message.replaceAll("{item}", targetId === BOARD_TARGET ? "" : target.name || "an item").trim(),
+                title: act.message.replaceAll(
+                  "{item}",
+                  targetId === BOARD_TARGET ? input.boardName : target.name || "an item"
+                ).trim() || a.name,
                 body: `${input.boardName} · ${a.name}`,
                 link: targetId === BOARD_TARGET ? `/w/${input.wid}/b/${input.bid}` : itemLink(input.wid, input.bid, targetId)
               })
@@ -1472,6 +2710,24 @@ var Sorted = (() => {
       }
     };
     const ctx = { today: input.today, me: actor, memberName: input.memberName };
+    const conditionsMet = (a, target) => {
+      if (a.conditions.length === 0) return true;
+      const needsComputed = a.conditions.some((f) => {
+        const c = col(f.columnId);
+        return !!c && isComputedType(c.type);
+      });
+      const subject = needsComputed ? applyComputed(
+        [target, ...[...working.values()].filter((x) => x.parentId === target.id && live(x))],
+        columns,
+        {
+          today: input.today,
+          memberName: input.memberName,
+          itemName: (id) => working.get(id)?.name,
+          groupName: (id) => groups.find((g) => g.id === id)?.name
+        }
+      )[0] : target;
+      return a.conditions.every((f) => matchesFilter(subject, columns, f, ctx));
+    };
     while (queue.length > 0) {
       const q = queue.shift();
       for (const a of input.automations) {
@@ -1480,8 +2736,7 @@ var Sorted = (() => {
         if (targetId === null) continue;
         const target = working.get(targetId);
         if (!target || !live(target)) continue;
-        if (targetId !== BOARD_TARGET && !a.conditions.every((f) => matchesFilter(target, columns, f, ctx)))
-          continue;
+        if (targetId !== BOARD_TARGET && !conditionsMet(a, target)) continue;
         const guard = q.chain.includes(a.id) ? "Skipped: it would run itself again (loop guard)." : q.depth >= maxDepth ? `Skipped: automations triggering automations stop after ${maxDepth} levels.` : null;
         if (guard) {
           const k = `${a.id}|${guard}`;
@@ -1525,7 +2780,7 @@ var Sorted = (() => {
     for (const [id, p] of patches) {
       if (createdIds.includes(id)) continue;
       const data = { ...stamp };
-      for (const [cid, v] of Object.entries(p.values)) data[`values.${cid}`] = v;
+      for (const [cid, v2] of Object.entries(p.values)) data[`values.${cid}`] = v2;
       const w = working.get(id);
       if (p.peopleTouched) data["assigneeUids"] = computeAssignees(columns, w.values);
       if (p.groupId !== void 0) data["groupId"] = p.groupId;
@@ -1646,7 +2901,7 @@ var Sorted = (() => {
       this.code = code;
     }
   };
-  var HELPER_VERSION = "7e.2";
+  var HELPER_VERSION = "7e.3";
 
   // ../shared/src/scheduleOps.ts
   function eventId(automationId, itemId) {
@@ -1660,10 +2915,10 @@ var Sorted = (() => {
     return t.type === "dateArrives" && col.type === "timeline" && t.which === "start" ? span.start : span.end;
   }
   function itemFireAt(t, item, columns, tz) {
-    const date = triggerDate(t, item, columns);
-    if (!date || !isIsoDate(date)) return null;
-    const at = fireAtForDate(date, t.type === "overdue" ? 1 : t.offsetDays, t.atTime, tz);
-    return at === null ? null : { fireAt: at, dateValue: date };
+    const date2 = triggerDate(t, item, columns);
+    if (!date2 || !isIsoDate(date2)) return null;
+    const at = fireAtForDate(date2, t.type === "overdue" ? 1 : t.offsetDays, t.atTime, tz);
+    return at === null ? null : { fireAt: at, dateValue: date2 };
   }
   var del = (c, aid, iid) => ({
     kind: "delete",
@@ -1741,45 +2996,45 @@ var Sorted = (() => {
   }
 
   // src/firestoreCodec.ts
-  function toValue(v) {
-    if (v === null || v === void 0) return { nullValue: null };
-    if (typeof v === "boolean") return { booleanValue: v };
-    if (typeof v === "number") {
-      if (!Number.isFinite(v)) throw new Error("Firestore cannot store NaN or Infinity");
-      return Number.isInteger(v) && Math.abs(v) <= Number.MAX_SAFE_INTEGER ? { integerValue: String(v) } : { doubleValue: v };
+  function toValue(v2) {
+    if (v2 === null || v2 === void 0) return { nullValue: null };
+    if (typeof v2 === "boolean") return { booleanValue: v2 };
+    if (typeof v2 === "number") {
+      if (!Number.isFinite(v2)) throw new Error("Firestore cannot store NaN or Infinity");
+      return Number.isInteger(v2) && Math.abs(v2) <= Number.MAX_SAFE_INTEGER ? { integerValue: String(v2) } : { doubleValue: v2 };
     }
-    if (typeof v === "string") return { stringValue: v };
-    if (v instanceof Date) return { timestampValue: v.toISOString() };
-    if (Array.isArray(v)) return { arrayValue: { values: v.map(toValue) } };
-    if (typeof v === "object")
-      return { mapValue: { fields: toFields(v) } };
-    throw new Error(`Cannot store a ${typeof v} in Firestore`);
+    if (typeof v2 === "string") return { stringValue: v2 };
+    if (v2 instanceof Date) return { timestampValue: v2.toISOString() };
+    if (Array.isArray(v2)) return { arrayValue: { values: v2.map(toValue) } };
+    if (typeof v2 === "object")
+      return { mapValue: { fields: toFields(v2) } };
+    throw new Error(`Cannot store a ${typeof v2} in Firestore`);
   }
   function toFields(obj) {
     const out = {};
-    for (const [k, v] of Object.entries(obj)) if (v !== void 0) out[k] = toValue(v);
+    for (const [k, v2] of Object.entries(obj)) if (v2 !== void 0) out[k] = toValue(v2);
     return out;
   }
-  function fromValue(v) {
-    if (!v) return null;
-    if ("nullValue" in v) return null;
-    if ("booleanValue" in v) return v["booleanValue"] === true;
-    if ("integerValue" in v) return Number(v["integerValue"]);
-    if ("doubleValue" in v) return Number(v["doubleValue"]);
-    if ("stringValue" in v) return String(v["stringValue"]);
-    if ("timestampValue" in v) return new Date(String(v["timestampValue"]));
-    if ("referenceValue" in v) return String(v["referenceValue"]);
-    if ("bytesValue" in v) return String(v["bytesValue"]);
-    if ("arrayValue" in v) {
-      const vals = v["arrayValue"].values ?? [];
+  function fromValue(v2) {
+    if (!v2) return null;
+    if ("nullValue" in v2) return null;
+    if ("booleanValue" in v2) return v2["booleanValue"] === true;
+    if ("integerValue" in v2) return Number(v2["integerValue"]);
+    if ("doubleValue" in v2) return Number(v2["doubleValue"]);
+    if ("stringValue" in v2) return String(v2["stringValue"]);
+    if ("timestampValue" in v2) return new Date(String(v2["timestampValue"]));
+    if ("referenceValue" in v2) return String(v2["referenceValue"]);
+    if ("bytesValue" in v2) return String(v2["bytesValue"]);
+    if ("arrayValue" in v2) {
+      const vals = v2["arrayValue"].values ?? [];
       return vals.map(fromValue);
     }
-    if ("mapValue" in v) return fromFields(v["mapValue"].fields ?? {});
+    if ("mapValue" in v2) return fromFields(v2["mapValue"].fields ?? {});
     return null;
   }
   function fromFields(fields) {
     const out = {};
-    for (const [k, v] of Object.entries(fields)) out[k] = fromValue(v);
+    for (const [k, v2] of Object.entries(fields)) out[k] = fromValue(v2);
     return out;
   }
   function decodeDoc(d) {
@@ -1793,13 +3048,13 @@ var Sorted = (() => {
   }
 
   // src/firestore.ts
-  var isSentinel = (v) => typeof v === "object" && v !== null && "__op" in v;
+  var isSentinel = (v2) => typeof v2 === "object" && v2 !== null && "__op" in v2;
   var seg = (s) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(s) ? s : `\`${s.replace(/`/g, "\\`")}\``;
-  var isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v) && !(v instanceof Date) && !isSentinel(v);
-  function strip(v, path, transforms) {
-    if (!isPlainObject(v)) return v;
+  var isPlainObject = (v2) => v2 !== null && typeof v2 === "object" && !Array.isArray(v2) && !(v2 instanceof Date) && !isSentinel(v2);
+  function strip(v2, path, transforms) {
+    if (!isPlainObject(v2)) return v2;
     const out = {};
-    for (const [k, x] of Object.entries(v)) {
+    for (const [k, x] of Object.entries(v2)) {
       const here = [...path, k];
       if (isSentinel(x)) {
         const fp = here.map(seg).join(".");
@@ -1825,27 +3080,27 @@ var Sorted = (() => {
     const value = {};
     const transforms = [];
     const paths2 = [];
-    for (const [k, v] of Object.entries(data)) {
+    for (const [k, v2] of Object.entries(data)) {
       const here = mask && k.includes(".") ? [...prefix, ...k.split(".")] : [...prefix, k];
       const fp = here.map(seg).join(".");
-      if (isSentinel(v)) {
-        if (v.__op === "serverTime")
+      if (isSentinel(v2)) {
+        if (v2.__op === "serverTime")
           transforms.push({ fieldPath: fp, setToServerValue: "REQUEST_TIME" });
-        else if (v.__op === "deleteField") paths2.push(fp);
-        else if (v.__op === "arrayUnion")
+        else if (v2.__op === "deleteField") paths2.push(fp);
+        else if (v2.__op === "arrayUnion")
           transforms.push({
             fieldPath: fp,
-            appendMissingElements: { values: (v.values ?? []).map(toValue) }
+            appendMissingElements: { values: (v2.values ?? []).map(toValue) }
           });
-        else if (v.__op === "arrayRemove")
+        else if (v2.__op === "arrayRemove")
           transforms.push({
             fieldPath: fp,
-            removeAllFromArray: { values: (v.values ?? []).map(toValue) }
+            removeAllFromArray: { values: (v2.values ?? []).map(toValue) }
           });
         continue;
       }
-      if (v === void 0) continue;
-      const clean = strip(v, here, transforms);
+      if (v2 === void 0) continue;
+      const clean = strip(v2, here, transforms);
       if (mask && k.includes(".")) {
         let cur = value;
         const parts = k.split(".");
@@ -1855,7 +3110,7 @@ var Sorted = (() => {
         });
         cur[parts[parts.length - 1]] = clean;
         paths2.push(fp);
-      } else if (mask && v !== null && typeof v === "object" && !Array.isArray(v) && !(v instanceof Date)) {
+      } else if (mask && v2 !== null && typeof v2 === "object" && !Array.isArray(v2) && !(v2 instanceof Date)) {
         value[k] = clean;
         paths2.push(fp);
       } else {
@@ -2824,16 +4079,16 @@ var Sorted = (() => {
           followRedirects: req.followRedirects ?? true
         });
         const headers2 = {};
-        for (const [k, v] of Object.entries(res.getAllHeaders()))
-          headers2[k.toLowerCase()] = Array.isArray(v) ? String(v[0]) : String(v);
+        for (const [k, v2] of Object.entries(res.getAllHeaders()))
+          headers2[k.toLowerCase()] = Array.isArray(v2) ? String(v2[0]) : String(v2);
         return { status: res.getResponseCode(), body: res.getContentText(), headers: headers2 };
       },
       cacheGet: (k) => cache.get(k),
-      cachePut: (k, v, ttl) => {
-        cache.put(k, v, Math.min(ttl, 21600));
+      cachePut: (k, v2, ttl) => {
+        cache.put(k, v2, Math.min(ttl, 21600));
       },
       prop: (n) => props.getProperty(n),
-      setProp: (n, v) => void props.setProperty(n, v),
+      setProp: (n, v2) => void props.setProperty(n, v2),
       sendMail: (m) => MailApp.sendEmail({
         to: m.to,
         subject: m.subject,
@@ -3085,9 +4340,9 @@ var Sorted = (() => {
       throw e;
     }
   }
-  function recordTransientFailure(p, db, ev, err) {
+  function recordTransientFailure(p, db, ev, err2) {
     const attempts = ev.attempts + 1;
-    const message = (err instanceof HelperError ? err.message : err instanceof Error ? err.message : String(err)).slice(0, 300);
+    const message = (err2 instanceof HelperError ? err2.message : err2 instanceof Error ? err2.message : String(err2)).slice(0, 300);
     p.log(`Event ${ev.doc.path} failed (attempt ${attempts}): ${message}`);
     const giveUp = attempts >= MAX_ATTEMPTS;
     try {

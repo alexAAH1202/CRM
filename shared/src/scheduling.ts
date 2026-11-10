@@ -147,8 +147,13 @@ function matches(rec: Recurrence, dateIso: string, startIso: string): boolean {
 export function nextOccurrence(s: Schedule, afterMs: number, tz: string): number | null {
   if (toDayNumber(s.startDate) === null || !isValidTime(s.atTime)) return null;
   const today = toDayNumber(localDateIn(afterMs, tz)) as number;
-  // start a day early so a timezone edge can't skip a fire
-  for (let n = Math.max(today - 1, toDayNumber(s.startDate) as number); n < today + 800; n++) {
+  // start a day early so a timezone edge can't skip a fire; look far enough ahead for the longest
+  // gap this schedule can have (every 52 months is over four years)
+  const from = Math.max(today - 1, toDayNumber(s.startDate) as number);
+  const r = s.recurrence;
+  const horizon =
+    (r.kind === 'monthly' ? r.every * 31 : r.kind === 'weekly' ? r.every * 7 : r.every) + 62;
+  for (let n = from; n < from + horizon; n++) {
     const date = fromDayNumber(n);
     if (!matches(s.recurrence, date, s.startDate)) continue;
     const at = zonedToUtcMs(date, s.atTime, tz);
