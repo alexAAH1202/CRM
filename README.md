@@ -22,15 +22,31 @@ on free tiers: the Firebase Spark plan plus a Google Apps Script helper.
 - Decisions log: [`docs/DECISIONS.md`](docs/DECISIONS.md)
 - Backlog: [`docs/BACKLOG.md`](docs/BACKLOG.md)
 
+- For the people using it: [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md)
+
+## What it does
+
+Households hold **lists** (bills, chores, renewals, maintenance, trips, purchases, goals or your
+own), each with custom columns (status, people, dates, timelines, numbers, files, formulas,
+dependencies, time tracking and more) and six views (table, Kanban, calendar, timeline, workload,
+chart). Items have comments with @mentions, files in Google Drive, and an activity log. Automations
+run instantly in the browser or on a clock through the Apps Script helper (reminders, recurring
+chores), which also sends an optional daily email, backs everything up weekly to Drive and tidies up
+nightly. Plus My work, search, a timesheet, dashboards, CSV import/export, undo/redo, dark mode,
+phone layout and offline use.
+
 ## Status
 
-| Phase                                    | State   |
-| ---------------------------------------- | ------- |
-| 0. Foundations                           | ✅ done |
-| 1. Auth, workspace, invites, rules       | ✅ done |
-| 2. Boards & table view (2a + 2b)         | ✅ done |
-| 3. Columns, formulas, dependencies       | ✅ done |
-| 4a. Saved views, Kanban, Calendar        | ✅ done |
-| 4b. Gantt, Workload, Chart               | ✅ done |
-| 5a. Item panel, updates, mentions, inbox | ✅ done |
-| 5b. Activity log, My Work, search        | next    |
+All phases (0–9) are done. The quota audit (`e2e/quota-audit.spec.ts`, see
+[`docs/QUOTA_BUDGET.md`](docs/QUOTA_BUDGET.md)) puts a busy 15-person household at about 30% of the
+free daily reads (48% on a peak day) and 8% of writes.
+
+## Checks
+
+```bash
+npm run check
+```
+
+```bash
+npx playwright test
+```

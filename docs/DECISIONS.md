@@ -851,3 +851,29 @@ me` query per board I can see (only matching items are billed, plus one read per
   an object with a text `type` (and the count). Everything else about a widget is sanitised when the
   dashboard is read (`parseDashboard`: unknown types and fields vanish, layouts are clamped, a widget
   can only point at a list the dashboard has), so a tampered client can't make a dashboard misbehave.
+
+### D94. Phase 9 quota audit: measured, projected, enforced by a test
+
+- `e2e/quota-audit.spec.ts` builds the budget's household (10 lists, one of 150 items, a dashboard),
+  measures each everyday action with the usage meter, projects a day for 15 people (the assumptions
+  in QUOTA_BUDGET §4), adds what the meter can't see (one rule lookup per live update, the helper's
+  background reads), and **fails if a normal day reaches 60% of the free reads/writes** or a peak day
+  (1.5× plus the weekly backup) reaches 100%.
+- Result: about **15,100 reads/day (30%)**, peak **23,900 (48%)**, **1,500 writes (8%)**, at most
+  1,000 deletes (5%). The largest single cost is dashboards (each view reads its lists' items once,
+  ~165 reads for a 150-item list); still well inside the target.
+- What it can't prove: billing details the emulator doesn't model (whether your own edits' echoes are
+  billed, rule lookups). After a week of real use, compare with the Firebase console's Usage tab.
+
+### D95. Robustness odds and ends
+
+- After a deploy, an open tab asking for a code file that no longer exists reloads itself once (and
+  the error screen says "Sorted has been updated" instead of a raw error).
+- Hosting adds `X-Frame-Options: DENY` and a `Permissions-Policy` turning off camera, microphone,
+  location and payment. A full Content-Security-Policy was not added: Google sign-in, Firestore,
+  Drive previews and the Apps Script helper need a long allow-list that can't be tested from here,
+  and a wrong one would lock everyone out.
+- `npm audit` reports `@grpc/grpc-js` advisories through the Firebase SDK. That package is only used
+  when Firestore runs under Node (our tests and tooling), never in the browser app, and the only fix
+  offered is downgrading Firebase to 9.x. Left as is, to revisit when Firebase updates its dependency.
+- Press **?** for a keyboard-shortcut list.

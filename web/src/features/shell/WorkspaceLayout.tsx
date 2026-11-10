@@ -8,6 +8,7 @@ import { TimerProvider } from '../time/TimerProvider';
 import { NotificationsProvider } from '../notifications/NotificationsProvider';
 import { WorkspaceProvider, useWorkspaceState } from '../workspaces/WorkspaceProvider';
 import { SearchPalette } from '../search/SearchPalette';
+import { ShortcutsDialog } from './ShortcutsDialog';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileTopBar, Sidebar } from './Sidebar';
 import { SearchContext } from './searchContext';
@@ -16,10 +17,18 @@ function Body() {
   const state = useWorkspaceState();
   const [drawer, setDrawer] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [shortcuts, setShortcuts] = useState(false);
 
   // Ctrl/Cmd+K opens search from anywhere in the workspace.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing = !!t?.closest('input, textarea, select, [contenteditable="true"]');
+      if (e.key === '?' && !typing && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setShortcuts(true);
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setSearching(true);
@@ -90,6 +99,7 @@ function Body() {
               </div>
             </div>
             <SearchPalette open={searching} onClose={() => setSearching(false)} />
+            <ShortcutsDialog open={shortcuts} onClose={() => setShortcuts(false)} />
           </SearchContext.Provider>
         </TimerProvider>
       </NotificationsProvider>

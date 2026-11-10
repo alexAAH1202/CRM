@@ -167,7 +167,7 @@ against the Firebase console's usage tab.
 | Rule `get()` cost per membership-gated request             | 1     | _to measure_                                                                                                                                                              |
 | Board open: cold / warm / delta (see the table below)      | 2     | measured                                                                                                                                                                  |
 | Dashboard load (1 list of 7 items, 9 widgets, warm reload) | 9     | 14 reads: 2 aggregation counts, the list document, plus the usual start-up reads; the items came from the device cache (a cold load adds one read per item in each list). |
-| Full 15-user scenario vs this budget                       | 9     | _to measure_                                                                                                                                                              |
+| Full 15-user scenario vs this budget                       | 9     | **30% of daily reads (peak 48%), 8% of writes**: see §6                                                                                                                   |
 
 ### Measured app-side costs (Phases 1–6)
 
@@ -317,3 +317,34 @@ and ~144 fetches a day.
 | Daily emails  | 7am daily    | Per opted-in person: one query per board (their items only) and one for unread notifications                                                      |
 | Email quota   | daily        | Capped at 80 emails a day (Google allows about 100 for a normal account)                                                                          |
 | CSV import    | on demand    | One write per item plus one counter write per 100 items; reads: one counter read per batch                                                        |
+
+## 6. Phase 9 audit (measured)
+
+`e2e/quota-audit.spec.ts`, emulator, one 150-item list among 10. Per action:
+
+| Action                                              |       Reads | Writes |
+| --------------------------------------------------- | ----------: | -----: |
+| Open the 150-item list on a new device (cold)       |         161 |      0 |
+| App start with a warm cache                         |          11 |      0 |
+| Open a list (warm)                                  |         5.5 |      0 |
+| One status edit (item + activity; own echo counted) |           2 |      2 |
+| Open an item panel                                  |           0 |      0 |
+| Open an item panel and comment                      |           2 |      1 |
+| A teammate's edit reaching an open list             | 1 (+1 rule) |      0 |
+| Dashboard, 5 widgets over the 150-item list         |         165 |      0 |
+| My work (10 lists)                                  |          20 |      0 |
+| Timesheet (10 lists)                                |          20 |      0 |
+| Search                                              |           0 |      0 |
+
+Projected day for 15 people (4 sessions, 10 list opens, 40 edits, 10 comments, 10 more panel opens,
+3 dashboard views, 3 My work, 1 timesheet, 3 searches each; every edit seen by 2 others; 2 new
+devices per person a month; helper ≈ 910 reads):
+
+|                                         |  Per day | Free limit |   Share |
+| --------------------------------------- | -------: | ---------: | ------: |
+| Reads (normal)                          | ≈ 15,100 |     50,000 | **30%** |
+| Reads (1.5× peak + weekly backup)       | ≈ 23,900 |     50,000 |     48% |
+| Writes                                  |  ≈ 1,500 |     20,000 |      8% |
+| Deletes (nightly clean-up, upper bound) |  ≤ 1,000 |     20,000 |      5% |
+
+The test fails if these cross the targets, so a change that makes everyday actions dearer is caught.

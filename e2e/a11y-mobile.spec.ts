@@ -70,6 +70,12 @@ test('accessibility: no serious or critical WCAG A/AA violations on the main scr
   found.push(...(await scan(ada, 'search')));
   await ada.keyboard.press('Escape');
 
+  await ada.getByRole('heading', { level: 1 }).first().click();
+  await ada.keyboard.press('?');
+  await expect(ada.getByRole('dialog', { name: 'Keyboard shortcuts' })).toContainText('Undo');
+  found.push(...(await scan(ada, 'shortcuts')));
+  await ada.keyboard.press('Escape');
+
   for (const [kind, tab] of [
     ['Kanban', 'Kanban'],
     ['Calendar', 'Calendar'],
@@ -84,6 +90,32 @@ test('accessibility: no serious or critical WCAG A/AA violations on the main scr
   found.push(...(await scan(ada, 'my work')));
   await ada.getByRole('link', { name: 'Members' }).click();
   found.push(...(await scan(ada, 'members')));
+  await ada.getByRole('link', { name: 'Timesheet' }).click();
+  found.push(...(await scan(ada, 'timesheet')));
+  await ada.getByRole('link', { name: 'Dashboards' }).click();
+  found.push(...(await scan(ada, 'dashboards')));
+  await ada.getByRole('button', { name: 'New dashboard' }).first().click();
+  found.push(...(await scan(ada, 'new dashboard dialog')));
+  await ada.getByLabel('Dashboard name').fill('A11y');
+  await ada.getByRole('checkbox').first().check();
+  await ada.getByRole('button', { name: 'Create dashboard' }).click();
+  await ada.getByRole('button', { name: 'Edit', exact: true }).click();
+  await ada.getByRole('button', { name: 'Add widget' }).click();
+  found.push(...(await scan(ada, 'add widget')));
+  await ada
+    .getByRole('dialog', { name: 'Add widget' })
+    .getByRole('button', { name: /^Progress/ })
+    .click();
+  await ada
+    .getByRole('dialog', { name: /settings$/ })
+    .getByRole('button', { name: 'Save' })
+    .click();
+  found.push(...(await scan(ada, 'dashboard')));
+  // dark mode too
+  await ada.getByRole('radio', { name: /dark/i }).click();
+  found.push(...(await scan(ada, 'dashboard (dark)')));
+  await ada.getByRole('link', { name: 'Timesheet' }).click();
+  found.push(...(await scan(ada, 'timesheet (dark)')));
   expect([...new Set(found)]).toEqual([]);
 });
 
