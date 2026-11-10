@@ -365,6 +365,27 @@ describe('favourites (users/{uid}.settings.favoriteBoardIds)', () => {
     );
     await assertFails(updateDoc(doc(fs, 'users/bob'), { 'settings.somethingElse': true }));
   });
+  it('today’s plan: up to three picks, only for yourself', async () => {
+    const fs = db(env, 'bob');
+    await assertSucceeds(
+      updateDoc(doc(fs, 'users/bob'), {
+        'settings.todayPlan': { date: '2026-03-10', picks: ['b:1', 'b:2', 'b:3'] },
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(fs, 'users/bob'), {
+        'settings.todayPlan': { date: '2026-03-10', picks: ['1', '2', '3', '4'] },
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(fs, 'users/bob'), { 'settings.todayPlan': { date: 'x', picks: [], extra: 1 } }),
+    );
+    await assertFails(
+      updateDoc(doc(db(env, 'alice'), 'users/bob'), {
+        'settings.todayPlan': { date: 'x', picks: [] },
+      }),
+    );
+  });
   it('the daily-email switch is a plain true/false only its owner can set', async () => {
     const fs = db(env, 'bob');
     await assertSucceeds(updateDoc(doc(fs, 'users/bob'), { 'settings.emailDigest': true }));

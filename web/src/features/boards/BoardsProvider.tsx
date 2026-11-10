@@ -20,6 +20,8 @@ interface BoardsState {
   muted: ReadonlySet<string>;
   /** Do I get the daily summary email? */
   emailDigest: boolean;
+  /** My stored plan for the day (raw; parsePlan checks it is today's). */
+  todayPlan: unknown;
   memberName: (uid: string) => string;
 }
 
@@ -53,6 +55,7 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
   const [favorites, setFavorites] = useState<ReadonlySet<string>>(new Set());
   const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
   const [emailDigest, setEmailDigest] = useState(false);
+  const [todayPlan, setTodayPlan] = useState<unknown>(null);
 
   useEffect(() => {
     const col = collection(db, paths.boards(workspace.id));
@@ -119,11 +122,17 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
     () =>
       listenDoc('user:favorites', doc(db, paths.user(user.uid)), (snap) => {
         const settings = snap.data()?.['settings'] as
-          | { favoriteBoardIds?: unknown; mutedNotifications?: unknown; emailDigest?: unknown }
+          | {
+              favoriteBoardIds?: unknown;
+              mutedNotifications?: unknown;
+              emailDigest?: unknown;
+              todayPlan?: unknown;
+            }
           | undefined;
         const ids = settings?.favoriteBoardIds;
         const mutedIds = settings?.mutedNotifications;
         setEmailDigest(settings?.emailDigest === true);
+        setTodayPlan(settings?.todayPlan ?? null);
         setMuted(
           new Set(
             Array.isArray(mutedIds)
@@ -150,9 +159,10 @@ export function BoardsProvider({ children }: { children: ReactNode }) {
       favorites,
       muted,
       emailDigest,
+      todayPlan,
       memberName: (uid) => byUid.get(uid) ?? 'Former member',
     };
-  }, [main, mine, members, folders, favorites, muted, emailDigest]);
+  }, [main, mine, members, folders, favorites, muted, emailDigest, todayPlan]);
 
   useEffect(() => {
     setActivityNameLookup(value.memberName);
