@@ -1,3 +1,4 @@
+import { useItemWidth } from './itemWidth';
 import {
   applyComputed,
   buildLayout,
@@ -174,7 +175,8 @@ export function BoardTable({
   const [dialog, setDialog] = useState<Dialog>(null);
   const [active, setActive] = useState<{ type: 'item' | 'group'; label: string } | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; edge: DropEdge } | null>(null);
-  const nameWidth = useNameWidth();
+  const autoWidth = useNameWidth();
+  const nameWidth = useItemWidth() ?? autoWidth;
   const fail = useCallback((err: unknown) => toast.error(friendlyError(err)), []);
 
   // ------------------------------------------------------------- derived data
