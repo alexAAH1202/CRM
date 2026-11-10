@@ -557,6 +557,60 @@ function CheckboxCell({ column, item, itemName, canEdit, onChange }: CellProps) 
   );
 }
 
+/** The item's group: picking another one moves the item there. */
+function GroupCell({ column, item, itemName, canEdit }: CellProps) {
+  const env = useCellEnv();
+  const current = env.groups.find((g) => g.id === item.groupId);
+  const style = current
+    ? { background: LABEL_COLORS[current.color].bg, color: LABEL_COLORS[current.color].text }
+    : undefined;
+  const cls = cx(cellBase, 'justify-center font-semibold', !current && 'bg-surface-3/60');
+  const body = <span className="truncate">{current?.name ?? ''}</span>;
+  // Subitems follow their parent's group.
+  if (!canEdit || item.parentId)
+    return (
+      <div className={cls} style={style}>
+        {body}
+      </div>
+    );
+  return (
+    <Popover
+      label={`${column.title} for ${itemName}`}
+      className="w-56"
+      trigger={(p) => (
+        <button
+          type="button"
+          {...p}
+          className={cx(cls, 'hover:brightness-95')}
+          style={style}
+          aria-label={`${column.title}: ${current?.name ?? 'none'}. Change for ${itemName}`}
+        >
+          {body}
+        </button>
+      )}
+    >
+      {(close) => (
+        <div className="flex flex-col gap-1.5">
+          {env.groups.map((g) => (
+            <LabelOption
+              key={g.id}
+              label={g}
+              selected={g.id === item.groupId}
+              onClick={() => {
+                env.moveToGroup(item, g.id);
+                close();
+              }}
+            />
+          ))}
+          <p className="px-1 text-xs text-muted">
+            Add or rename groups from the list itself (Add group, or a group’s ⋯ menu).
+          </p>
+        </div>
+      )}
+    </Popover>
+  );
+}
+
 const RENDERERS: Record<Column['type'], (p: CellProps) => ReactNode> = {
   text: TextCell,
   longText: LongTextCell,
@@ -581,6 +635,7 @@ const RENDERERS: Record<Column['type'], (p: CellProps) => ReactNode> = {
   createdAt: DateStampCell,
   updatedAt: DateStampCell,
   createdBy: CreatedByCell,
+  group: GroupCell,
 };
 
 export type { CellProps };

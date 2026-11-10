@@ -1,4 +1,4 @@
-import { DEFAULT_TIMEZONE, EMPTY_VIEW_CONFIG } from '@app/shared';
+import { BOARD_SCHEMA_VERSION, DEFAULT_TIMEZONE, EMPTY_VIEW_CONFIG } from '@app/shared';
 import {
   Activity,
   Archive,
@@ -24,6 +24,7 @@ import { useViewConfig } from '../boards/useViewConfig';
 import { useViews, type BoardView } from '../boards/useViews';
 import { useWorkspace } from '../workspaces/WorkspaceProvider';
 import { trimRunHistory } from '../automations/api';
+import { upgradeBoard } from '../boards/api';
 import { AutomationsPanel } from '../automations/AutomationsPanel';
 import { useAutomations, useBoardAutomationsRegistration } from '../automations/useAutomations';
 import { ActivityList } from '../activity/ActivityList';
@@ -92,6 +93,12 @@ function BoardView({ board: b }: { board: Board }) {
   useEffect(() => {
     if (canEdit) void trimRunHistory(workspace.id, b.id).catch(() => undefined);
   }, [canEdit, workspace.id, b.id]);
+  const needsUpgrade = canEdit && (b.schemaVersion ?? 1) < BOARD_SCHEMA_VERSION;
+  useEffect(() => {
+    if (needsUpgrade) void upgradeBoard(workspace.id, b).catch(() => undefined);
+    // Once per opening of an older list; `b` changes on every edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsUpgrade, workspace.id, b.id]);
   const { views } = useViews(workspace.id, b.id);
   const [params, setParams] = useSearchParams();
   // A board with no saved view doc yet shows an implicit "Main table".

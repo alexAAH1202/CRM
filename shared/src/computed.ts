@@ -29,6 +29,8 @@ export interface ComputedEnv {
   today: string;
   memberName: (uid: string) => string;
   itemName: (id: string) => string | undefined;
+  /** For the Group column: a group's name (absent where groups aren't known). */
+  groupName?: (id: string) => string | undefined;
 }
 
 /** A formula that failed is stored in the transient values as `{ [FORMULA_ERROR_KEY]: message }`. */
@@ -213,6 +215,11 @@ export function applyComputed<T extends ItemLike>(
         case 'createdBy':
           out = item.createdBy ? str(env.memberName(item.createdBy)) : EMPTY;
           break;
+        case 'group': {
+          const g = env.groupName?.(item.groupId);
+          out = g ? str(g) : EMPTY;
+          break;
+        }
         default:
           out = stored(col);
       }

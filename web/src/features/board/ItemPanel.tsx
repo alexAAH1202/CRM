@@ -43,8 +43,9 @@ export function ItemPanel({
       today: format(new Date(), 'yyyy-MM-dd'),
       memberName,
       itemName: (id) => items.get(id)?.name,
+      groupName: (id) => board.groups.find((g) => g.id === id)?.name,
     }),
-    [memberName, items],
+    [memberName, items, board.groups],
   );
   const item = useMemo(
     () =>

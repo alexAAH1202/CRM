@@ -1,4 +1,10 @@
-import { ITEM_WIDTH_MAX, ITEM_WIDTH_MIN, setItemWidth } from './itemWidth';
+import {
+  DEFAULT_ITEM_WIDTH,
+  ITEM_WIDTH_MAX,
+  ITEM_WIDTH_MIN,
+  setItemWidth,
+  useItemWidth,
+} from './itemWidth';
 import {
   LABEL_COLOR_NAMES,
   LABEL_COLORS,
@@ -275,12 +281,16 @@ function ResizeHandle({ columnId, width }: { columnId: string; width: number }) 
 
 /** Drag (or arrow keys) on the Item column's right edge to make it wider or narrower. */
 function ItemResizeHandle() {
+  const width = useItemWidth() ?? DEFAULT_ITEM_WIDTH;
   const clamp = (w: number) => Math.min(ITEM_WIDTH_MAX, Math.max(ITEM_WIDTH_MIN, Math.round(w)));
   return (
     <div
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize Item column"
+      aria-valuemin={ITEM_WIDTH_MIN}
+      aria-valuemax={ITEM_WIDTH_MAX}
+      aria-valuenow={width}
       tabIndex={0}
       title="Drag to resize"
       className="absolute top-0 right-0 z-10 h-full w-2 cursor-col-resize touch-none hover:bg-primary/30 focus:bg-primary/30 focus:outline-none"

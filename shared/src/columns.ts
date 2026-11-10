@@ -31,6 +31,7 @@ export const COLUMN_TYPES = [
   'createdAt',
   'updatedAt',
   'createdBy',
+  'group',
 ] as const;
 export type ColumnType = (typeof COLUMN_TYPES)[number];
 
@@ -39,6 +40,7 @@ export type ColumnType = (typeof COLUMN_TYPES)[number];
  * (from the item, its subitems or other columns) and is never written to the database.
  */
 export const COMPUTED_TYPES: readonly ColumnType[] = [
+  'group',
   'formula',
   'progress',
   'itemId',
@@ -234,6 +236,12 @@ export const COLUMN_META: Record<
     width: 130,
     description: 'When the item last changed',
     group: 'Calculated',
+  },
+  group: {
+    label: 'Group',
+    width: 150,
+    description: 'Which group the item is in; change it to move the item',
+    group: 'Choices & people',
   },
   createdBy: {
     label: 'Created by',
@@ -434,6 +442,7 @@ export function normalizeValue(col: Column, v: unknown): CellValue {
     case 'updatedAt':
       return isIsoDate(v) ? v : null;
     case 'createdBy':
+    case 'group':
       return typeof v === 'string' && v !== '' ? v : null;
     case 'formula':
       if (typeof v === 'number') return Number.isFinite(v) ? v : null;
@@ -515,6 +524,8 @@ export function valueToText(
       return (v as string[]).map(who).join(', ');
     case 'createdBy':
       return who(v as string);
+    case 'group':
+      return v as string;
     case 'timeline':
       return `${(v as TimelineValue).start} – ${(v as TimelineValue).end}`;
     case 'numbers':

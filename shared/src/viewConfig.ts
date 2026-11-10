@@ -152,6 +152,7 @@ export function opsFor(type: ColumnType | 'name'): FilterOp[] {
     case 'link':
     case 'email':
     case 'phone':
+    case 'group':
       return ['contains', 'notContains', 'is', 'isEmpty', 'notEmpty'];
     case 'status':
     case 'dropdown':
@@ -356,6 +357,7 @@ export function matchesFilter(
   switch (col.type) {
     case 'text':
     case 'longText':
+    case 'group':
       return matchText(typeof v === 'string' ? v : '', f);
     case 'link':
       return matchText(v ? (v as LinkValue).text || (v as LinkValue).url : '', f);

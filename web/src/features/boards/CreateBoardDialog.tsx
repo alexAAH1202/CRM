@@ -1,4 +1,10 @@
-import { TEMPLATES, type TemplateId } from '@app/shared';
+import {
+  customSections,
+  LIST_TYPES,
+  TEMPLATES,
+  type ListTypeId,
+  type TemplateId,
+} from '@app/shared';
 import { Globe, Lock } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -21,6 +27,12 @@ export function CreateBoardDialog({ open, onClose }: { open: boolean; onClose: (
   const [visibility, setVisibility] = useState<'main' | 'private'>('main');
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [listType, setListType] = useState<ListTypeId>('template');
+  const [custom, setCustom] = useState('');
+  const sections =
+    listType === 'custom'
+      ? customSections(custom)
+      : (LIST_TYPES.find((t) => t.id === listType)?.sections ?? []);
   const chosen = TEMPLATES.find((t) => t.id === template);
   const finalName = name.trim() || chosen?.name || 'New list';
 
@@ -32,6 +44,7 @@ export function CreateBoardDialog({ open, onClose }: { open: boolean; onClose: (
         uid: user.uid,
         name: finalName,
         template,
+        sections,
         visibility,
         memberIds,
         lastOrder: boards?.at(-1)?.order ?? null,
@@ -93,6 +106,45 @@ export function CreateBoardDialog({ open, onClose }: { open: boolean; onClose: (
               </button>
             ))}
           </div>
+        </fieldset>
+        <fieldset>
+          <legend className="mb-1 text-sm font-semibold">Groups (sections)</legend>
+          <p className="mb-2 text-xs text-muted">
+            Items sit in one of these. Change an item’s Group column to move it.
+          </p>
+          <div role="radiogroup" aria-label="List type" className="flex flex-wrap gap-2">
+            {LIST_TYPES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={listType === t.id}
+                onClick={() => setListType(t.id)}
+                className={cx(
+                  'rounded-xl border px-3 py-1.5 text-sm',
+                  listType === t.id
+                    ? 'border-primary bg-primary-soft font-semibold'
+                    : 'border-border hover:bg-surface-2',
+                )}
+              >
+                {t.name}
+                {t.sections.length > 0 && (
+                  <span className="block text-xs text-muted">
+                    {t.sections.map((s) => s.name).join(' · ')}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          {listType === 'custom' && (
+            <TextField
+              label="Your groups, separated by commas"
+              placeholder="e.g. This week, Next week, Someday"
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              className="mt-2"
+            />
+          )}
         </fieldset>
         <TextField
           label="List name"

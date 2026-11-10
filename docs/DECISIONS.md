@@ -934,3 +934,17 @@ me` query per board I can see (only matching items are billed, plus one read per
   view it through the folder; the creator can share it further from Docs.
 - Google Docs rather than Word files: Word Online needs a Microsoft 365 setup, and Docs can still
   download as .docx.
+
+### D101. Groups are a column
+
+- Every list has a **Group** column (type `group`). It stores nothing: it shows the item's
+  `groupId`, and picking another group moves the item (and its subitems) to the end of that group
+  through the normal move path, so it is undoable and logged. Dragging between groups changes it
+  too, and renaming or adding a group is reflected everywhere, because the groups are still the
+  list's own `groups`.
+- Existing lists are converted the first time an editor opens them: `schemaVersion` goes from 1 to
+  2 and the Group column is added first. Items keep the group they were in, so nothing moves.
+- New lists choose their groups ("list type") when created: the template's own, Tasks, Bills,
+  Study, Project, or Custom (typed, comma-separated). A template's sample items go in the first
+  group when the groups are replaced.
+- Filters treat the Group column as text (the group's name); it has no summary.
