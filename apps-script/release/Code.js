@@ -2901,7 +2901,7 @@ var Sorted = (() => {
       this.code = code;
     }
   };
-  var HELPER_VERSION = "7e.3";
+  var HELPER_VERSION = "7e.4";
 
   // ../shared/src/scheduleOps.ts
   function eventId(automationId, itemId) {
@@ -4652,7 +4652,9 @@ var Sorted = (() => {
   };
   actions["syncFolderSharing"] = {
     auth: "member",
-    run: (ctx) => syncFolderSharing(ctx.p, ctx.cfg, ctx.db, ctx.workspaceId)
+    run: (ctx, req) => syncFolderSharing(ctx.p, ctx.cfg, ctx.db, ctx.workspaceId, {
+      force: req["force"] === true && ctx.role === "admin"
+    })
   };
   var ok = (data) => ({ ok: true, data });
   var fail = (code, message) => ({

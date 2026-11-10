@@ -86,7 +86,10 @@ actions['uploadChunk'] = {
 // so a new joiner can get access without waiting for an admin.
 actions['syncFolderSharing'] = {
   auth: 'member',
-  run: (ctx) => syncFolderSharing(ctx.p, ctx.cfg, ctx.db, ctx.workspaceId as string),
+  run: (ctx, req) =>
+    syncFolderSharing(ctx.p, ctx.cfg, ctx.db, ctx.workspaceId as string, {
+      force: req['force'] === true && ctx.role === 'admin',
+    }),
 };
 
 /** Later phases add their actions here (scheduler tools, uploads, backup…). */

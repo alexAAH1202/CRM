@@ -3,6 +3,7 @@ import {
   buildTemplate,
   convertColumn,
   defaultItemValues,
+  computeAssignees,
   planApplyConversion,
   planArchiveItems,
   planAssignmentNotifications,
@@ -211,13 +212,19 @@ export function saveGroups(wid: string, bid: string, groups: Group[]) {
 /** Admin only: hard-deletes a board with its items, views and counter. */
 export async function deleteBoardCompletely(wid: string, bid: string): Promise<void> {
   const base = paths.board(wid, bid);
-  const [items, views] = await Promise.all([
-    readQuery('board:deleteScan', collection(db, `${base}/items`)),
-    readQuery('board:deleteScan', collection(db, `${base}/views`)),
-  ]);
+  // Everything that lives under the list: deleting a document leaves its sub-collections behind.
+  const subs = ['items', 'views', 'automations', 'automationRuns', 'activity', 'scheduledEvents'];
+  const scans = await Promise.all(
+    subs.map((s) => readQuery('board:deleteScan', collection(db, `${base}/${s}`))),
+  );
+  const items = scans[0]!;
+  // Each item's comments.
+  const threads = await Promise.all(
+    items.docs.map((d) => readQuery('board:deleteScan', collection(db, `${d.ref.path}/updates`))),
+  );
   const ops: WriteOp[] = [
-    ...items.docs.map((d) => ({ kind: 'delete' as const, path: d.ref.path })),
-    ...views.docs.map((d) => ({ kind: 'delete' as const, path: d.ref.path })),
+    ...threads.flatMap((t) => t.docs.map((d) => ({ kind: 'delete' as const, path: d.ref.path }))),
+    ...scans.flatMap((s) => s.docs.map((d) => ({ kind: 'delete' as const, path: d.ref.path }))),
     { kind: 'delete', path: boardPaths.counter(wid, bid) },
   ];
   await commitOpsChunked('board:deleteContents', ops);
@@ -292,6 +299,40 @@ export function createItem(input: {
             values: { ...defaultItemValues(input.board.columns), ...(input.values ?? {}) },
           },
         });
+        // People on a new item are told, and asked to accept, exactly as when they're added later.
+        const assignees = computeAssignees(
+          input.board.columns,
+          cleanValues(input.board.columns, {
+            ...defaultItemValues(input.board.columns),
+            ...(input.values ?? {}),
+          }),
+        );
+        if (assignees.length > 0) {
+          const created = ops.find(
+            (o) => o.kind === 'set' && o.path === boardPaths.item(input.wid, input.board.id, iid),
+          );
+          if (created && created.kind === 'set')
+            created.data['acceptance'] = Object.fromEntries(
+              assignees.map((u) => [
+                u,
+                { state: u === input.uid ? 'accepted' : 'pending', by: input.uid },
+              ]),
+            );
+          ops.push(
+            ...planAssignmentNotifications({
+              wid: input.wid,
+              bid: input.board.id,
+              iid,
+              actor: input.uid,
+              actorName: auth.currentUser?.displayName ?? auth.currentUser?.email ?? 'Someone',
+              itemName: input.name.trim() || 'an item',
+              boardName: input.board.name,
+              before: [],
+              after: assignees,
+              newId: () => newId(boardPaths.items(input.wid, input.board.id)),
+            }),
+          );
+        }
         ops.push(activity(input.wid, input.board.id, input.uid, 'create', iid, input.name.trim()));
         ops.push(
           ...scheduleOpsFor(input.board.id, [

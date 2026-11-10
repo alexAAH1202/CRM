@@ -52,7 +52,7 @@ export interface WhoAmI {
 }
 
 /** Bump when the helper code changes in a way the app should notice. */
-export const HELPER_VERSION = '7e.3';
+export const HELPER_VERSION = '7e.4';
 
 export interface HelperActions {
   ping: { request: Record<string, never>; response: { pong: true; at: string; version: string } };
@@ -98,7 +98,8 @@ export interface HelperActions {
   };
   /** Member: make the workspace folder's Drive sharing match the members list. */
   syncFolderSharing: {
-    request: { workspaceId: string };
+    /** `force` (admins): skip the once-a-minute limit, e.g. right after removing someone. */
+    request: { workspaceId: string; force?: boolean };
     response: { shared: number; added: number; removed: number; skipped: boolean };
   };
 }

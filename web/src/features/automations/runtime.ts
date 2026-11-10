@@ -2,7 +2,7 @@ import {
   needsNumbering,
   runAutomations,
   withFinalCounter,
-  todayIso,
+  localDateIn,
   isScheduledAutomation,
   planAutomationSchedule,
   planItemSchedule,
@@ -84,7 +84,7 @@ export function addAutomationOps(input: {
     actor: input.actor,
     memberUids: rt.memberUids,
     memberName: rt.memberName,
-    today: todayIso(),
+    today: localDateIn(Date.now(), rt.tz),
     startNumber: input.startNumber,
     newId: (kind) => newId(kind),
   });
@@ -97,7 +97,11 @@ export function addAutomationOps(input: {
   else if (skipped.length > 0)
     toast.info(`Automation “${skipped[0]!.name}” was skipped: ${skipped[0]!.error ?? ''}`);
   if (result.ops.length === 0) return input.baseOps;
-  const ops = [...input.baseOps, ...result.ops];
+  const ops = [
+    ...input.baseOps,
+    ...result.ops,
+    ...scheduleOpsForChanges(input.bid, input.itemsAfter, result.items),
+  ];
   return result.counterNext !== null
     ? withFinalCounter(ops, rt.wid, input.bid, input.counterExists, result.counterNext)
     : ops;
@@ -145,7 +149,7 @@ export function addAutomationOpsMany(input: {
       actor: input.actor,
       memberUids: rt.memberUids,
       memberName: rt.memberName,
-      today: todayIso(),
+      today: localDateIn(Date.now(), rt.tz),
       startNumber: next,
       newId: (kind) => newId(kind),
     });
@@ -170,6 +174,7 @@ export function addAutomationOpsMany(input: {
     toast.info(
       `${skipped} automation run${skipped === 1 ? ' was' : 's were'} skipped. ${firstProblem}`,
     );
+  ops.push(...scheduleOpsForChanges(input.bid, input.itemsAfter, items));
   return counterTouched && next !== null
     ? withFinalCounter(ops, rt.wid, input.bid, input.counterExists, next)
     : ops;
@@ -227,4 +232,20 @@ export function scheduleOpsForAutomation(
       deleted: i.deleted,
     })),
   });
+}
+
+/**
+ * Reminder-queue writes for items automations created or changed (the engine copies an item
+ * before changing it, so a different object means it changed): their dates, or archiving.
+ */
+function scheduleOpsForChanges(
+  bid: string,
+  before: ReadonlyMap<string, EngineItem>,
+  after: ReadonlyMap<string, EngineItem>,
+): WriteOp[] {
+  const changed: SchedItem[] = [];
+  for (const [id, it] of after)
+    if (id !== '' && before.get(id) !== it)
+      changed.push({ id, values: it.values, archived: it.archived, deleted: it.deleted });
+  return changed.length ? scheduleOpsFor(bid, changed) : [];
 }
