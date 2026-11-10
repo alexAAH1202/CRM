@@ -1,4 +1,11 @@
 import {
+  DEFAULT_ITEM_WIDTH,
+  ITEM_WIDTH_MAX,
+  ITEM_WIDTH_MIN,
+  setItemWidth,
+  useItemWidth,
+} from './itemWidth';
+import {
   GROUPABLE_TYPES,
   LABEL_COLORS,
   ME,
@@ -482,6 +489,7 @@ export function BoardToolbar({
             )}
           >
             <div className="flex flex-col">
+              <ItemWidthSlider />
               {columns.length === 0 && (
                 <p className="px-3 py-2 text-sm text-muted">No columns yet.</p>
               )}
@@ -535,6 +543,37 @@ export function BoardToolbar({
           className="min-w-0 flex-1 bg-transparent outline-none sm:w-48 sm:flex-none"
         />
       </label>
+    </div>
+  );
+}
+
+function ItemWidthSlider() {
+  const chosen = useItemWidth();
+  const value = chosen ?? DEFAULT_ITEM_WIDTH;
+  return (
+    <div className="border-b border-border px-3 pt-1 pb-3">
+      <label className="flex items-center justify-between text-sm font-semibold">
+        Item column width
+        {chosen !== null && (
+          <button
+            type="button"
+            onClick={() => setItemWidth(null)}
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            Reset
+          </button>
+        )}
+      </label>
+      <input
+        type="range"
+        aria-label="Item column width"
+        min={ITEM_WIDTH_MIN}
+        max={ITEM_WIDTH_MAX}
+        step={10}
+        value={value}
+        onChange={(e) => setItemWidth(Number(e.target.value))}
+        className="mt-2 w-full accent-[var(--c-primary)]"
+      />
     </div>
   );
 }
