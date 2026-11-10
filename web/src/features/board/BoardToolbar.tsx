@@ -552,7 +552,7 @@ function ItemWidthSlider() {
   const value = chosen ?? DEFAULT_ITEM_WIDTH;
   return (
     <div className="border-b border-border px-3 pt-1 pb-3">
-      <label className="flex items-center justify-between text-sm font-semibold">
+      <div className="flex items-center justify-between text-sm font-semibold">
         Item column width
         {chosen !== null && (
           <button
@@ -563,7 +563,7 @@ function ItemWidthSlider() {
             Reset
           </button>
         )}
-      </label>
+      </div>
       <input
         type="range"
         aria-label="Item column width"
