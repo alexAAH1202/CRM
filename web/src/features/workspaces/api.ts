@@ -142,8 +142,9 @@ export function changeRole(wid: string, uid: string, from: Role, to: Role) {
 }
 
 export function removeMember(wid: string, uid: string, role: Role) {
+  // Forced: access must end now, even if Drive was synced a moment ago.
   return commitOps('member:remove', planRemoveMember({ wid, uid, role })).then(() =>
-    requestFolderSync(wid),
+    requestFolderSync(wid, true),
   );
 }
 

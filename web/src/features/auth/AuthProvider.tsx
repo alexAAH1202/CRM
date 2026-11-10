@@ -58,8 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setState({ status: 'signedOut' });
           return;
         }
-        setState({ status: 'signedIn', user });
-        syncUserDoc(user).catch((err: unknown) => console.warn('user doc sync failed', err));
+        // The user document must exist before anything else writes to it (e.g. the last
+        // household), so the app waits for this one read (and, the first time, one write).
+        syncUserDoc(user)
+          .catch((err: unknown) => console.warn('user doc sync failed', err))
+          .finally(() => setState({ status: 'signedIn', user }));
       }),
     [],
   );

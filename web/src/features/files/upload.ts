@@ -83,8 +83,8 @@ export function fileValueFor(f: UploadedFile, uid: string): FileValue {
 }
 
 /** Best-effort: make Drive's sharing match the members list (new joiner, role change, removal). */
-export function requestFolderSync(workspaceId: string): void {
-  callHelper('syncFolderSharing', { workspaceId }, { retries: 0 }).catch(() => {
+export function requestFolderSync(workspaceId: string, force = false): void {
+  callHelper('syncFolderSharing', { workspaceId, force }, { retries: 0 }).catch(() => {
     /* the daily run will catch up */
   });
 }
