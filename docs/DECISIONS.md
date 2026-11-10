@@ -877,3 +877,13 @@ me` query per board I can see (only matching items are billed, plus one read per
   when Firestore runs under Node (our tests and tooling), never in the browser app, and the only fix
   offered is downgrading Firebase to 9.x. Left as is, to revisit when Firebase updates its dependency.
 - Press **?** for a keyboard-shortcut list.
+
+### D96. "Database usage" pop-up
+
+- Sidebar → **Database usage**: today's reads, writes and deletes **from this device**, as bars
+  against Firebase's free daily limits (50,000 / 20,000 / 20,000), reset at midnight US Pacific like
+  Firebase's own counters, plus the last 7 days and a link to the console's usage page.
+- It counts what the app's metered database calls do (the same meter the quota tests use), kept in
+  this device's storage. A browser can't read the household's real total: that needs a Google Cloud
+  sign-in to the monitoring API, which would mean a new permission and an extra service. The console
+  link is one click away for the real figure.
